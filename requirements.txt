@@ -2,3 +2,4 @@ pydicom
 pandas
 numpy
 openpyxl
+scikit-image
