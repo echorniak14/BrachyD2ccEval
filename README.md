@@ -61,3 +61,14 @@ Here is a step-by-step breakdown of how the D2cc is calculated from the raw DICO
     - The dose values for all voxels within the organ are sorted in descending order.
     - The D2cc is the dose value of the Nth voxel in the sorted list, where N corresponds to a volume of 2cc. This gives a precise value without the need for histogram binning.
     - Both per-fraction and total D2cc (multiplied by the number of fractions from the RTPLAN) are reported.
+
+
+## Additional Scripts
+
+- **`extract_dwell_times.py`**: A utility script to extract and display the dwell times from a DICOM RT Plan file. This script calculates dwell times by interpreting the `CumulativeTimeWeight` and `ChannelTotalTime` tags within the DICOM RT Plan, providing a crucial verification step for brachytherapy plans.
+
+## Temporary and Debugging Scripts
+
+This folder (`temp_scripts`) contains scripts used for debugging, testing, and verifying DICOM parsing and calculations during development. They are not part of the main application workflow but are kept for reference and further testing.
+
+- **`calculate_contour_volumes.py`**: This script calculates the volumes of contoured structures (ROIs) from a DICOM RT Structure Set file. It uses the Shoelace formula for accurate 2D area calculation of each contour slice and then applies a trapezoidal rule-based method to sum these areas across slices, accounting for varying Z-coordinates and disjointed contours. This script was instrumental in verifying the accuracy of our DICOM parsing for geometric data.
