@@ -2,6 +2,21 @@
 import pydicom
 from pathlib import Path
 
+def find_dicom_file(directory):
+    """Finds the first DICOM file in a directory."""
+    files = list(Path(directory).rglob("*.dcm"))
+    if files:
+        return str(files[0])
+    return None
+
+def load_dicom_file(file_path):
+    """Loads a single DICOM file."""
+    try:
+        return pydicom.dcmread(file_path)
+    except Exception as e:
+        print(f"Error loading DICOM file {file_path}: {e}")
+        return None
+
 def get_dicom_files(directory):
     """Finds all DICOM files in a directory."""
     return list(Path(directory).rglob("*.dcm"))
@@ -31,13 +46,12 @@ def sort_dicom_files(dicom_files):
             sorted_files[modality] = f
     return sorted_files
 
-def get_structure_data(rtstruct_file):
+def get_structure_data(rtstruct_dataset):
     """Extracts ROI names and contour data from an RTSTRUCT file."""
-    if not rtstruct_file:
+    if not rtstruct_dataset:
         return {}
-    ds = pydicom.dcmread(rtstruct_file)
     structures = {}
-    for roi_contour, structure_set_roi in zip(ds.ROIContourSequence, ds.StructureSetROISequence):
+    for roi_contour, structure_set_roi in zip(rtstruct_dataset.ROIContourSequence, rtstruct_dataset.StructureSetROISequence):
         structures[structure_set_roi.ROIName] = {
             "ROINumber": structure_set_roi.ROINumber,
             "ContourData": [contour.ContourData for contour in roi_contour.ContourSequence]

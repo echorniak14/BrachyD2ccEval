@@ -1,74 +1,70 @@
-# BrachyD2ccEval: Automated Brachytherapy Dose Evaluation
+# BrachyD2ccEval
 
-This project automates the evaluation of HDR brachytherapy plans, providing quick and accurate dose metrics from DICOM files.
+## Project Overview
 
-## Current Status
-
-The project is currently in **Phase 2 of development**. The core functionality of parsing DICOM files and calculating D2cc values is complete and verified. The next steps involve implementing BED/EQD2 calculations and integrating configurable constraints.
+This project aims to automate and streamline the evaluation process for HDR brachytherapy plans, specifically for cases planned using Oncentra. It processes DICOM RT Dose, RT Structure Set, and RT Plan files to calculate various dose-volume metrics, including D2cc, Biologically Effective Dose (BED), and Equivalent Dose in 2 Gy fractions (EQD2). The tool also integrates External Beam Radiation Therapy (EBRT) doses into the calculations.
 
 ## Features
 
-- **DICOM Parsing:** Reads RTDOSE, RTSTRUCT, and RTPLAN files.
-- **Patient Verification:** Ensures data consistency across all files.
-- **D2cc Calculation:** Automatically calculates the D2cc (per fraction and total) for all contoured organs at risk with accurate affine transformations.
+- **DICOM Data Parsing:** Reads and extracts relevant data from RTDOSE, RTSTRUCT, and RTPLAN files.
+- **Patient Consistency Verification:** Ensures all input DICOM files belong to the same patient.
+- **D2cc Calculation:** Calculates the minimum dose to 2 cubic centimeters of the most irradiated volume of an organ, utilizing the `dicompyler-core` library for accurate Dose-Volume Histogram (DVH) analysis.
+- **BED/EQD2 Calculation:** Computes Biologically Effective Dose (BED) and Equivalent Dose in 2 Gy fractions (EQD2) for various organs, incorporating user-defined alpha/beta ratios and optional EBRT doses. Includes constraint evaluation based on EMBRACE II.
+- **EBRT Integration:** Allows for the inclusion of external beam radiation therapy doses in the BED/EQD2 calculations.
+- **Robust File Path Handling:** Utilizes `pathlib` for reliable handling of file paths across different operating systems, including those with special characters.
+- **Graphical User Interface (GUI):** A `tkinter`-based interface for easy input of DICOM data directory and EBRT dose.
+- **HTML Report Generation:** Generates a comprehensive HTML report summarizing the evaluation results, including patient information, DVH data, and constraint evaluation with visual indicators.
 
 ## Getting Started
 
-1.  **Installation:**
+### Prerequisites
+
+- Python 3.x
+- `pip` (Python package installer)
+
+### Installation
+
+1.  Clone the repository:
+    ```bash
+    git clone https://github.com/your-repo/BrachyD2ccEval.git
+    cd BrachyD2ccEval
+    ```
+
+2.  Install the required Python packages:
     ```bash
     pip install -r requirements.txt
     ```
 
-2.  **Usage:**
-    Place your DICOM files in the project directory and run:
-    ```bash
-    python dicom_parser.py
-    ```
+### Usage
 
-## Calculation Workflow
+To run the GUI application:
 
-Here is a step-by-step breakdown of how the D2cc is calculated from the raw DICOM data:
+```bash
+python gui.py
+```
 
-1.  **DICOM File Identification:**
-    - The script first identifies the RTDOSE, RTPLAN, and RTSTRUCT files by reading the `Modality` tag in each file.
-    - It also performs a crucial safety check by verifying that the `PatientID` is the same across all files.
+Alternatively, to run the evaluation from the command line:
 
-2.  **Coordinate System Mapping (with Affine Transformation):**
-    - The foundation of the calculation is the 3D dose grid from the RTDOSE file. This grid has its own coordinate system.
-    - The organ contours from the RTSTRUCT file are defined in a separate patient-based coordinate system.
-    - To accurately align these, the script extracts the following tags from the RTDOSE file:
-        - `ImagePositionPatient`: The x, y, z coordinates of the top-left corner of the dose grid.
-        - `PixelSpacing`: The distance between the centers of adjacent voxels in the x and y directions.
-        - `GridFrameOffsetVector`: The z-coordinate for each 2D slice of the dose grid.
-        - `ImageOrientationPatient`: The direction cosines of the first row and first column of the image, crucial for handling rotations.
+```bash
+python main.py --data_dir "/path/to/your/dicom/data" --ebrt_dose 0.0 --output_html "Brachytherapy_Report.html"
+```
 
-3.  **Contour Transformation:**
-    - The script iterates through each organ's contour data from the RTSTRUCT file.
-    - For each contour, it performs a full affine transformation using the `ImagePositionPatient`, `PixelSpacing`, and `ImageOrientationPatient` to accurately map the contour points from the patient coordinate system to the dose grid's voxel-based coordinate system.
+**Arguments for `main.py`:**
 
-4.  **3D Organ Mask Creation:**
-    - A 3D boolean array (a "mask") is created with the same dimensions as the dose grid.
-    - For each transformed contour, the script determines the corresponding 2D slice in the dose grid by finding the closest z-value in the `GridFrameOffsetVector`.
-    - The `scikit-image` library is then used to "draw" and fill the 2D contour on that slice of the 3D mask. This effectively turns the 2D organ outlines into a solid 3D representation of the organ within the dose grid.
+- `--data_dir` (required): Path to the parent directory containing the patient's DICOM RT Dose, RT Structure Set, and RT Plan subdirectories.
+- `--ebrt_dose` (optional): The prescription dose of the external beam radiation therapy in Gray (Gy). Defaults to `0.0`.
+- `--output_html` (optional): If provided, the results will be saved to this HTML file.
 
-5.  **Dose-Volume Histogram (DVH) Calculation:**
-    - The volume of a single voxel is calculated using the `PixelSpacing` and the slice thickness (derived from the `GridFrameOffsetVector`).
-    - The 3D organ mask is used to select all the dose voxels from the RTDOSE grid that fall inside the organ.
-    - The raw dose values are multiplied by the `DoseGridScaling` factor to convert them to Gray (Gy).
+**Example:**
 
-6.  **D2cc Calculation:**
-    - The volume of a single voxel is used to determine how many of the organ's voxels make up 2cc.
-    - The dose values for all voxels within the organ are sorted in descending order.
-    - The D2cc is the dose value of the Nth voxel in the sorted list, where N corresponds to a volume of 2cc. This gives a precise value without the need for histogram binning.
-    - Both per-fraction and total D2cc (multiplied by the number of fractions from the RTPLAN) are reported.
+```bash
+python main.py --data_dir "C:\Users\echorniak\GIT\BrachyD2ccEval\DOE^JANE_ANON93124_RTDOSE_2025-07-11_122839_HDR_Dose.for.30mm.Cylinder_n1__00000" --ebrt_dose 50 --output_html "MyPatientReport.html"
+```
 
+## Configuration
 
-## Additional Scripts
+Alpha/beta ratios for different organs are configured in `config.py`. You can modify these values to suit your specific requirements.
 
-- **`extract_dwell_times.py`**: A utility script to extract and display the dwell times from a DICOM RT Plan file. This script calculates dwell times by interpreting the `CumulativeTimeWeight` and `ChannelTotalTime` tags within the DICOM RT Plan, providing a crucial verification step for brachytherapy plans.
+## Development Notes
 
-## Temporary and Debugging Scripts
-
-This folder (`temp_scripts`) contains scripts used for debugging, testing, and verifying DICOM parsing and calculations during development. They are not part of the main application workflow but are kept for reference and further testing.
-
-- **`calculate_contour_volumes.py`**: This script calculates the volumes of contoured structures (ROIs) from a DICOM RT Structure Set file. It uses the Shoelace formula for accurate 2D area calculation of each contour slice and then applies a trapezoidal rule-based method to sum these areas across slices, accounting for varying Z-coordinates and disjointed contours. This script was instrumental in verifying the accuracy of our DICOM parsing for geometric data.
+Refer to `GEMINI.md` for detailed development notes and `TODO.md` for upcoming tasks.

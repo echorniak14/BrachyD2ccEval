@@ -6,7 +6,7 @@ This file is for internal use by the Gemini CLI agent to track project progress,
 - **Operating System:** Windows
 
 ## Current Task:
-- Verify D2cc calculations and continue with Phase 2: BED/EQD2 calculations.
+- Refine user interface and enhance report generation.
 
 ## DICOM Parsing Verification:
 - **Dwell Time Extraction:**
@@ -28,13 +28,31 @@ This file is for internal use by the Gemini CLI agent to track project progress,
 - **Goal:** Automate and streamline the evaluation process for HDR brachytherapy plans, specifically for cases planned using Oncentra.
 - **Input:** DICOM RT Dose and RT Structure Set files.
 - **Output:** BED/EQD2 calculations, EBRT integration, constraint evaluation, and a clear report similar to the current 'dose summary' spreadsheet.
-- **Key Libraries:** `pydicom`, `pandas`, `numpy`, `openpyxl`, `scikit-image`.
+- **Key Libraries:** `pydicom`, `pandas`, `numpy`, `openpyxl`, `scikit-image`, `dicompyler-core`.
 - **Configuration:** `config.py` for alpha/beta ratios and EMBRACE II constraints.
 
+## Progress Update (Current Session):
+- **BED/EQD2 Calculations:**
+    - Implemented initial BED/EQD2 calculation logic in `calculations.py`.
+    - Created `config.py` for alpha/beta ratios.
+    - Integrated EBRT dose into BED/EQD2 calculations.
+- **File Path Handling:**
+    - Identified and resolved issues with handling file paths containing special characters on Windows by refactoring `main.py` to use `pathlib` and accepting data directories as arguments.
+- **D2cc Discrepancy Investigation:**
+    - Noticed discrepancies between script-calculated BED/EQD2 values and spreadsheet values.
+    - Traced discrepancy to differences in D2cc values.
+    - Attempted linear interpolation for D2cc, but it did not resolve the issue.
+    - Integrated `dicompyler-core` library for DVH and D2cc calculations in `calculations.py` to improve accuracy.
+    - Verified that D2cc values are now much closer to spreadsheet values after `dicompyler-core` integration, suggesting the remaining small differences are likely due to rounding or subtle DICOM interpretation variations.
+- **Constraint Evaluation:**
+    - Implemented constraint evaluation based on EMBRACE II.
+    - Generated initial report in Excel format.
+
 ## Next Steps:
-- Discuss the overall project plan with the user.
-- Identify specific features to implement first.
-- Outline the development process (e.g., data parsing, calculation logic, reporting).
+- Implement logic to incorporate previous brachytherapy data (either from DICOM files or provided EQD2 reports).
+- Add functionality to calculate the highest fractional dose needed to meet any unmet constraints.
+- Further investigate and resolve any remaining discrepancies in D2cc/BED/EQD2 calculations if necessary.
+- Investigate and resolve the `weasyprint` dependency issue.
 
 ## Git Best Practices:
 - **Commit Frequently:** Aim to commit your work after completing each logical unit or phase of development (e.g., after completing DICOM parsing, after implementing a specific calculation, after fixing a bug). This creates clear checkpoints and makes it easier to track progress and revert if necessary.
