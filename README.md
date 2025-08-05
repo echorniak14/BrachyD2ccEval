@@ -15,6 +15,45 @@ This project aims to automate and streamline the evaluation process for HDR brac
 - **Graphical User Interface (GUI):** A `tkinter`-based interface for easy input of DICOM data directory and EBRT dose.
 - **HTML Report Generation:** Generates a comprehensive HTML report summarizing the evaluation results, including patient information, DVH data, and constraint evaluation with visual indicators.
 
+## Core Concepts
+
+### Coordinate System Matching
+
+The process of matching coordinate systems between the RTDOSE and RTSTRUCT files is handled by passing the necessary geometric information to the `dicompyler-core` library, rather than by manual calculations within the parser itself.
+
+1.  **Data Extraction (`dicom_parser.py`):**
+    *   From the **RT Structure Set** file, the script extracts the `ContourData` for each anatomical structure. This data consists of a series of (x, y, z) coordinates for points that define the contour outlines. These coordinates are already in the patient's reference coordinate system.
+    *   From the **RT Dose** file, the script extracts the parameters that define the 3D dose grid's position, scale, and orientation. The key DICOM tags used are:
+        *   `ImagePositionPatient`: The (x, y, z) coordinates of the top-left corner of the first pixel of the dose grid.
+        *   `PixelSpacing`: The physical distance between the centers of pixels in the x and y directions.
+        *   `GridFrameOffsetVector`: The distance between the z-slices of the dose grid.
+        *   `ImageOrientationPatient`: Direction cosines that define the orientation of the grid's rows and columns in 3D space.
+
+2.  **Coordinate Matching (in `calculations.py` via `dicompyler-core`):**
+    *   The `dicom_parser.py` script passes all this extracted information to the `get_dvh` function located in `calculations.py`.
+    *   This project uses the `dicompyler-core` library for DVH calculations. This library takes the structure contours and the dose grid definition (origin, spacing, and orientation) and internally handles the complex geometric transformation required to map the structure volumes onto the dose grid.
+
+In short, `dicom_parser.py` acts as an information gatherer, and the heavy lifting of aligning the two different coordinate systems is delegated to the specialized `dicompyler-core` library within the `calculations.py` script.
+
+### Dosimetric Calculations
+
+The `calculations.py` file contains the core logic for all dosimetric calculations.
+
+*   **DVH and D2cc Calculation:**
+    *   The `get_dvh` function uses the `dvhcalc.get_dvh` function from the `dicompyler-core` library.
+    *   It takes the RTSTRUCT and RTDOSE file paths and the ROI number for a specific structure.
+    *   `dicompyler-core` returns a DVH object which contains the volume of the structure and the D2cc (dose to 2cc) value.
+    *   The D2cc is returned as a dose per fraction.
+*   **BED and EQD2 Calculation:**
+    *   The `calculate_bed_and_eqd2` function calculates the Biologically Effective Dose (BED) and Equivalent Dose in 2 Gy fractions (EQD2).
+    *   It takes the total dose, dose per fraction, organ name, and an optional EBRT dose as input.
+    *   The alpha/beta ratio for the organ is retrieved from the `config.py` file.
+    *   The BED for both the brachytherapy and EBRT components are calculated and summed.
+    *   The total BED is then used to calculate the final EQD2 value.
+*   **Constraint Evaluation:**
+    *   The `evaluate_constraints` function compares the calculated BED and EQD2 values against the constraints defined in `config.py`.
+    *   It returns a dictionary indicating whether the constraints for each organ have been met.
+
 ## Getting Started
 
 ### Prerequisites
