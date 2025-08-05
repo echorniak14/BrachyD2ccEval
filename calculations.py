@@ -23,6 +23,40 @@ def calculate_bed_and_eqd2(total_dose, dose_per_fraction, organ_name, ebrt_dose=
     
     return round(total_bed, 2), round(eqd2, 2)
 
+def calculate_dose_to_meet_constraint(eqd2_constraint, organ_name, number_of_fractions, ebrt_dose=0):
+    """Calculates the brachytherapy dose per fraction needed to meet a specific EQD2 constraint."""
+    alpha_beta = alpha_beta_ratios.get(organ_name, alpha_beta_ratios["Default"])
+
+    # Convert EQD2 constraint back to total BED target
+    k_factor = (1 + (2 / alpha_beta))
+    total_bed_target = eqd2_constraint * k_factor
+
+    # Calculate BED from EBRT
+    bed_ebrt = ebrt_dose * k_factor
+
+    # Remaining BED needed from brachytherapy
+    bed_brachy_needed = total_bed_target - bed_ebrt
+
+    # Solve quadratic equation for dose_per_fraction (D_f)
+    # a * D_f^2 + b * D_f + c = 0
+    # where bed_brachy_needed = N * D_f + (N / alpha_beta) * D_f^2
+    a = number_of_fractions / alpha_beta
+    b = number_of_fractions
+    c = -bed_brachy_needed
+
+    discriminant = b**2 - 4*a*c
+
+    if discriminant < 0:
+        return None # No real solution, constraint cannot be met with brachytherapy
+    
+    # We are looking for a positive dose, so we take the positive root
+    dose_per_fraction_solution = (-b + np.sqrt(discriminant)) / (2*a)
+
+    if dose_per_fraction_solution < 0:
+        return None # Negative dose is not physically meaningful
+
+    return round(dose_per_fraction_solution, 2)
+
 def get_dvh(rtss_file, rtdose_file, structure_data, number_of_fractions, ebrt_dose=0):
     """Calculates the Dose-Volume Histogram (DVH) for each structure."""
     dvh_results = {}

@@ -36,6 +36,10 @@ class BrachyApp:
         self.run_button = tk.Button(master, text="Run Evaluation", command=self.run_evaluation)
         self.run_button.grid(row=3, column=0, columnspan=3, pady=10)
 
+        # Plan Name Display
+        self.plan_name_label = tk.Label(master, text="", font=("Arial", 10, "italic"))
+        self.plan_name_label.grid(row=4, column=0, columnspan=3, pady=5)
+
         self.output_html_path = "Brachytherapy_Report.html" # Store as instance variable
 
     def browse_data_dir(self):
@@ -69,6 +73,7 @@ class BrachyApp:
             if "error" in output_data:
                 messagebox.showerror("Evaluation Error", output_data["error"])
             else:
+                self.plan_name_label.config(text=f"Plan: {output_data.get('plan_name', 'N/A')}")
                 messagebox.showinfo("Report Generated", f"HTML report saved to {self.output_html_path}")
                 import webbrowser
                 webbrowser.open(self.output_html_path) # Open the HTML report in browser

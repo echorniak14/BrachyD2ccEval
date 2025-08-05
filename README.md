@@ -53,6 +53,10 @@ The `calculations.py` file contains the core logic for all dosimetric calculatio
 *   **Constraint Evaluation:**
     *   The `evaluate_constraints` function compares the calculated BED and EQD2 values against the constraints defined in `config.py`.
     *   It returns a dictionary indicating whether the constraints for each organ have been met.
+*   **Dose to Meet Constraint Calculation:**
+    *   For any organ that fails to meet its EQD2 constraint, the `calculate_dose_to_meet_constraint` function determines the highest fractional brachytherapy dose required to meet that constraint exactly.
+    *   This calculation involves converting the EQD2 constraint back to a total BED target, accounting for any EBRT dose, and then solving a quadratic equation to find the necessary brachytherapy dose per fraction.
+    *   This provides actionable feedback for plan optimization, indicating what dose adjustment might be needed to satisfy the constraint.
 
 ## Getting Started
 

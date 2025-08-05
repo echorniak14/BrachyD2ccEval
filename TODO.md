@@ -32,7 +32,7 @@ This file outlines the current tasks and future development steps for the Brachy
     - [x] Enhanced report content: Extracted patient MRN and brachytherapy prescription details from DICOM and included in HTML report.
 
 ## Next Steps (Phase 2):
-- [ ] Add functionality to calculate the highest fractional dose needed to meet any unmet constraints.
+- [x] Add functionality to calculate the highest fractional dose needed to meet any unmet constraints.
 - [ ] Further investigate and resolve any remaining discrepancies in D2cc/BED/EQD2 calculations if necessary.
 
 ## Phase 3: BED/EQD2 calculations incorporating previous brachy doses

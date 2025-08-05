@@ -50,7 +50,8 @@ This file is for internal use by the Gemini CLI agent to track project progress,
 
 ## Next Steps:
 - Implement logic to incorporate previous brachytherapy data (either from DICOM files or provided EQD2 reports).
-- Add functionality to calculate the highest fractional dose needed to meet any unmet constraints.
+- **Dose to Meet Constraint Calculation:**
+    - Implemented functionality to calculate the highest fractional dose needed to meet any unmet constraints.
 - Further investigate and resolve any remaining discrepancies in D2cc/BED/EQD2 calculations if necessary.
 - Investigate and resolve the `weasyprint` dependency issue.
 

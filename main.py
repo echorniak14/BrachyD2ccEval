@@ -1,10 +1,10 @@
-from dicom_parser import find_dicom_file, load_dicom_file, get_structure_data
-from calculations import get_dvh, evaluate_constraints
+from dicom_parser import find_dicom_file, load_dicom_file, get_structure_data, get_plan_data
+from calculations import get_dvh, evaluate_constraints, calculate_dose_to_meet_constraint
 import argparse
 from pathlib import Path
 import json
 
-def generate_html_report(patient_name, patient_mrn, treatment_site, brachy_dose_per_fraction, number_of_fractions, ebrt_dose, dvh_results, constraint_evaluation, output_path):
+def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_fraction, number_of_fractions, ebrt_dose, dvh_results, constraint_evaluation, output_path):
     with open("report_template.html", "r") as f:
         template = f.read()
 
@@ -23,12 +23,13 @@ def generate_html_report(patient_name, patient_mrn, treatment_site, brachy_dose_
             <td>{data["total_d2cc_gy"]}</td>
             <td>{data["bed"]}</td>
             <td>{data["eqd2"]}</td>
-            <td class=\"{eqd2_met_class}\">{'Met' if eqd2_met_class == 'met' else 'NOT Met'}</td>
+            <td class="{eqd2_met_class}">{'Met' if eqd2_met_class == 'met' else 'NOT Met'}</td>
+            <td>{data["dose_to_meet_constraint"]}</td>
         </tr>"""
 
     html_content = template.replace("{{ patient_name }}", patient_name)
     html_content = html_content.replace("{{ patient_mrn }}", patient_mrn)
-    html_content = html_content.replace("{{ treatment_site }}", treatment_site)
+    html_content = html_content.replace("{{ plan_name }}", plan_name)
     html_content = html_content.replace("{{ brachy_dose_per_fraction }}", str(brachy_dose_per_fraction))
     html_content = html_content.replace("{{ number_of_fractions }}", str(number_of_fractions))
     html_content = html_content.replace("{{ ebrt_dose }}", str(ebrt_dose))
@@ -86,25 +87,15 @@ def main():
     patient_name = str(rt_dose_dataset.PatientName)
     patient_mrn = str(rt_dose_dataset.PatientID)
 
-    # Extract brachytherapy prescription details
-    brachy_dose_per_fraction = "N/A"
-    if hasattr(rt_plan_dataset, 'DoseReferenceSequence'):
-        for dose_ref in rt_plan_dataset.DoseReferenceSequence:
-            if hasattr(dose_ref, 'DeliveryPrescriptionDose'):
-                brachy_dose_per_fraction = float(dose_ref.DeliveryPrescriptionDose)
-                break
-
-    # Placeholder for treatment site (can be made an input later)
-    treatment_site = "Not Specified"
+    # Get plan data
+    plan_data = get_plan_data(plan_file)
+    number_of_fractions = plan_data.get('number_of_fractions', 1)
+    plan_name = plan_data.get('plan_name', 'N/A')
+    brachy_dose_per_fraction = plan_data.get('brachy_dose_per_fraction', 'N/A')
+    
 
     # Get structure data
     structure_data = get_structure_data(rt_struct_dataset)
-    if not structure_data:
-        print(json.dumps({"error": "No structure data found." }))
-        return
-
-    # Get number of fractions
-    number_of_fractions = rt_plan_dataset.FractionGroupSequence[0].NumberOfFractionsPlanned
 
     # Calculate DVH
     dvh_results = get_dvh(
@@ -118,10 +109,26 @@ def main():
     # Evaluate constraints
     constraint_evaluation = evaluate_constraints(dvh_results)
 
+    # Calculate dose to meet constraint for unmet EQD2 constraints
+    for organ, data in dvh_results.items():
+        if organ in constraint_evaluation:
+            constraints = constraint_evaluation[organ]
+            if "EQD2_met" in constraints and constraints["EQD2_met"] == "False":
+                eqd2_constraint = constraints["EQD2_max"]
+                dose_needed = calculate_dose_to_meet_constraint(
+                    eqd2_constraint,
+                    organ,
+                    number_of_fractions,
+                    args.ebrt_dose
+                )
+                dvh_results[organ]["dose_to_meet_constraint"] = dose_needed
+            else:
+                dvh_results[organ]["dose_to_meet_constraint"] = "N/A"
+
     output_data = {
         "patient_name": patient_name,
         "patient_mrn": patient_mrn,
-        "treatment_site": treatment_site,
+        "plan_name": plan_name,
         "brachy_dose_per_fraction": brachy_dose_per_fraction,
         "number_of_fractions": number_of_fractions,
         "ebrt_dose": args.ebrt_dose,
@@ -133,7 +140,7 @@ def main():
 
     # Write results to HTML if output_html argument is provided
     if args.output_html:
-        generate_html_report(patient_name, patient_mrn, treatment_site, brachy_dose_per_fraction, number_of_fractions, args.ebrt_dose, dvh_results, constraint_evaluation, args.output_html)
+        generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_fraction, number_of_fractions, args.ebrt_dose, dvh_results, constraint_evaluation, args.output_html)
 
 if __name__ == "__main__":
     main()

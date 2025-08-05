@@ -1,4 +1,3 @@
-
 import pydicom
 from pathlib import Path
 
@@ -72,21 +71,25 @@ def get_plan_data(rtplan_file):
     ds = pydicom.dcmread(rtplan_file)
     plan_data = {}
 
-    # Get number of fractions
-    if hasattr(ds, 'FractionGroupSequence') and len(ds.FractionGroupSequence) > 0:
-        plan_data['number_of_fractions'] = getattr(ds.FractionGroupSequence[0], 'NumberOfFractionsPlanned', 1)
+    # Get Plan Name
+    if hasattr(ds, 'SeriesDescription'):
+        plan_data['plan_name'] = ds.SeriesDescription
     else:
-        plan_data['number_of_fractions'] = 1 # Default to 1 if not found
+        plan_data['plan_name'] = 'N/A'
 
-    if hasattr(ds, 'DoseReferenceSequence'):
-        plan_data['dose_references'] = []
-        for dose_ref in ds.DoseReferenceSequence:
-            plan_data['dose_references'].append({
-                'id': getattr(dose_ref, 'DoseReferenceNumber', 'N/A'),
-                'type': getattr(dose_ref, 'DoseReferenceType', 'N/A'),
-                'target_dose': getattr(dose_ref, 'TargetPrescriptionDose', 'N/A'),
-                'structure_roi_number': getattr(dose_ref, 'ReferencedROINumber', 'N/A')
-            })
+    # Get Number of Fractions and Dose per Fraction
+    if hasattr(ds, 'FractionGroupSequence') and len(ds.FractionGroupSequence) > 0:
+        fraction_group = ds.FractionGroupSequence[0]
+        plan_data['number_of_fractions'] = getattr(fraction_group, 'NumberOfFractionsPlanned', 1)
+        if hasattr(fraction_group, 'ReferencedBrachyApplicationSetupSequence') and len(fraction_group.ReferencedBrachyApplicationSetupSequence) > 0:
+            brachy_setup = fraction_group.ReferencedBrachyApplicationSetupSequence[0]
+            plan_data['brachy_dose_per_fraction'] = getattr(brachy_setup, 'BrachyApplicationSetupDose', 'N/A')
+        else:
+            plan_data['brachy_dose_per_fraction'] = 'N/A'
+    else:
+        plan_data['number_of_fractions'] = 1
+        plan_data['brachy_dose_per_fraction'] = 'N/A'
+
     return plan_data
 
 from calculations import get_dvh
@@ -119,10 +122,9 @@ if __name__ == "__main__":
         plan_data = get_plan_data(sorted_files.get("RTPLAN"))
         if plan_data:
             print("\n--- Plan Data ---")
+            print(f"Plan Name: {plan_data.get('plan_name', 'N/A')}")
             print(f"Number of Fractions: {plan_data.get('number_of_fractions', 'N/A')}")
-            for key, value in plan_data.items():
-                if key != 'number_of_fractions':
-                    print(f"{key}: {value}")
+            print(f"Brachy Dose per Fraction: {plan_data.get('brachy_dose_per_fraction', 'N/A')}")
 
         dvh_results = get_dvh(structure_data, dose_grid, dose_scaling, image_position, pixel_spacing, grid_frame_offset_vector, plan_data.get('number_of_fractions', 1), image_orientation)
         if dvh_results:
