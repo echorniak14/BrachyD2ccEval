@@ -49,7 +49,8 @@ This file is for internal use by the Gemini CLI agent to track project progress,
     - Generated initial report in Excel format.
 
 ## Next Steps:
-- Implement logic to incorporate previous brachytherapy data (either from DICOM files or provided EQD2 reports).
+- **Previous Brachytherapy Data Integration:**
+    - Implemented functionality to incorporate previous brachytherapy EQD2 data from HTML reports, allowing for organ-specific dose accumulation.
 - **Dose to Meet Constraint Calculation:**
     - Implemented functionality to calculate the highest fractional dose needed to meet any unmet constraints.
 - Further investigate and resolve any remaining discrepancies in D2cc/BED/EQD2 calculations if necessary.

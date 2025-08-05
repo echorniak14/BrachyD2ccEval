@@ -1,3 +1,4 @@
+from html_parser import parse_html_report
 from dicom_parser import find_dicom_file, load_dicom_file, get_structure_data, get_plan_data
 from calculations import get_dvh, evaluate_constraints, calculate_dose_to_meet_constraint
 import argparse
@@ -21,7 +22,9 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
             <td>{data["volume_cc"]}</td>
             <td>{data["d2cc_gy_per_fraction"]}</td>
             <td>{data["total_d2cc_gy"]}</td>
-            <td>{data["bed"]}</td>
+            <td>{data["bed_this_plan"]}</td>
+            <td>{data["bed_previous_brachy"]}</td>
+            <td>{data["bed_ebrt"]}</td>
             <td>{data["eqd2"]}</td>
             <td class="{eqd2_met_class}">{'Met' if eqd2_met_class == 'met' else 'NOT Met'}</td>
             <td>{data["dose_to_meet_constraint"]}</td>
@@ -43,7 +46,7 @@ def main():
     parser = argparse.ArgumentParser(description="Brachytherapy Plan Evaluator")
     parser.add_argument("--data_dir", type=str, required=True, help="Path to the directory containing the patient's DICOM files.")
     parser.add_argument("--ebrt_dose", type=float, default=0.0, help="The prescription dose of the external beam radiation therapy in Gray (Gy).")
-    parser.add_argument("--previous_brachy_eqd2", type=float, default=0.0, help="The EQD2 dose from previous brachytherapy treatments in Gray (Gy).")
+    parser.add_argument("--previous_brachy_html", type=str, help="Path to a previous brachytherapy HTML report to incorporate its EQD2 values.")
     parser.add_argument("--output_html", type=str, help="If provided, the results will be saved to this HTML file.")
 
     args = parser.parse_args()
@@ -97,13 +100,19 @@ def main():
     # Get structure data
     structure_data = get_structure_data(rt_struct_dataset)
 
+    # Parse previous brachytherapy HTML report if provided
+    previous_brachy_eqd2_per_organ = {}
+    if args.previous_brachy_html:
+        previous_brachy_eqd2_per_organ = parse_html_report(args.previous_brachy_html)
+
     # Calculate DVH
     dvh_results = get_dvh(
         struct_file,
         dose_file,
         structure_data,
         number_of_fractions,
-        ebrt_dose=args.ebrt_dose
+        ebrt_dose=args.ebrt_dose,
+        previous_brachy_eqd2_per_organ=previous_brachy_eqd2_per_organ
     )
 
     # Evaluate constraints
@@ -119,7 +128,8 @@ def main():
                     eqd2_constraint,
                     organ,
                     number_of_fractions,
-                    args.ebrt_dose
+                    args.ebrt_dose,
+                    previous_brachy_eqd2=previous_brachy_eqd2_per_organ.get(organ, 0)
                 )
                 dvh_results[organ]["dose_to_meet_constraint"] = dose_needed
             else:

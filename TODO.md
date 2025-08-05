@@ -36,4 +36,4 @@ This file outlines the current tasks and future development steps for the Brachy
 - [ ] Further investigate and resolve any remaining discrepancies in D2cc/BED/EQD2 calculations if necessary.
 
 ## Phase 3: BED/EQD2 calculations incorporating previous brachy doses
-- [ ] Implement logic to incorporate previous brachytherapy data (either from DICOM files or provided EQD2 reports).
+- [x] Implement logic to incorporate previous brachytherapy data (either from DICOM files or provided EQD2 reports).

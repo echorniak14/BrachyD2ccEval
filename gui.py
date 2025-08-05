@@ -29,8 +29,13 @@ class BrachyApp:
         # Previous Brachytherapy Input (Placeholder for now)
         self.prev_brachy_frame = tk.LabelFrame(master, text="Previous Brachytherapy Treatments")
         self.prev_brachy_frame.grid(row=2, column=0, columnspan=3, padx=5, pady=5, sticky="ew")
-        self.prev_brachy_label = tk.Label(self.prev_brachy_frame, text="(Input for previous brachytherapy will go here)")
-        self.prev_brachy_label.grid(row=0, column=0, padx=5, pady=5)
+
+        self.prev_brachy_html_label = tk.Label(self.prev_brachy_frame, text="Previous Brachy Report (HTML):")
+        self.prev_brachy_html_label.grid(row=0, column=0, sticky="w")
+        self.prev_brachy_html_entry = tk.Entry(self.prev_brachy_frame, width=40)
+        self.prev_brachy_html_entry.grid(row=0, column=1, padx=5, pady=5)
+        self.prev_brachy_html_button = tk.Button(self.prev_brachy_frame, text="Browse", command=self.browse_prev_brachy_html)
+        self.prev_brachy_html_button.grid(row=0, column=2, padx=5, pady=5)
 
         # Run Button
         self.run_button = tk.Button(master, text="Run Evaluation", command=self.run_evaluation)
@@ -48,9 +53,16 @@ class BrachyApp:
             self.data_dir_entry.delete(0, tk.END)
             self.data_dir_entry.insert(0, directory)
 
+    def browse_prev_brachy_html(self):
+        file_path = filedialog.askopenfilename(filetypes=[("HTML files", "*.html")])
+        if file_path:
+            self.prev_brachy_html_entry.delete(0, tk.END)
+            self.prev_brachy_html_entry.insert(0, file_path)
+
     def run_evaluation(self):
         data_dir = self.data_dir_entry.get()
         ebrt_dose_str = self.ebrt_dose_entry.get()
+        prev_brachy_html_path = self.prev_brachy_html_entry.get()
 
         if not data_dir:
             messagebox.showerror("Input Error", "Please select a DICOM Data Directory.")
@@ -64,6 +76,9 @@ class BrachyApp:
 
         # Construct the command to run main.py
         command = ["python", "main.py", "--data_dir", data_dir, "--ebrt_dose", str(ebrt_dose), "--output_html", self.output_html_path]
+
+        if prev_brachy_html_path:
+            command.extend(["--previous_brachy_html", prev_brachy_html_path])
 
         # Run the subprocess and handle its output
         try:
