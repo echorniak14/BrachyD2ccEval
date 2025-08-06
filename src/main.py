@@ -1,7 +1,7 @@
 import sys
-from html_parser import parse_html_report
-from dicom_parser import find_dicom_file, load_dicom_file, get_structure_data, get_plan_data
-from calculations import get_dvh, evaluate_constraints, calculate_dose_to_meet_constraint
+from .html_parser import parse_html_report
+from .dicom_parser import find_dicom_file, load_dicom_file, get_structure_data, get_plan_data
+from .calculations import get_dvh, evaluate_constraints, calculate_dose_to_meet_constraint
 import argparse
 from pathlib import Path
 import json
@@ -15,7 +15,7 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
         # Running in a normal Python environment
         base_path = Path(__file__).parent
 
-    template_path = Path(base_path) / "report_template.html"
+    template_path = Path(base_path) / "templates" / "report_template.html"
 
     with open(template_path, "r") as f:
         template = f.read()
@@ -53,7 +53,8 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
 
     with open(output_path, "w") as f:
         f.write(html_content)
-    # print(f"HTML report saved to {output_path}") # Removed print statement
+    
+    return html_content
 
 def main(args):
     data_dir = Path(args.data_dir)

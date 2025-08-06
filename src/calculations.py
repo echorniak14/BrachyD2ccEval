@@ -1,7 +1,7 @@
 import numpy as np
 import pydicom
 from dicompylercore import dvhcalc
-from config import alpha_beta_ratios, constraints
+from .config import alpha_beta_ratios, constraints
 import os
 import contextlib
 
@@ -78,9 +78,17 @@ def get_dvh(rtss_file, rtdose_file, structure_data, number_of_fractions, ebrt_do
             roi_number = data["ROINumber"]
             dvh = dvhcalc.get_dvh(rtss_file, rtdose_file, roi_number)
 
-            d2cc_gy_per_fraction = dvh.D2cc.value
-            d1cc_gy_per_fraction = dvh.D1cc.value
-            d0_1cc_gy_per_fraction = dvh.D0_1cc.value
+            d2cc_gy_per_fraction = getattr(dvh, 'D2cc', 0.0)
+            if hasattr(d2cc_gy_per_fraction, 'value'):
+                d2cc_gy_per_fraction = d2cc_gy_per_fraction.value
+
+            d1cc_gy_per_fraction = getattr(dvh, 'D1cc', 0.0)
+            if hasattr(d1cc_gy_per_fraction, 'value'):
+                d1cc_gy_per_fraction = d1cc_gy_per_fraction.value
+
+            d0_1cc_gy_per_fraction = getattr(dvh, 'D0_1cc', 0.0)
+            if hasattr(d0_1cc_gy_per_fraction, 'value'):
+                d0_1cc_gy_per_fraction = d0_1cc_gy_per_fraction.value
             organ_volume_cc = dvh.volume
 
             total_d2cc_gy = d2cc_gy_per_fraction * number_of_fractions

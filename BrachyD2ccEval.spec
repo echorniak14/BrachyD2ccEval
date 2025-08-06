@@ -2,17 +2,17 @@
 
 
 a = Analysis(
-    ['gui.py'],
-    pathex=[],
+    ['src/gui.py'],
+    pathex=['src'],
     binaries=[],
     datas=[
-        ('report_template.html', '.'),
-        ('config.py', '.'),
-        ('dicom_parser.py', '.'),
-        ('calculations.py', '.'),
-        ('html_parser.py', '.')
+        ('src/templates/report_template.html', 'templates'),
+        ('src/config.py', '.'),
+        ('src/dicom_parser.py', '.'),
+        ('src/calculations.py', '.'),
+        ('src/html_parser.py', '.')
     ],
-    hiddenimports=['main'],
+    hiddenimports=['src.main'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

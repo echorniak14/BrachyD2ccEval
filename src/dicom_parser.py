@@ -80,19 +80,19 @@ def get_plan_data(rtplan_file):
     # Get Number of Fractions and Dose per Fraction
     if hasattr(ds, 'FractionGroupSequence') and len(ds.FractionGroupSequence) > 0:
         fraction_group = ds.FractionGroupSequence[0]
-        plan_data['number_of_fractions'] = getattr(fraction_group, 'NumberOfFractionsPlanned', 1)
+        plan_data['number_of_fractions'] = int(getattr(fraction_group, 'NumberOfFractionsPlanned', 1))
         if hasattr(fraction_group, 'ReferencedBrachyApplicationSetupSequence') and len(fraction_group.ReferencedBrachyApplicationSetupSequence) > 0:
             brachy_setup = fraction_group.ReferencedBrachyApplicationSetupSequence[0]
-            plan_data['brachy_dose_per_fraction'] = getattr(brachy_setup, 'BrachyApplicationSetupDose', 'N/A')
+            plan_data['brachy_dose_per_fraction'] = float(getattr(brachy_setup, 'BrachyApplicationSetupDose', 0.0))
         else:
-            plan_data['brachy_dose_per_fraction'] = 'N/A'
+            plan_data['brachy_dose_per_fraction'] = 0.0
     else:
         plan_data['number_of_fractions'] = 1
-        plan_data['brachy_dose_per_fraction'] = 'N/A'
+        plan_data['brachy_dose_per_fraction'] = 0.0
 
     return plan_data
 
-from calculations import get_dvh
+from .calculations import get_dvh
 
 if __name__ == "__main__":
     # Example usage:

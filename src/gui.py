@@ -1,4 +1,4 @@
-import main
+from . import main
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 import json
@@ -45,7 +45,7 @@ class BrachyApp:
         self.plan_name_label = tk.Label(master, text="", font=("Arial", 10, "italic"))
         self.plan_name_label.grid(row=4, column=0, columnspan=3, pady=5)
 
-        self.output_html_path = "Brachytherapy_Report.html" # Store as instance variable
+        self.output_html_path = "reports\\Brachytherapy_Report.html" # Store as instance variable
 
     def browse_data_dir(self):
         directory = filedialog.askdirectory()
