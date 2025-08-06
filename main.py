@@ -31,6 +31,8 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
         dvh_rows += f"""<tr>
             <td>{organ}</td>
             <td>{data["volume_cc"]}</td>
+            <td>{data["d0_1cc_gy_per_fraction"]}</td>
+            <td>{data["d1cc_gy_per_fraction"]}</td>
             <td>{data["d2cc_gy_per_fraction"]}</td>
             <td>{data["total_d2cc_gy"]}</td>
             <td>{data["bed_this_plan"]}</td>

@@ -2,6 +2,8 @@ import numpy as np
 import pydicom
 from dicompylercore import dvhcalc
 from config import alpha_beta_ratios, constraints
+import os
+import contextlib
 
 # This file will contain the logic for dose-volume calculations.
 
@@ -70,27 +72,33 @@ def get_dvh(rtss_file, rtdose_file, structure_data, number_of_fractions, ebrt_do
     """Calculates the Dose-Volume Histogram (DVH) for each structure."""
     dvh_results = {}
 
-    for name, data in structure_data.items():
-        roi_number = data["ROINumber"]
-        dvh = dvhcalc.get_dvh(rtss_file, rtdose_file, roi_number)
+    # Suppress the specific warning from dicompyler-core
+    with open(os.devnull, 'w') as f, contextlib.redirect_stderr(f):
+        for name, data in structure_data.items():
+            roi_number = data["ROINumber"]
+            dvh = dvhcalc.get_dvh(rtss_file, rtdose_file, roi_number)
 
-        d2cc_gy_per_fraction = dvh.D2cc.value
-        organ_volume_cc = dvh.volume
+            d2cc_gy_per_fraction = dvh.D2cc.value
+            d1cc_gy_per_fraction = dvh.D1cc.value
+            d0_1cc_gy_per_fraction = dvh.D0_1cc.value
+            organ_volume_cc = dvh.volume
 
-        total_d2cc_gy = d2cc_gy_per_fraction * number_of_fractions
+            total_d2cc_gy = d2cc_gy_per_fraction * number_of_fractions
 
-        bed, eqd2, bed_brachy, bed_ebrt, bed_previous_brachy = calculate_bed_and_eqd2(total_d2cc_gy, d2cc_gy_per_fraction, name, ebrt_dose, previous_brachy_eqd2=previous_brachy_eqd2_per_organ.get(name, 0))
+            bed, eqd2, bed_brachy, bed_ebrt, bed_previous_brachy = calculate_bed_and_eqd2(total_d2cc_gy, d2cc_gy_per_fraction, name, ebrt_dose, previous_brachy_eqd2=previous_brachy_eqd2_per_organ.get(name, 0))
 
-        dvh_results[name] = {
-            "volume_cc": round(organ_volume_cc, 2),
-            "d2cc_gy_per_fraction": round(d2cc_gy_per_fraction, 2),
-            "total_d2cc_gy": round(total_d2cc_gy, 2),
-            "bed": bed,
-            "eqd2": eqd2,
-            "bed_this_plan": bed_brachy,
-            "bed_ebrt": bed_ebrt,
-            "bed_previous_brachy": bed_previous_brachy
-        }
+            dvh_results[name] = {
+                "volume_cc": round(organ_volume_cc, 2),
+                "d2cc_gy_per_fraction": round(d2cc_gy_per_fraction, 2),
+                "d1cc_gy_per_fraction": round(d1cc_gy_per_fraction, 2),
+                "d0_1cc_gy_per_fraction": round(d0_1cc_gy_per_fraction, 2),
+                "total_d2cc_gy": round(total_d2cc_gy, 2),
+                "bed": bed,
+                "eqd2": eqd2,
+                "bed_this_plan": bed_brachy,
+                "bed_ebrt": bed_ebrt,
+                "bed_previous_brachy": bed_previous_brachy
+            }
 
     return dvh_results
 

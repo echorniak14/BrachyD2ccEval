@@ -10,3 +10,5 @@ __pycache__/
 *.xls
 *.PNG
 temp_scripts/
+build/  
+dist/ 

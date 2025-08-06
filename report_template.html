@@ -10,9 +10,11 @@
         th { background-color: #f2f2f2; }
         .met { background-color: #D4EDDA; color: #155724; }
         .not-met { background-color: #F8D7DA; color: #721C24; }
+        .logo { float: right; max-height: 100px; }
     </style>
 </head>
 <body>
+    <img src="logo.png" alt="Institution Logo" class="logo">
     <h1>Brachytherapy Evaluation Report</h1>
     <p><strong>Patient Name:</strong> {{ patient_name }}</p>
     <p><strong>Patient MRN:</strong> {{ patient_mrn }}</p>
@@ -27,6 +29,8 @@
             <tr>
                 <th>Organ</th>
                 <th>Volume (cc)</th>
+                <th>D0.1cc (per fraction) (Gy)</th>
+                <th>D1cc (per fraction) (Gy)</th>
                 <th>D2cc (per fraction) (Gy)</th>
                 <th>D2cc (total) (Gy)</th>
                 <th>BED_this plan (Gy)</th>
