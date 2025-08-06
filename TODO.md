@@ -14,7 +14,7 @@ This file outlines the current tasks and future development steps for the Brachy
     - [x] D2cc Calculation: Implemented the core logic to calculate organ volumes and D2cc values.
     - [x] Corrected D2cc Calculation: Implemented full affine transformation for accurate contour mapping and calculated total D2cc over all fractions.
     - [x] Verified D2cc Calculation: Successfully verified dwell time extraction and contour volume calculations against ground truth data.
-- **Phase 2: Visual Interpretation of Results - IN PROGRESS**
+- **Phase 2: Visual Interpretation of Results - COMPLETED**
     - [x] Implement BED/EQD2 calculations.
     - [x] Create `config.py` for alpha/beta ratios.
     - [x] Integrate EBRT calculations.
@@ -30,9 +30,10 @@ This file outlines the current tasks and future development steps for the Brachy
     - [x] Integrated HTML report generation and automatic opening in `gui.py`.
     - [x] Refined report generation: Provided an option to print to PDF from the HTML report.
     - [x] Enhanced report content: Extracted patient MRN and brachytherapy prescription details from DICOM and included in HTML report.
+    - [x] Add functionality to calculate the highest fractional dose needed to meet any unmet constraints.
+    - [x] Packaged application into a standalone executable.
 
 ## Next Steps (Phase 2):
-- [x] Add functionality to calculate the highest fractional dose needed to meet any unmet constraints.
 - [ ] Further investigate and resolve any remaining discrepancies in D2cc/BED/EQD2 calculations if necessary.
 
 ## Phase 3: BED/EQD2 calculations incorporating previous brachy doses

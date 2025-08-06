@@ -54,7 +54,8 @@ This file is for internal use by the Gemini CLI agent to track project progress,
 - **Dose to Meet Constraint Calculation:**
     - Implemented functionality to calculate the highest fractional dose needed to meet any unmet constraints.
 - Further investigate and resolve any remaining discrepancies in D2cc/BED/EQD2 calculations if necessary.
-- Investigate and resolve the `weasyprint` dependency issue.
+- **Executable Creation:**
+    - Successfully packaged the application into a standalone executable using PyInstaller, handling internal module imports and data file paths.
 
 ## Git Best Practices:
 - **Commit Frequently:** Aim to commit your work after completing each logical unit or phase of development (e.g., after completing DICOM parsing, after implementing a specific calculation, after fixing a bug). This creates clear checkpoints and makes it easier to track progress and revert if necessary.

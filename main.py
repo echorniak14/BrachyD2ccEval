@@ -1,3 +1,4 @@
+import sys
 from html_parser import parse_html_report
 from dicom_parser import find_dicom_file, load_dicom_file, get_structure_data, get_plan_data
 from calculations import get_dvh, evaluate_constraints, calculate_dose_to_meet_constraint
@@ -6,7 +7,17 @@ from pathlib import Path
 import json
 
 def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_fraction, number_of_fractions, ebrt_dose, dvh_results, constraint_evaluation, output_path):
-    with open("report_template.html", "r") as f:
+    # Determine the base path for data files
+    if getattr(sys, 'frozen', False):
+        # Running in a PyInstaller bundle
+        base_path = sys._MEIPASS
+    else:
+        # Running in a normal Python environment
+        base_path = Path(__file__).parent
+
+    template_path = Path(base_path) / "report_template.html"
+
+    with open(template_path, "r") as f:
         template = f.read()
 
     dvh_rows = ""
@@ -42,15 +53,7 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
         f.write(html_content)
     # print(f"HTML report saved to {output_path}") # Removed print statement
 
-def main():
-    parser = argparse.ArgumentParser(description="Brachytherapy Plan Evaluator")
-    parser.add_argument("--data_dir", type=str, required=True, help="Path to the directory containing the patient's DICOM files.")
-    parser.add_argument("--ebrt_dose", type=float, default=0.0, help="The prescription dose of the external beam radiation therapy in Gray (Gy).")
-    parser.add_argument("--previous_brachy_html", type=str, help="Path to a previous brachytherapy HTML report to incorporate its EQD2 values.")
-    parser.add_argument("--output_html", type=str, help="If provided, the results will be saved to this HTML file.")
-
-    args = parser.parse_args()
-
+def main(args):
     data_dir = Path(args.data_dir)
 
     # Find the subdirectories
@@ -146,11 +149,17 @@ def main():
         "constraint_evaluation": constraint_evaluation
     }
 
-    print(json.dumps(output_data))
-
-    # Write results to HTML if output_html argument is provided
     if args.output_html:
         generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_fraction, number_of_fractions, args.ebrt_dose, dvh_results, constraint_evaluation, args.output_html)
 
+    return output_data
+
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Brachytherapy Plan Evaluator")
+    parser.add_argument("--data_dir", type=str, required=True, help="Path to the directory containing the patient's DICOM files.")
+    parser.add_argument("--ebrt_dose", type=float, default=0.0, help="The prescription dose of the external beam radiation therapy in Gray (Gy).")
+    parser.add_argument("--previous_brachy_html", type=str, help="Path to a previous brachytherapy HTML report to incorporate its EQD2 values.")
+    parser.add_argument("--output_html", type=str, help="If provided, the results will be saved to this HTML file.")
+
+    args = parser.parse_args()
+    main(args)

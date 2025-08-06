@@ -1,6 +1,6 @@
+import main
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
-import subprocess
 import json
 
 class BrachyApp:
@@ -74,16 +74,18 @@ class BrachyApp:
             messagebox.showerror("Input Error", "EBRT Dose must be a number.")
             return
 
-        # Construct the command to run main.py
-        command = ["python", "main.py", "--data_dir", data_dir, "--ebrt_dose", str(ebrt_dose), "--output_html", self.output_html_path]
-
-        if prev_brachy_html_path:
-            command.extend(["--previous_brachy_html", prev_brachy_html_path])
-
-        # Run the subprocess and handle its output
+        # Run the main logic directly
         try:
-            result = subprocess.run(command, capture_output=True, text=True, check=True)
-            output_data = json.loads(result.stdout)
+            # Create a dummy args object to pass to main.main()
+            class Args:
+                def __init__(self, data_dir, ebrt_dose, previous_brachy_html, output_html):
+                    self.data_dir = data_dir
+                    self.ebrt_dose = ebrt_dose
+                    self.previous_brachy_html = previous_brachy_html
+                    self.output_html = output_html
+
+            args_obj = Args(data_dir, ebrt_dose, prev_brachy_html_path, self.output_html_path)
+            output_data = main.main(args_obj)
 
             if "error" in output_data:
                 messagebox.showerror("Evaluation Error", output_data["error"])
@@ -93,11 +95,6 @@ class BrachyApp:
                 import webbrowser
                 webbrowser.open(self.output_html_path) # Open the HTML report in browser
 
-        except subprocess.CalledProcessError as e:
-            messagebox.showerror("Evaluation Error", f"Error: {e.stderr}")
-        except json.JSONDecodeError:
-            messagebox.showerror("Input Error", "Could not parse JSON output from main.py. Check console for raw output.")
-            print("Raw main.py output:", result.stdout) # For debugging
         except Exception as e:
             messagebox.showerror("Error", f"An unexpected error occurred: {e}")
 
