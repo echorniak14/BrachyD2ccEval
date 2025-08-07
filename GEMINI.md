@@ -22,7 +22,10 @@ This file is for internal use by the Gemini CLI agent to track project progress,
     - Identified that the initial slice thickness assumption was too simplistic.
     - Discovered that the Sigmoid structure had multiple contours at the same Z-level, indicating disjointed volumes.
     - Implemented a more robust volume calculation method using the Shoelace formula for 2D area and a trapezoidal rule for 3D slab volumes, grouping contours by Z-position.
-    - The updated script now accurately calculates volumes for all structures, including complex ones like the Sigmoid, matching the provided ground truth data.
+        - The updated script now accurately calculates volumes for all structures, including complex ones like the Sigmoid, matching the provided ground truth data.
+    - Successfully verified calculated volumes against ground truth data from the Excel spreadsheet for Bladder, Bowel, Rectum, and Sigmoid, with minimal discrepancies.
+- **Plan Name Extraction:**
+    - Improved plan name extraction from RTPLAN files in `src/dicom_parser.py` to correctly identify names like "30mmCylinder" by prioritizing `RTPlanLabel` and `RTPlanName` tags.
 
 ## Project Context:
 - **Goal:** Automate and streamline the evaluation process for HDR brachytherapy plans, specifically for cases planned using Oncentra.
@@ -44,6 +47,9 @@ This file is for internal use by the Gemini CLI agent to track project progress,
     - Attempted linear interpolation for D2cc, but it did not resolve the issue.
     - Integrated `dicompyler-core` library for DVH and D2cc calculations in `calculations.py` to improve accuracy.
     - Verified that D2cc values are now much closer to spreadsheet values after `dicompyler-core` integration, suggesting the remaining small differences are likely due to rounding or subtle DICOM interpretation variations.
+- **Custom Volume Calculation Integration:**
+    - Integrated custom volume calculation logic into `src/calculations.py` to align with ground truth from the Excel spreadsheet.
+    - Implemented a `try-except` block around `dicompyler-core` DVH calculations to gracefully handle "Dose plane not found" warnings and prevent application crashes.
 - **Constraint Evaluation:**
     - Implemented constraint evaluation based on EMBRACE II.
     - Generated initial report in Excel format.

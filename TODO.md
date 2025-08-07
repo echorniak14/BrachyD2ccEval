@@ -2,10 +2,10 @@
 
 This file outlines the current tasks and future development steps for the BrachyD2ccEval project.
 
-**Last Updated: 2025-08-04**
+**Last Updated: 2025-08-07**
 
 ## Current Focus:
-- **Implement logic to incorporate previous brachytherapy data.**
+- **Investigate and resolve `dicompylercore` warnings and discrepancies in DVH calculations.**
 
 ## Progress Update:
 - **Phase 1: Core Functionality - COMPLETED**
@@ -35,6 +35,7 @@ This file outlines the current tasks and future development steps for the Brachy
 
 ## Next Steps (Phase 2):
 - [ ] Further investigate and resolve any remaining discrepancies in D2cc/BED/EQD2 calculations if necessary.
+- [ ] **Current Status:** Integrated custom volume calculation into `src/calculations.py` to align with ground truth. Encountering "Dose plane not found" warnings from `dicompylercore` during DVH calculations. Attempted to suppress warnings, but `replace` tool issues prevented completion. Will resume investigation and resolution of these warnings with the pro model.
 
 ## Phase 3: BED/EQD2 calculations incorporating previous brachy doses
 - [x] Implement logic to incorporate previous brachytherapy data (either from DICOM files or provided EQD2 reports).

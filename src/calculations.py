@@ -4,6 +4,45 @@ from dicompylercore import dvhcalc
 from .config import alpha_beta_ratios, constraints
 import os
 import contextlib
+import re
+
+def normalize_structure_name(name):
+    """Normalizes structure names for consistent matching."""
+    # Remove content in brackets (e.g., [cm3]) or parentheses
+    name = re.sub(r'\s*\[.*?\]', '', name)
+    name = re.sub(r'\s*\(.*?\]', '', name)
+    # Convert to lowercase and strip whitespace
+    return name.strip().lower()
+
+def calculate_contour_volumes(rtstruct_file, structure_data):
+    """Calculates the volume of each contour in an RTSTRUCT file."""
+    ds = pydicom.dcmread(rtstruct_file)
+    volumes = {}
+    for roi_contour, structure_set_roi in zip(ds.ROIContourSequence, ds.StructureSetROISequence):
+        name = structure_set_roi.ROIName
+        normalized_name = normalize_structure_name(name)
+        if not hasattr(roi_contour, 'ContourSequence') or not roi_contour.ContourSequence:
+            volumes[normalized_name] = 0
+            continue
+        slices_by_z = {}
+        for contour_slice in roi_contour.ContourSequence:
+            points = np.array(contour_slice.ContourData).reshape((-1, 3))
+            z = round(points[0, 2], 4)
+            if z not in slices_by_z:
+                slices_by_z[z] = []
+            slices_by_z[z].append(points[:, :2])
+        sorted_z = sorted(slices_by_z.keys())
+        total_volume_mm3 = 0
+        if len(sorted_z) > 1:
+            for i in range(len(sorted_z) - 1):
+                z1, z2 = sorted_z[i], sorted_z[i+1]
+                area1 = sum(0.5 * np.abs(np.dot(p[:, 0], np.roll(p[:, 1], 1)) - np.dot(p[:, 1], np.roll(p[:, 0], 1))) for p in slices_by_z[z1])
+                area2 = sum(0.5 * np.abs(np.dot(p[:, 0], np.roll(p[:, 1], 1)) - np.dot(p[:, 1], np.roll(p[:, 0], 1))) for p in slices_by_z[z2])
+                slice_thickness = abs(z1 - z2)
+                total_volume_mm3 += (area1 + area2) / 2.0 * slice_thickness
+        volumes[normalized_name] = total_volume_mm3 / 1000.0
+    return volumes
+
 
 # This file will contain the logic for dose-volume calculations.
 
@@ -69,13 +108,20 @@ def get_dvh(rtss_file, rtdose_file, structure_data, number_of_fractions, ebrt_do
     """Calculates the Dose-Volume Histogram (DVH) for each structure."""
     if previous_brachy_eqd2_per_organ is None:
         previous_brachy_eqd2_per_organ = {}
-    """Calculates the Dose-Volume Histogram (DVH) for each structure."""
     dvh_results = {}
 
-    # Suppress the specific warning from dicompyler-core
-    with open(os.devnull, 'w') as f, contextlib.redirect_stderr(f):
-        for name, data in structure_data.items():
-            roi_number = data["ROINumber"]
+    # Calculate all volumes using our custom function once
+    all_calculated_volumes = calculate_contour_volumes(rtss_file, structure_data)
+
+    for name, data in structure_data.items():
+        normalized_name = normalize_structure_name(name)
+        organ_volume_cc = all_calculated_volumes.get(normalized_name, 0.0)
+        print(f"DEBUG: Custom calculated volume for {name}: {organ_volume_cc:.2f} cm3")
+
+        # The rest of the DVH calculation still relies on dicompyler-core for D2cc, D1cc, D0.1cc
+        # We will still use dvhcalc for dose metrics, but not for volume
+        roi_number = data["ROINumber"]
+        try:
             dvh = dvhcalc.get_dvh(rtss_file, rtdose_file, roi_number)
 
             d2cc_gy_per_fraction = getattr(dvh, 'D2cc', 0.0)
@@ -89,24 +135,28 @@ def get_dvh(rtss_file, rtdose_file, structure_data, number_of_fractions, ebrt_do
             d0_1cc_gy_per_fraction = getattr(dvh, 'D0_1cc', 0.0)
             if hasattr(d0_1cc_gy_per_fraction, 'value'):
                 d0_1cc_gy_per_fraction = d0_1cc_gy_per_fraction.value
-            organ_volume_cc = dvh.volume
+        except Exception as e:
+            print(f"Warning: Could not calculate DVH for {name} (ROI Number: {roi_number}). Error: {e}")
+            d2cc_gy_per_fraction = 0.0
+            d1cc_gy_per_fraction = 0.0
+            d0_1cc_gy_per_fraction = 0.0
 
-            total_d2cc_gy = d2cc_gy_per_fraction * number_of_fractions
+        total_d2cc_gy = d2cc_gy_per_fraction * number_of_fractions
 
-            bed, eqd2, bed_brachy, bed_ebrt, bed_previous_brachy = calculate_bed_and_eqd2(total_d2cc_gy, d2cc_gy_per_fraction, name, ebrt_dose, previous_brachy_eqd2=previous_brachy_eqd2_per_organ.get(name, 0))
+        bed, eqd2, bed_brachy, bed_ebrt, bed_previous_brachy = calculate_bed_and_eqd2(total_d2cc_gy, d2cc_gy_per_fraction, name, ebrt_dose, previous_brachy_eqd2=previous_brachy_eqd2_per_organ.get(name, 0))
 
-            dvh_results[name] = {
-                "volume_cc": round(organ_volume_cc, 2),
-                "d2cc_gy_per_fraction": round(d2cc_gy_per_fraction, 2),
-                "d1cc_gy_per_fraction": round(d1cc_gy_per_fraction, 2),
-                "d0_1cc_gy_per_fraction": round(d0_1cc_gy_per_fraction, 2),
-                "total_d2cc_gy": round(total_d2cc_gy, 2),
-                "bed": bed,
-                "eqd2": eqd2,
-                "bed_this_plan": bed_brachy,
-                "bed_ebrt": bed_ebrt,
-                "bed_previous_brachy": bed_previous_brachy
-            }
+        dvh_results[name] = {
+            "volume_cc": round(organ_volume_cc, 2),
+            "d2cc_gy_per_fraction": round(d2cc_gy_per_fraction, 2),
+            "d1cc_gy_per_fraction": round(d1cc_gy_per_fraction, 2),
+            "d0_1cc_gy_per_fraction": round(d0_1cc_gy_per_fraction, 2),
+            "total_d2cc_gy": round(total_d2cc_gy, 2),
+            "bed": bed,
+            "eqd2": eqd2,
+            "bed_this_plan": bed_brachy,
+            "bed_ebrt": bed_ebrt,
+            "bed_previous_brachy": bed_previous_brachy
+        }
 
     return dvh_results
 

@@ -72,7 +72,11 @@ def get_plan_data(rtplan_file):
     plan_data = {}
 
     # Get Plan Name
-    if hasattr(ds, 'SeriesDescription'):
+    if hasattr(ds, 'RTPlanLabel'):
+        plan_data['plan_name'] = ds.RTPlanLabel
+    elif hasattr(ds, 'RTPlanName'):
+        plan_data['plan_name'] = ds.RTPlanName
+    elif hasattr(ds, 'SeriesDescription'):
         plan_data['plan_name'] = ds.SeriesDescription
     else:
         plan_data['plan_name'] = 'N/A'
