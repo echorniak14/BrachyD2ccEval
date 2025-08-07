@@ -5,6 +5,7 @@ from .calculations import get_dvh, evaluate_constraints, calculate_dose_to_meet_
 import argparse
 from pathlib import Path
 import json
+from .config import alpha_beta_ratios
 
 def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_fraction, number_of_fractions, ebrt_dose, dvh_results, constraint_evaluation, output_path):
     # Determine the base path for data files
@@ -29,8 +30,10 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
                 eqd2_met_class = "met" if constraints["EQD2_met"] == "True" else "not-met"
 
         # First row for D0.1cc
+        # First row for D0.1cc
         dvh_rows += f"""<tr>
             <td rowspan="3">{organ}</td>
+            <td rowspan="3">{alpha_beta_ratios.get(organ, alpha_beta_ratios["Default"])}</td>
             <td rowspan="3">{data["volume_cc"]}</td>
             <td>D0.1cc</td>
             <td>{data["d0_1cc_gy_per_fraction"]}</td>
