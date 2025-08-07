@@ -37,23 +37,37 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
             <td rowspan="3">{data["volume_cc"]}</td>
             <td>D0.1cc</td>
             <td>{data["d0_1cc_gy_per_fraction"]}</td>
-            <td rowspan="3">{data["total_d2cc_gy"]}</td>
-            <td rowspan="3">{data["bed_this_plan"]}</td>
-            <td rowspan="3">{data["bed_previous_brachy"]}</td>
-            <td rowspan="3">{data["bed_ebrt"]}</td>
-            <td rowspan="3">{data["eqd2"]}</td>
-            <td rowspan="3" class="{eqd2_met_class}">{'Met' if eqd2_met_class == 'met' else 'NOT Met'}</td>
-            <td rowspan="3">{data["dose_to_meet_constraint"]}</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
         </tr>"""
         # Second row for D1cc
         dvh_rows += f"""<tr>
             <td>D1cc</td>
             <td>{data["d1cc_gy_per_fraction"]}</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
         </tr>"""
         # Third row for D2cc
         dvh_rows += f"""<tr>
             <td>D2cc</td>
             <td>{data["d2cc_gy_per_fraction"]}</td>
+            <td>{data["total_d2cc_gy"]}</td>
+            <td>{data["bed_this_plan"]}</td>
+            <td>{data["bed_previous_brachy"]}</td>
+            <td>{data["bed_ebrt"]}</td>
+            <td>{data["eqd2"]}</td>
+            <td class="{eqd2_met_class}">{'Met' if eqd2_met_class == 'met' else 'NOT Met'}</td>
+            <td>{data["dose_to_meet_constraint"]}</td>
         </tr>"""
 
     html_content = template.replace("{{ patient_name }}", patient_name)

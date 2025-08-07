@@ -54,7 +54,9 @@ This file is for internal use by the Gemini CLI agent to track project progress,
     - Implemented constraint evaluation based on EMBRACE II.
     - Generated initial report in Excel format.
 - **Report Layout Reorganization:**
-        - Corrected the column header from "Value (per fraction) (Gy)" to "Dose (per fraction) (Gy)" and from "D2cc (total) (Gy)" to "Total Planned Dose (Gy)" in the HTML report.
+            - Restructured the HTML report to display D0.1cc, D1cc, and D2cc as separate rows under each organ, improving readability and data presentation.
+    - Corrected the column header from "Value (per fraction) (Gy)" to "Dose (per fraction) (Gy)" and from "D2cc (total) (Gy)" to "Total Planned Dose (Gy)" in the HTML report.
+    - Aligned "Total Planned Dose (Gy)" and subsequent columns with the D2cc row in the HTML report.
 
 ## Next Steps:
 - **Previous Brachytherapy Data Integration:**
