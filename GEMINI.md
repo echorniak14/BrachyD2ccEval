@@ -53,6 +53,8 @@ This file is for internal use by the Gemini CLI agent to track project progress,
 - **Constraint Evaluation:**
     - Implemented constraint evaluation based on EMBRACE II.
     - Generated initial report in Excel format.
+- **Report Layout Reorganization:**
+    - Restructured the HTML report to display D0.1cc, D1cc, and D2cc as separate rows under each organ, improving readability and data presentation.
 
 ## Next Steps:
 - **Previous Brachytherapy Data Integration:**
