@@ -5,6 +5,7 @@ from .calculations import get_dvh, evaluate_constraints, calculate_dose_to_meet_
 import argparse
 from pathlib import Path
 import json
+from .config import alpha_beta_ratios
 
 def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_fraction, number_of_fractions, ebrt_dose, dvh_results, constraint_evaluation, output_path):
     # Determine the base path for data files
@@ -28,11 +29,37 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
             if "EQD2_met" in constraints:
                 eqd2_met_class = "met" if constraints["EQD2_met"] == "True" else "not-met"
 
+        # First row for D0.1cc
+        # First row for D0.1cc
         dvh_rows += f"""<tr>
-            <td>{organ}</td>
-            <td>{data["volume_cc"]}</td>
+            <td rowspan="3">{organ}</td>
+            <td rowspan="3">{alpha_beta_ratios.get(organ, alpha_beta_ratios["Default"])}</td>
+            <td rowspan="3">{data["volume_cc"]}</td>
+            <td>D0.1cc</td>
             <td>{data["d0_1cc_gy_per_fraction"]}</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>"""
+        # Second row for D1cc
+        dvh_rows += f"""<tr>
+            <td>D1cc</td>
             <td>{data["d1cc_gy_per_fraction"]}</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>"""
+        # Third row for D2cc
+        dvh_rows += f"""<tr>
+            <td>D2cc</td>
             <td>{data["d2cc_gy_per_fraction"]}</td>
             <td>{data["total_d2cc_gy"]}</td>
             <td>{data["bed_this_plan"]}</td>

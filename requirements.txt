@@ -5,3 +5,4 @@ openpyxl
 scikit-image
 beautifulsoup4
 pyinstaller
+dicompylercore
