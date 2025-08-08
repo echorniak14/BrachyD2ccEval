@@ -7,9 +7,8 @@ import os
 
 # Load DICOM files
 dicom_files = {
-    "RTDOSE": r"C:\Users\echorniak\GIT\BrachyD2ccEval\sample_data\2025-08__Studies\ALBERT^MICHELLE_A2512389_RTDOSE_2025-08-06_120235_HDR_Dose.for.30mmCylinder_n1__00000\1.3.6.1.4.1.2452.6.808889574.1308943571.2036643218.2928568190.dcm",
-    "RTSTRUCT": r"C:\Users\echorniak\GIT\BrachyD2ccEval\sample_data\2025-08__Studies\ALBERT^MICHELLE_A2512389_RTst_2025-08-06_120235_HDR_Nucletron.Oncentra.Anatomy.Modeling.Structure.Set_n1__00000\1.3.6.1.4.1.2452.6.1813042253.1308199023.3596236448.388456870.dcm"
-}
+    "RTDOSE":  
+    "RTSTRUCT": }
 
 if not dicom_files["RTDOSE"] or not dicom_files["RTSTRUCT"]:
     print("Error: RTDOSE or RTSTRUCT file not found.")
