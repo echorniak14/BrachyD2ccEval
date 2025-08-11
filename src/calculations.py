@@ -142,7 +142,7 @@ def get_dvh(rtss_file, rtdose_file, structure_data, number_of_fractions, ebrt_do
 
         # Calculations for D2cc
         total_d2cc_gy = d2cc_gy_per_fraction * number_of_fractions
-        bed_d2cc, eqd2_d2cc, bed_brachy_d2cc, bed_ebrt_d2cc, bed_previous_brachy_d2cc = calculate_bed_and_eqd2(
+        bed_d2cc, eqd2_d2cc, bed_brachy_d2cc, bed_ebrt, bed_previous_brachy = calculate_bed_and_eqd2(
             total_d2cc_gy, d2cc_gy_per_fraction, name, ebrt_dose, previous_brachy_eqd2=previous_brachy_eqd2_per_organ.get(name, 0)
         )
 
@@ -171,8 +171,8 @@ def get_dvh(rtss_file, rtdose_file, structure_data, number_of_fractions, ebrt_do
             "bed_d0_1cc": bed_d0_1cc,
             "eqd2_d0_1cc": eqd2_d0_1cc,
             "bed_this_plan": bed_brachy_d2cc, # Assuming this is tied to D2cc
-            "bed_ebrt": bed_ebrt_d2cc,
-            "bed_previous_brachy": bed_previous_brachy_d2cc
+            "bed_ebrt": bed_ebrt,
+            "bed_previous_brachy": bed_previous_brachy
         }
 
     return dvh_results

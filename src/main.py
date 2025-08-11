@@ -38,8 +38,8 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
             <td>{data["d0_1cc_gy_per_fraction"]}</td>
             <td>{data["d0_1cc_gy_per_fraction"] * number_of_fractions:.2f}</td>
             <td>{data["bed_d0_1cc"]}</td>
-            <td></td>
-            <td></td>
+            <td>{data["bed_previous_brachy"]}</td>
+            <td>{data["bed_ebrt"]}</td>
             <td>{data["eqd2_d0_1cc"]}</td>
             <td></td>
             <td></td>
@@ -50,8 +50,8 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
             <td>{data["d1cc_gy_per_fraction"]}</td>
             <td>{data["d1cc_gy_per_fraction"] * number_of_fractions:.2f}</td>
             <td>{data["bed_d1cc"]}</td>
-            <td></td>
-            <td></td>
+            <td>{data["bed_previous_brachy"]}</td>
+            <td>{data["bed_ebrt"]}</td>
             <td>{data["eqd2_d1cc"]}</td>
             <td></td>
             <td></td>
