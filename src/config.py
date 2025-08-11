@@ -10,9 +10,9 @@ alpha_beta_ratios = {
     "Bowel": 3,
     "Vagina": 3,
     "Uterus": 3,
-    "Cervix": 8,
-    "CTV-HR": 8,
-    "CTV-IR": 8,
+    "Cervix": 10,
+    "HRCTV": 10,
+    "GTV": 10,
     "Default": 3  # Default value for any other structures
 }
 

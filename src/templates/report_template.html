@@ -46,16 +46,24 @@
         </tbody>
     </table>
 
-    <h2>Dose Reference Points</h2>
+    <h2>Point Dose Results</h2>
     <table>
         <thead>
             <tr>
                 <th>Point Name</th>
-                <th>Point Dose (Gy)</th>
+                <th>&alpha;/&beta;</th>
+                <th>Dose (per fraction) (Gy)</th>
+                <th>Total Planned Dose (Gy)</th>
+                <th>BED_this plan (Gy)</th>
+                <th>BED_previous Brachy (Gy)</th>
+                <th>BED_EBRT (Gy)</th>
+                <th>EQD2 (Gy)</th>
+                <th>EQD2 Constraint Met</th>
+                <th>Dose to Meet Constraint (Gy)</th>
             </tr>
         </thead>
         <tbody>
-            {{ dose_reference_rows }}
+            {{ point_dose_rows }}
         </tbody>
     </table>
 </body>

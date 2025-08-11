@@ -1,13 +1,13 @@
 import sys
 from .html_parser import parse_html_report
 from .dicom_parser import find_dicom_file, load_dicom_file, get_structure_data, get_plan_data
-from .calculations import get_dvh, evaluate_constraints, calculate_dose_to_meet_constraint
+from .calculations import get_dvh, evaluate_constraints, calculate_dose_to_meet_constraint, calculate_point_dose_bed_eqd2
 import argparse
 from pathlib import Path
 import json
 from .config import alpha_beta_ratios
 
-def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_fraction, number_of_fractions, ebrt_dose, dvh_results, constraint_evaluation, dose_references, output_path):
+def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_fraction, number_of_fractions, ebrt_dose, dvh_results, constraint_evaluation, dose_references, point_dose_results, output_path):
     # Determine the base path for data files
     if getattr(sys, 'frozen', False):
         # Running in a PyInstaller bundle
@@ -82,6 +82,22 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
     for dr in dose_references:
         dose_ref_rows += f"<tr><td>{dr['name']}</td><td>{dr['dose']}</td></tr>"
     html_content = html_content.replace("{{ dose_reference_rows }}", dose_ref_rows)
+
+    point_dose_rows = ""
+    for pr in point_dose_results:
+        point_dose_rows += f"""<tr>
+            <td>{pr['name']}</td>
+            <td>{alpha_beta_ratios.get(pr['name'], alpha_beta_ratios["Default"])}</td>
+            <td>{pr['dose']:.2f}</td>
+            <td>{pr['total_dose']:.2f}</td>
+            <td>{pr['bed_this_plan']:.2f}</td>
+            <td>{pr['bed_previous_brachy']:.2f}</td>
+            <td>{pr['bed_ebrt']:.2f}</td>
+            <td>{pr['eqd2']:.2f}</td>
+            <td></td>
+            <td></td>
+        </tr>"""
+    html_content = html_content.replace("{{ point_dose_rows }}", point_dose_rows)
 
     with open(output_path, "w") as f:
         f.write(html_content)
@@ -173,6 +189,27 @@ def main(args):
             else:
                 dvh_results[organ]["dose_to_meet_constraint"] = "N/A"
 
+    # Calculate BED and EQD2 for point doses
+    point_dose_results = []
+    for dr in plan_data.get('dose_references', []):
+        total_bed, eqd2, bed_brachy, bed_ebrt, bed_previous_brachy = calculate_point_dose_bed_eqd2(
+            dr['dose'],
+            number_of_fractions,
+            dr['name'],
+            args.ebrt_dose,
+            previous_brachy_eqd2=previous_brachy_eqd2_per_organ.get(dr['name'], 0)
+        )
+        point_dose_results.append({
+            'name': dr['name'],
+            'dose': dr['dose'],
+            'total_dose': dr['dose'] * number_of_fractions,
+            'bed': total_bed,
+            'eqd2': eqd2,
+            'bed_this_plan': bed_brachy,
+            'bed_ebrt': bed_ebrt,
+            'bed_previous_brachy': bed_previous_brachy
+        })
+
     output_data = {
         "patient_name": patient_name,
         "patient_mrn": patient_mrn,
@@ -182,11 +219,12 @@ def main(args):
         "ebrt_dose": args.ebrt_dose,
         "dvh_results": dvh_results,
         "constraint_evaluation": constraint_evaluation,
-        "dose_references": plan_data.get('dose_references', [])
+        "dose_references": plan_data.get('dose_references', []),
+        "point_dose_results": point_dose_results
     }
 
     if args.output_html:
-        generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_fraction, number_of_fractions, args.ebrt_dose, dvh_results, constraint_evaluation, output_data['dose_references'], args.output_html)
+        generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_fraction, number_of_fractions, args.ebrt_dose, dvh_results, constraint_evaluation, output_data['dose_references'], output_data['point_dose_results'], args.output_html)
 
     return output_data
 

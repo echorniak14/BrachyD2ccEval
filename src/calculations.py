@@ -104,6 +104,29 @@ def calculate_dose_to_meet_constraint(eqd2_constraint, organ_name, number_of_fra
 
     return round(dose_per_fraction_solution, 2)
 
+def calculate_point_dose_bed_eqd2(point_dose, number_of_fractions, organ_name, ebrt_dose=0, previous_brachy_eqd2=0):
+    """Calculates BED and EQD2 for a given point dose."""
+    alpha_beta = alpha_beta_ratios.get(organ_name, alpha_beta_ratios["Default"])
+    
+    total_dose = point_dose * number_of_fractions
+
+    # Calculate BED for brachytherapy
+    bed_brachy = total_dose * (1 + (point_dose / alpha_beta))
+    
+    # Calculate BED for EBRT
+    bed_ebrt = ebrt_dose * (1 + (2 / alpha_beta)) # Assuming 2 Gy/fraction for EBRT
+
+    # Calculate BED for previous brachytherapy
+    bed_previous_brachy = previous_brachy_eqd2 * (1 + (2 / alpha_beta))
+    
+    # Total BED
+    total_bed = bed_brachy + bed_ebrt + bed_previous_brachy
+    
+    # Calculate total EQD2
+    eqd2 = total_bed / (1 + (2 / alpha_beta))
+    
+    return round(total_bed, 2), round(eqd2, 2), round(bed_brachy, 2), round(bed_ebrt, 2), round(bed_previous_brachy, 2)
+
 def get_dvh(rtss_file, rtdose_file, structure_data, number_of_fractions, ebrt_dose=0, previous_brachy_eqd2_per_organ=None):
     """Calculates the Dose-Volume Histogram (DVH) for each structure."""
     if previous_brachy_eqd2_per_organ is None:
