@@ -94,7 +94,32 @@ def get_plan_data(rtplan_file):
         plan_data['number_of_fractions'] = 1
         plan_data['brachy_dose_per_fraction'] = 0.0
 
+    # Get Dose Reference Data
+    plan_data['dose_references'] = []
+    if hasattr(ds, 'DoseReferenceSequence'):
+        for dr in ds.DoseReferenceSequence:
+            plan_data['dose_references'].append({
+                'name': dr.DoseReferenceDescription,
+                'dose': dr.TargetPrescriptionDose
+            })
+
     return plan_data
+
+def get_control_point_data(rtplan_file):
+    """Extracts control point data from an RTPLAN file."""
+    if not rtplan_file:
+        return []
+    ds = pydicom.dcmread(rtplan_file)
+    control_points = []
+    if hasattr(ds, 'BrachyApplicationSetupSequence'):
+        for app_setup in ds.BrachyApplicationSetupSequence:
+            if hasattr(app_setup, 'BrachyControlPointSequence'):
+                for cp in app_setup.BrachyControlPointSequence:
+                    control_points.append({
+                        'position': cp.ControlPoint3DPosition,
+                        'dose': cp.ControlPointCumulativeTimeWeight
+                    })
+    return control_points
 
 from .calculations import get_dvh
 

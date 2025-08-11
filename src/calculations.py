@@ -116,7 +116,6 @@ def get_dvh(rtss_file, rtdose_file, structure_data, number_of_fractions, ebrt_do
     for name, data in structure_data.items():
         normalized_name = normalize_structure_name(name)
         organ_volume_cc = all_calculated_volumes.get(normalized_name, 0.0)
-        print(f"DEBUG: Custom calculated volume for {name}: {organ_volume_cc:.2f} cm3")
 
         # The rest of the DVH calculation still relies on dicompyler-core for D2cc, D1cc, D0.1cc
         # We will still use dvhcalc for dose metrics, but not for volume

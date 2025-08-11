@@ -7,7 +7,7 @@ from pathlib import Path
 import json
 from .config import alpha_beta_ratios
 
-def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_fraction, number_of_fractions, ebrt_dose, dvh_results, constraint_evaluation, output_path):
+def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_fraction, number_of_fractions, ebrt_dose, dvh_results, constraint_evaluation, dose_references, output_path):
     # Determine the base path for data files
     if getattr(sys, 'frozen', False):
         # Running in a PyInstaller bundle
@@ -77,6 +77,11 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
     html_content = html_content.replace("{{ number_of_fractions }}", str(number_of_fractions))
     html_content = html_content.replace("{{ ebrt_dose }}", str(ebrt_dose))
     html_content = html_content.replace("{{ dvh_results_rows }}", dvh_rows)
+
+    dose_ref_rows = ""
+    for dr in dose_references:
+        dose_ref_rows += f"<tr><td>{dr['name']}</td><td>{dr['dose']}</td></tr>"
+    html_content = html_content.replace("{{ dose_reference_rows }}", dose_ref_rows)
 
     with open(output_path, "w") as f:
         f.write(html_content)
@@ -176,11 +181,12 @@ def main(args):
         "number_of_fractions": number_of_fractions,
         "ebrt_dose": args.ebrt_dose,
         "dvh_results": dvh_results,
-        "constraint_evaluation": constraint_evaluation
+        "constraint_evaluation": constraint_evaluation,
+        "dose_references": plan_data.get('dose_references', [])
     }
 
     if args.output_html:
-        generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_fraction, number_of_fractions, args.ebrt_dose, dvh_results, constraint_evaluation, args.output_html)
+        generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_fraction, number_of_fractions, args.ebrt_dose, dvh_results, constraint_evaluation, output_data['dose_references'], args.output_html)
 
     return output_data
 
