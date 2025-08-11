@@ -141,9 +141,23 @@ def get_dvh(rtss_file, rtdose_file, structure_data, number_of_fractions, ebrt_do
             d1cc_gy_per_fraction = 0.0
             d0_1cc_gy_per_fraction = 0.0
 
+        # Calculations for D2cc
         total_d2cc_gy = d2cc_gy_per_fraction * number_of_fractions
+        bed_d2cc, eqd2_d2cc, bed_brachy_d2cc, bed_ebrt_d2cc, bed_previous_brachy_d2cc = calculate_bed_and_eqd2(
+            total_d2cc_gy, d2cc_gy_per_fraction, name, ebrt_dose, previous_brachy_eqd2=previous_brachy_eqd2_per_organ.get(name, 0)
+        )
 
-        bed, eqd2, bed_brachy, bed_ebrt, bed_previous_brachy = calculate_bed_and_eqd2(total_d2cc_gy, d2cc_gy_per_fraction, name, ebrt_dose, previous_brachy_eqd2=previous_brachy_eqd2_per_organ.get(name, 0))
+        # Calculations for D1cc
+        total_d1cc_gy = d1cc_gy_per_fraction * number_of_fractions
+        bed_d1cc, eqd2_d1cc, _, _, _ = calculate_bed_and_eqd2(
+            total_d1cc_gy, d1cc_gy_per_fraction, name, ebrt_dose, previous_brachy_eqd2=previous_brachy_eqd2_per_organ.get(name, 0)
+        )
+
+        # Calculations for D0.1cc
+        total_d0_1cc_gy = d0_1cc_gy_per_fraction * number_of_fractions
+        bed_d0_1cc, eqd2_d0_1cc, _, _, _ = calculate_bed_and_eqd2(
+            total_d0_1cc_gy, d0_1cc_gy_per_fraction, name, ebrt_dose, previous_brachy_eqd2=previous_brachy_eqd2_per_organ.get(name, 0)
+        )
 
         dvh_results[name] = {
             "volume_cc": round(organ_volume_cc, 2),
@@ -151,11 +165,15 @@ def get_dvh(rtss_file, rtdose_file, structure_data, number_of_fractions, ebrt_do
             "d1cc_gy_per_fraction": round(d1cc_gy_per_fraction, 2),
             "d0_1cc_gy_per_fraction": round(d0_1cc_gy_per_fraction, 2),
             "total_d2cc_gy": round(total_d2cc_gy, 2),
-            "bed": bed,
-            "eqd2": eqd2,
-            "bed_this_plan": bed_brachy,
-            "bed_ebrt": bed_ebrt,
-            "bed_previous_brachy": bed_previous_brachy
+            "bed_d2cc": bed_d2cc,
+            "eqd2_d2cc": eqd2_d2cc,
+            "bed_d1cc": bed_d1cc,
+            "eqd2_d1cc": eqd2_d1cc,
+            "bed_d0_1cc": bed_d0_1cc,
+            "eqd2_d0_1cc": eqd2_d0_1cc,
+            "bed_this_plan": bed_brachy_d2cc, # Assuming this is tied to D2cc
+            "bed_ebrt": bed_ebrt_d2cc,
+            "bed_previous_brachy": bed_previous_brachy_d2cc
         }
 
     return dvh_results
@@ -169,13 +187,13 @@ def evaluate_constraints(dvh_results):
             evaluation = {}
             if "BED" in organ_constraints:
                 max_bed = organ_constraints["BED"]["max"]
-                evaluation["BED_met"] = str(data["bed"] <= max_bed)
-                evaluation["BED_value"] = data["bed"]
+                evaluation["BED_met"] = str(data["bed_d2cc"] <= max_bed)
+                evaluation["BED_value"] = data["bed_d2cc"]
                 evaluation["BED_max"] = max_bed
             if "EQD2" in organ_constraints:
                 max_eqd2 = organ_constraints["EQD2"]["max"]
-                evaluation["EQD2_met"] = str(data["eqd2"] <= max_eqd2)
-                evaluation["EQD2_value"] = data["eqd2"]
+                evaluation["EQD2_met"] = str(data["eqd2_d2cc"] <= max_eqd2)
+                evaluation["EQD2_value"] = data["eqd2_d2cc"]
                 evaluation["EQD2_max"] = max_eqd2
             constraint_evaluation[organ] = evaluation
     return constraint_evaluation

@@ -30,18 +30,17 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
                 eqd2_met_class = "met" if constraints["EQD2_met"] == "True" else "not-met"
 
         # First row for D0.1cc
-        # First row for D0.1cc
         dvh_rows += f"""<tr>
             <td rowspan="3">{organ}</td>
             <td rowspan="3">{alpha_beta_ratios.get(organ, alpha_beta_ratios["Default"])}</td>
             <td rowspan="3">{data["volume_cc"]}</td>
             <td>D0.1cc</td>
             <td>{data["d0_1cc_gy_per_fraction"]}</td>
+            <td>{data["d0_1cc_gy_per_fraction"] * number_of_fractions:.2f}</td>
+            <td>{data["bed_d0_1cc"]}</td>
             <td></td>
             <td></td>
-            <td></td>
-            <td></td>
-            <td></td>
+            <td>{data["eqd2_d0_1cc"]}</td>
             <td></td>
             <td></td>
         </tr>"""
@@ -49,14 +48,15 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
         dvh_rows += f"""<tr>
             <td>D1cc</td>
             <td>{data["d1cc_gy_per_fraction"]}</td>
+            <td>{data["d1cc_gy_per_fraction"] * number_of_fractions:.2f}</td>
+            <td>{data["bed_d1cc"]}</td>
             <td></td>
             <td></td>
-            <td></td>
-            <td></td>
-            <td></td>
+            <td>{data["eqd2_d1cc"]}</td>
             <td></td>
             <td></td>
         </tr>"""
+        # Third row for D2cc
         # Third row for D2cc
         dvh_rows += f"""<tr>
             <td>D2cc</td>
@@ -65,7 +65,7 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
             <td>{data["bed_this_plan"]}</td>
             <td>{data["bed_previous_brachy"]}</td>
             <td>{data["bed_ebrt"]}</td>
-            <td>{data["eqd2"]}</td>
+            <td>{data["eqd2_d2cc"]}</td>
             <td class="{eqd2_met_class}">{'Met' if eqd2_met_class == 'met' else 'NOT Met'}</td>
             <td>{data["dose_to_meet_constraint"]}</td>
         </tr>"""
