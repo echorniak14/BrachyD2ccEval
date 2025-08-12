@@ -1,14 +1,3 @@
-# Python
-__pycache__/
-*.pyc
-*.pyd
-*.so
 
-# Reports and temporary files
-
-*.xlsx
-*.xls
-*.PNG
-temp_scripts/
-build/  
-dist/ 
+reports/
+/sample_data/Michelle Albert/

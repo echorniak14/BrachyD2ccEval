@@ -43,6 +43,30 @@ def calculate_contour_volumes(rtstruct_file, structure_data):
         volumes[normalized_name] = total_volume_mm3 / 1000.0
     return volumes
 
+def calculate_d_volume(dvh, volume_cc):
+    """Calculates the dose to a specific volume from a DVH object."""
+    if dvh is None or dvh.volume == 0:
+        return 0.0
+
+    # Get the cumulative DVH data
+    cumulative_dvh = dvh.cumulative.counts
+    dose_bins = dvh.bincenters
+
+    # Find the dose at the specified volume
+    for i, vol in enumerate(cumulative_dvh):
+        if vol <= volume_cc:
+            if i == 0:
+                return dose_bins[0]
+            else:
+                # Interpolate between the two nearest points
+                x1 = cumulative_dvh[i-1]
+                x2 = cumulative_dvh[i]
+                y1 = dose_bins[i-1]
+                y2 = dose_bins[i]
+                return y1 + (volume_cc - x1) * (y2 - y1) / (x2 - x1)
+
+    return 0.0
+
 
 # This file will contain the logic for dose-volume calculations.
 
@@ -154,9 +178,7 @@ def get_dvh(rtss_file, rtdose_file, structure_data, number_of_fractions, ebrt_do
             if hasattr(d1cc_gy_per_fraction, 'value'):
                 d1cc_gy_per_fraction = d1cc_gy_per_fraction.value
 
-            d0_1cc_gy_per_fraction = getattr(dvh, 'D0_1cc', 0.0)
-            if hasattr(d0_1cc_gy_per_fraction, 'value'):
-                d0_1cc_gy_per_fraction = d0_1cc_gy_per_fraction.value
+            d0_1cc_gy_per_fraction = calculate_d_volume(dvh, 0.1)
             
             max_dose_gy_per_fraction = getattr(dvh, 'max', 0.0)
             if hasattr(max_dose_gy_per_fraction, 'value'):
