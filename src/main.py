@@ -21,7 +21,8 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
     with open(template_path, "r") as f:
         template = f.read()
 
-    dvh_rows = ""
+    target_volume_rows = ""
+    oar_rows = ""
     for organ, data in dvh_results.items():
         eqd2_met_class = ""
         if organ in constraint_evaluation:
@@ -29,46 +30,79 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
             if "EQD2_met" in constraints:
                 eqd2_met_class = "met" if constraints["EQD2_met"] == "True" else "not-met"
 
-        # First row for D0.1cc
-        dvh_rows += f"""<tr>
-            <td rowspan="3">{organ}</td>
-            <td rowspan="3">{alpha_beta_ratios.get(organ, alpha_beta_ratios["Default"])}</td>
-            <td rowspan="3">{data["volume_cc"]}</td>
-            <td>D0.1cc</td>
-            <td>{data["d0_1cc_gy_per_fraction"]}</td>
-            <td>{data["d0_1cc_gy_per_fraction"] * number_of_fractions:.2f}</td>
-            <td>{data["bed_d0_1cc"]}</td>
-            <td>{data["bed_previous_brachy"]}</td>
-            <td>{data["bed_ebrt"]}</td>
-            <td>{data["eqd2_d0_1cc"]}</td>
-            <td></td>
-            <td></td>
-        </tr>"""
-        # Second row for D1cc
-        dvh_rows += f"""<tr>
-            <td>D1cc</td>
-            <td>{data["d1cc_gy_per_fraction"]}</td>
-            <td>{data["d1cc_gy_per_fraction"] * number_of_fractions:.2f}</td>
-            <td>{data["bed_d1cc"]}</td>
-            <td>{data["bed_previous_brachy"]}</td>
-            <td>{data["bed_ebrt"]}</td>
-            <td>{data["eqd2_d1cc"]}</td>
-            <td></td>
-            <td></td>
-        </tr>"""
-        # Third row for D2cc
-        # Third row for D2cc
-        dvh_rows += f"""<tr>
-            <td>D2cc</td>
-            <td>{data["d2cc_gy_per_fraction"]}</td>
-            <td>{data["total_d2cc_gy"]}</td>
-            <td>{data["bed_this_plan"]}</td>
-            <td>{data["bed_previous_brachy"]}</td>
-            <td>{data["bed_ebrt"]}</td>
-            <td>{data["eqd2_d2cc"]}</td>
-            <td class="{eqd2_met_class}">{'Met' if eqd2_met_class == 'met' else 'NOT Met'}</td>
-            <td>{data["dose_to_meet_constraint"]}</td>
-        </tr>"""
+        alpha_beta = alpha_beta_ratios.get(organ, alpha_beta_ratios["Default"])
+        is_target = alpha_beta == 10
+
+        if is_target:
+            rowspan = 5
+            target_volume_rows += f"""<tr>
+                <td rowspan="{rowspan}">{organ}</td>
+                <td rowspan="{rowspan}">{alpha_beta}</td>
+                <td rowspan="{rowspan}">{data["volume_cc"]}</td>"""
+            target_volume_rows += f"""<td>D98</td>
+                <td>{data["d98_gy_per_fraction"]}</td>
+                <td colspan="6"></td>
+            </tr>"""
+            target_volume_rows += f"""<tr>
+                <td>D90</td>
+                <td>{data.get("d90_gy_per_fraction", "N/A")}</td>
+                <td colspan="6"></td>
+            </tr>"""
+            target_volume_rows += f"""<tr>
+                <td>Max</td>
+                <td>{data["max_dose_gy_per_fraction"]}</td>
+                <td colspan="6"></td>
+            </tr>"""
+            target_volume_rows += f"""<tr>
+                <td>Mean</td>
+                <td>{data["mean_dose_gy_per_fraction"]}</td>
+                <td colspan="6"></td>
+            </tr>"""
+            target_volume_rows += f"""<tr>
+                <td>Min</td>
+                <td>{data["min_dose_gy_per_fraction"]}</td>
+                <td colspan="6"></td>
+            </tr>"""
+        else:
+            rowspan = 3
+            rows = []
+            rows.append(f"""<tr>
+                <td rowspan="{rowspan}">{organ}</td>
+                <td rowspan="{rowspan}">{alpha_beta}</td>
+                <td rowspan="{rowspan}">{data["volume_cc"]}</td>
+                <td>D0.1cc</td>
+                <td>{data["d0_1cc_gy_per_fraction"]}</td>
+                <td>{data["d0_1cc_gy_per_fraction"] * number_of_fractions:.2f}</td>
+                <td>{data["bed_d0_1cc"]}</td>
+                <td>{data["bed_previous_brachy"]}</td>
+                <td>{data["bed_ebrt"]}</td>
+                <td>{data["eqd2_d0_1cc"]}</td>
+                <td></td>
+                <td></td>
+            </tr>""")
+            rows.append(f"""<tr>
+                <td>D1cc</td>
+                <td>{data["d1cc_gy_per_fraction"]}</td>
+                <td>{data["d1cc_gy_per_fraction"] * number_of_fractions:.2f}</td>
+                <td>{data["bed_d1cc"]}</td>
+                <td>{data["bed_previous_brachy"]}</td>
+                <td>{data["bed_ebrt"]}</td>
+                <td>{data["eqd2_d1cc"]}</td>
+                <td></td>
+                <td></td>
+            </tr>""")
+            rows.append(f"""<tr>
+                <td>D2cc</td>
+                <td>{data["d2cc_gy_per_fraction"]}</td>
+                <td>{data["total_d2cc_gy"]}</td>
+                <td>{data["bed_this_plan"]}</td>
+                <td>{data["bed_previous_brachy"]}</td>
+                <td>{data["bed_ebrt"]}</td>
+                <td>{data["eqd2_d2cc"]}</td>
+                <td class="{eqd2_met_class}">{'Met' if eqd2_met_class == 'met' else 'NOT Met'}</td>
+                <td>{data.get("dose_to_meet_constraint", "N/A")}</td>
+            </tr>""")
+            oar_rows += "".join(rows)
 
     html_content = template.replace("{{ patient_name }}", patient_name)
     html_content = html_content.replace("{{ patient_mrn }}", patient_mrn)
@@ -76,7 +110,8 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
     html_content = html_content.replace("{{ brachy_dose_per_fraction }}", str(brachy_dose_per_fraction))
     html_content = html_content.replace("{{ number_of_fractions }}", str(number_of_fractions))
     html_content = html_content.replace("{{ ebrt_dose }}", str(ebrt_dose))
-    html_content = html_content.replace("{{ dvh_results_rows }}", dvh_rows)
+    html_content = html_content.replace("{{ target_volume_rows }}", target_volume_rows)
+    html_content = html_content.replace("{{ oar_rows }}", oar_rows)
 
     dose_ref_rows = ""
     for dr in dose_references:

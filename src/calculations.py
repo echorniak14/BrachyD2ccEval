@@ -157,11 +157,52 @@ def get_dvh(rtss_file, rtdose_file, structure_data, number_of_fractions, ebrt_do
             d0_1cc_gy_per_fraction = getattr(dvh, 'D0_1cc', 0.0)
             if hasattr(d0_1cc_gy_per_fraction, 'value'):
                 d0_1cc_gy_per_fraction = d0_1cc_gy_per_fraction.value
+            
+            max_dose_gy_per_fraction = getattr(dvh, 'max', 0.0)
+            if hasattr(max_dose_gy_per_fraction, 'value'):
+                max_dose_gy_per_fraction = max_dose_gy_per_fraction.value
+
+            mean_dose_gy_per_fraction = getattr(dvh, 'mean', 0.0)
+            if hasattr(mean_dose_gy_per_fraction, 'value'):
+                mean_dose_gy_per_fraction = mean_dose_gy_per_fraction.value
+
+            min_dose_gy_per_fraction = getattr(dvh, 'min', 0.0)
+            if hasattr(min_dose_gy_per_fraction, 'value'):
+                min_dose_gy_per_fraction = min_dose_gy_per_fraction.value
+
+            d95_gy_per_fraction = getattr(dvh, 'D95', 0.0)
+            if hasattr(d95_gy_per_fraction, 'value'):
+                d95_gy_per_fraction = d95_gy_per_fraction.value
+            
+            d98_gy_per_fraction = getattr(dvh, 'D98', 0.0)
+            if hasattr(d98_gy_per_fraction, 'value'):
+                d98_gy_per_fraction = d98_gy_per_fraction.value
+
+            d90_gy_per_fraction = getattr(dvh, 'D90', 0.0)
+            if hasattr(d90_gy_per_fraction, 'value'):
+                d90_gy_per_fraction = d90_gy_per_fraction.value
+
+            v20_percent = getattr(dvh, 'V20', 0.0)
+            if hasattr(v20_percent, 'value'):
+                v20_percent = v20_percent.value
+            
+            v30_percent = getattr(dvh, 'V30', 0.0)
+            if hasattr(v30_percent, 'value'):
+                v30_percent = v30_percent.value
+
         except Exception as e:
             print(f"Warning: Could not calculate DVH for {name} (ROI Number: {roi_number}). Error: {e}")
             d2cc_gy_per_fraction = 0.0
             d1cc_gy_per_fraction = 0.0
             d0_1cc_gy_per_fraction = 0.0
+            max_dose_gy_per_fraction = 0.0
+            mean_dose_gy_per_fraction = 0.0
+            min_dose_gy_per_fraction = 0.0
+            d95_gy_per_fraction = 0.0
+            d98_gy_per_fraction = 0.0
+            d90_gy_per_fraction = 0.0
+            v20_percent = 0.0
+            v30_percent = 0.0
 
         # Calculations for D2cc
         total_d2cc_gy = d2cc_gy_per_fraction * number_of_fractions
@@ -186,6 +227,14 @@ def get_dvh(rtss_file, rtdose_file, structure_data, number_of_fractions, ebrt_do
             "d2cc_gy_per_fraction": round(d2cc_gy_per_fraction, 2),
             "d1cc_gy_per_fraction": round(d1cc_gy_per_fraction, 2),
             "d0_1cc_gy_per_fraction": round(d0_1cc_gy_per_fraction, 2),
+            "max_dose_gy_per_fraction": round(max_dose_gy_per_fraction, 2),
+            "mean_dose_gy_per_fraction": round(mean_dose_gy_per_fraction, 2),
+            "min_dose_gy_per_fraction": round(min_dose_gy_per_fraction, 2),
+            "d95_gy_per_fraction": round(d95_gy_per_fraction, 2),
+            "d98_gy_per_fraction": round(d98_gy_per_fraction, 2),
+            "d90_gy_per_fraction": round(d90_gy_per_fraction, 2),
+            "v20_percent": round(v20_percent, 2),
+            "v30_percent": round(v30_percent, 2),
             "total_d2cc_gy": round(total_d2cc_gy, 2),
             "bed_d2cc": bed_d2cc,
             "eqd2_d2cc": eqd2_d2cc,
