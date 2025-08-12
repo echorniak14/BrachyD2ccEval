@@ -7,6 +7,7 @@ import pydicom
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.main import main as run_analysis
+from src.config import alpha_beta_ratios
 import tempfile
 
 def main():
@@ -72,25 +73,49 @@ def main():
                     tab1, tab2, tab3 = st.tabs(["DVH Results", "Point Dose Results", "Report"])
 
                     with tab1:
-                        st.subheader("DVH Results")
-                        dvh_data = []
+                        st.subheader("Target Volume DVH Results")
+                        target_dvh_data = []
+                        oar_dvh_data = []
+
                         for organ, data in results["dvh_results"].items():
-                            dvh_data.append({
-                                "Organ": organ,
-                                "Volume (cc)": data["volume_cc"],
-                                "D2cc (Gy)": data["d2cc_gy_per_fraction"],
-                                "D1cc (Gy)": data["d1cc_gy_per_fraction"],
-                                "D0.1cc (Gy)": data["d0_1cc_gy_per_fraction"],
-                                "Max Dose (Gy)": data["max_dose_gy_per_fraction"],
-                                "Mean Dose (Gy)": data["mean_dose_gy_per_fraction"],
-                                "Min Dose (Gy)": data["min_dose_gy_per_fraction"],
-                                "D95 (Gy)": data["d95_gy_per_fraction"],
-                                "D98 (Gy)": data["d98_gy_per_fraction"],
-                                "D90 (Gy)": data["d90_gy_per_fraction"],
-                                "V20 (%)": data["v20_percent"],
-                                "V30 (%)": data["v30_percent"],
-                            })
-                        st.table(dvh_data)
+                            alpha_beta = alpha_beta_ratios.get(organ, alpha_beta_ratios["Default"])
+                            is_target = alpha_beta == 10
+
+                            if is_target:
+                                target_dvh_data.append({
+                                    "Organ": organ,
+                                    "Volume (cc)": data["volume_cc"],
+                                    "D98 (Gy)": data["d98_gy_per_fraction"],
+                                    "D90 (Gy)": data["d90_gy_per_fraction"],
+                                    "Max Dose (Gy)": data["max_dose_gy_per_fraction"],
+                                    "Mean Dose (Gy)": data["mean_dose_gy_per_fraction"],
+                                    "Min Dose (Gy)": data["min_dose_gy_per_fraction"],
+                                })
+                            else:
+                                oar_dvh_data.append({
+                                    "Organ": organ,
+                                    "Volume (cc)": data["volume_cc"],
+                                    "D0.1cc (Gy)": data["d0_1cc_gy_per_fraction"],
+                                    "D1cc (Gy)": data["d1cc_gy_per_fraction"],
+                                    "D2cc (Gy)": data["d2cc_gy_per_fraction"],
+                                    "BED_D0.1cc (Gy)": data["bed_d0_1cc"],
+                                    "EQD2_D0.1cc (Gy)": data["eqd2_d0_1cc"],
+                                    "BED_D1cc (Gy)": data["bed_d1cc"],
+                                    "EQD2_D1cc (Gy)": data["eqd2_d1cc"],
+                                    "BED_D2cc (Gy)": data["bed_d2cc"],
+                                    "EQD2_D2cc (Gy)": data["eqd2_d2cc"],
+                                })
+                        
+                        if target_dvh_data:
+                            st.table(target_dvh_data)
+                        else:
+                            st.info("No target volume DVH data available.")
+
+                        st.subheader("OAR DVH Results")
+                        if oar_dvh_data:
+                            st.table(oar_dvh_data)
+                        else:
+                            st.info("No OAR DVH data available.")
 
                     with tab2:
                         st.subheader("Point Dose Results")
