@@ -233,10 +233,13 @@ def main(args, selected_point_names=None, custom_constraints=None): # Added sele
     # Get structure data
     structure_data = get_structure_data(rt_struct_dataset)
 
-    # Parse previous brachytherapy HTML report if provided
+    # Parse previous brachytherapy data if provided
     previous_brachy_eqd2_per_organ = {}
-    if args.previous_brachy_html:
-        previous_brachy_eqd2_per_organ = parse_html_report(args.previous_brachy_html)
+    if hasattr(args, 'previous_brachy_data') and args.previous_brachy_data:
+        if isinstance(args.previous_brachy_data, str): # It's an HTML file path
+            previous_brachy_eqd2_per_organ = parse_html_report(args.previous_brachy_data)
+        elif isinstance(args.previous_brachy_data, dict): # It's parsed JSON data
+            previous_brachy_eqd2_per_organ = args.previous_brachy_data
 
     # Calculate DVH
     dvh_results = get_dvh(

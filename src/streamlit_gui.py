@@ -25,7 +25,7 @@ def main():
 
     st.sidebar.header("Parameters")
     ebrt_dose = st.sidebar.number_input("EBRT Dose (Gy)", value=0.0)
-    previous_brachy_html = st.sidebar.file_uploader("Upload previous brachytherapy report (optional)", type=["html"])
+    previous_brachy_data_file = st.sidebar.file_uploader("Upload previous brachytherapy data (optional)", type=["html", "json"])
     wkhtmltopdf_path = st.sidebar.text_input("Path to wkhtmltopdf.exe (optional)")
 
     st.sidebar.header("Alpha/Beta Ratios")
@@ -165,10 +165,31 @@ def main():
                         st.warning(f"Could not read DICOM file {uploaded_file.name}: {e}")
 
                 if rtdose_path and rtstruct_path and rtplan_path:
+                    previous_brachy_eqd2_data = {}
+                    if previous_brachy_data_file:
+                        file_extension = os.path.splitext(previous_brachy_data_file.name)[1].lower()
+                        if file_extension == ".html":
+                            # Save the uploaded HTML file to a temporary location
+                            with tempfile.NamedTemporaryFile(delete=False, suffix=".html") as tmp_html_file:
+                                tmp_html_file.write(previous_brachy_data_file.getbuffer())
+                                previous_brachy_html_path = tmp_html_file.name
+                            # Pass the path to main.py for parsing
+                            previous_brachy_eqd2_data = previous_brachy_html_path
+                        elif file_extension == ".json":
+                            # Read and parse the JSON content
+                            json_content = json.loads(previous_brachy_data_file.read().decode("utf-8"))
+                            # Extract EQD2 values from the JSON structure
+                            # Assuming the JSON structure has "dvh_results" with "eqd2_d2cc" for each organ
+                            for organ, data in json_content.get("dvh_results", {}).items():
+                                previous_brachy_eqd2_data[organ] = data.get("eqd2_d2cc", 0.0)
+                            # Also check point dose results if needed for accumulation
+                            for point_data in json_content.get("point_dose_results", {}):
+                                previous_brachy_eqd2_data[point_data["name"]] = point_data.get("EQD2", 0.0)
+                        
                     args = argparse.Namespace(
                         data_dir=tmpdir_analysis, # Use the new tmpdir for analysis
                         ebrt_dose=ebrt_dose,
-                        previous_brachy_html=previous_brachy_html,
+                        previous_brachy_data=previous_brachy_eqd2_data, # Pass parsed data or path
                         output_html=os.path.join(tmpdir_analysis, "report.html"),
                         alpha_beta_ratios=ab_ratios,
                         selected_point_names=st.session_state.selected_point_names, # Pass selected points

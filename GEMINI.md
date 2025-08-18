@@ -98,6 +98,10 @@ This file is for internal use by the Gemini CLI agent to track project progress,
     - Imported `json` module into `src/streamlit_gui.py`.
     - Added a "Download Brachy Data (JSON)" button to the "Report" tab in Streamlit.
     - This button allows users to export the `dvh_results` and `point_dose_results` of the current plan as a JSON file.
+- **JSON Import for Previous Brachytherapy Data:**
+    - Modified `st.sidebar.file_uploader` in `src/streamlit_gui.py` to accept both `.html` and `.json` file types for previous brachytherapy data.
+    - Implemented logic in `src/streamlit_gui.py` to read and parse uploaded JSON files, extracting EQD2 values for accumulation.
+    - Modified the `main` function in `src/main.py` to accept either a file path (for HTML) or a dictionary (for parsed JSON data) for `previous_brachy_data`.
 
 ## Next Steps:
 - **Previous Brachytherapy Data Integration:**
