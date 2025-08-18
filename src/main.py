@@ -1,4 +1,5 @@
 import sys
+import base64
 from .html_parser import parse_html_report
 from .dicom_parser import find_dicom_file, load_dicom_file, get_structure_data, get_plan_data
 from .calculations import get_dvh, evaluate_constraints, calculate_dose_to_meet_constraint, calculate_point_dose_bed_eqd2
@@ -42,9 +43,19 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
         base_path = Path(__file__).parent
 
     template_path = Path(base_path) / "templates" / "report_template.html"
+    logo_path = Path(base_path) / "assets" / "2020-flame-red-01.png"
 
     with open(template_path, "r") as f:
         template = f.read()
+
+    # Read and base64 encode the logo
+    try:
+        with open(logo_path, "rb") as img_file:
+            logo_base64 = base64.b64encode(img_file.read()).decode('utf-8')
+            logo_data_uri = f"data:image/png;base64,{logo_base64}"
+    except FileNotFoundError:
+        print(f"Warning: Logo file not found at {logo_path}. Image will not be displayed.")
+        logo_data_uri = "" # Fallback to empty string if logo not found
 
     target_volume_rows = ""
     oar_rows = ""
@@ -137,6 +148,8 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
     html_content = html_content.replace("{{ ebrt_dose }}", str(ebrt_dose))
     html_content = html_content.replace("{{ target_volume_rows }}", target_volume_rows)
     html_content = html_content.replace("{{ oar_rows }}", oar_rows)
+
+    html_content = html_content.replace("{{ logo_base64 }}", logo_data_uri)
 
     dose_ref_rows = ""
     for dr in dose_references:

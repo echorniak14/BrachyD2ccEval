@@ -72,6 +72,9 @@ This file is for internal use by the Gemini CLI agent to track project progress,
     - Modified the OAR DVH results table in `src/main.py` to align the "Total Planned Dose (Gy)" column with the D2cc row, leaving D0.1cc and D1cc rows empty in that column for improved readability.
 - **PDF Report Generation (Error Handling):**
     - Added a `try-except` block in `src/streamlit_gui.py` around PDF generation to catch `IOError` (e.g., if `wkhtmltopdf` is not found) and display a user-friendly error message.
+- **Flame Logo Display Fix:**
+    - Modified `src/templates/report_template.html` to use a placeholder `{{ logo_base64 }}` for the image source.
+    - Modified `src/main.py` to read the `2020-flame-red-01.png` image, Base64 encode it, and embed it directly into the HTML report as a data URI. This ensures the logo displays correctly in the generated PDF and Streamlit report tab, as it eliminates reliance on external file paths.
 
 ## Next Steps:
 - **Previous Brachytherapy Data Integration:**

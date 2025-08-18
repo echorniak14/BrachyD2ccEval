@@ -3,7 +3,7 @@
 <head>
     <title>Brachytherapy Evaluation Report</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
+        body { font-family: Arial, sans-serif; margin: 10px; color: #333; }
         h1 { 
             color: #2c3e50; 
             border-bottom: 2px solid #3498db; 
@@ -39,7 +39,7 @@
     </style>
 </head>
 <body>
-    <img src="../src/assets/2020-flame-red-01.png" alt="Institution Logo" class="logo">
+    <img src="{{ logo_base64 }}" alt="Institution Logo" class="logo">
     <h1>Brachytherapy Evaluation Report</h1>
     <p><strong>Patient Name:</strong> {{ patient_name }}</p>
     <p><strong>Patient MRN:</strong> {{ patient_mrn }}</p>
