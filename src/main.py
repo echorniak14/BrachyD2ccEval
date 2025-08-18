@@ -6,6 +6,31 @@ import argparse
 from pathlib import Path
 import json
 from .config import alpha_beta_ratios, constraints
+import pdfkit
+
+def convert_html_to_pdf(html_content, output_path, wkhtmltopdf_path=None):
+    """
+    Converts HTML content to a PDF file using pdfkit.
+    """
+    try:
+        config = None
+        if wkhtmltopdf_path:
+            config = pdfkit.configuration(wkhtmltopdf=wkhtmltopdf_path)
+        
+        options = {
+            'enable-local-file-access': None
+        }
+        
+        pdfkit.from_string(html_content, output_path, configuration=config, options=options)
+    except IOError as e:
+        # Re-raise the error with a more helpful message for the GUI
+        raise IOError(
+            "Could not locate wkhtmltopdf. Please install it and ensure it's in your system's PATH, or provide the path in the sidebar."
+            "\n\nSee: https://wkhtmltopdf.org/downloads.html"
+            f"\n\nOriginal error: {e}"
+        )
+
+
 
 def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_fraction, number_of_fractions, ebrt_dose, dvh_results, constraint_evaluation, dose_references, point_dose_results, output_path, alpha_beta_ratios):
     # Determine the base path for data files
@@ -72,7 +97,7 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
                 <td rowspan="{rowspan}">{data["volume_cc"]}</td>
                 <td>D0.1cc</td>
                 <td>{data["d0_1cc_gy_per_fraction"]}</td>
-                <td>{data["d0_1cc_gy_per_fraction"] * number_of_fractions:.2f}</td>
+                <td></td>
                 <td>{data["bed_d0_1cc"]}</td>
                 <td>{data["bed_previous_brachy"]}</td>
                 <td>{data["bed_ebrt"]}</td>
@@ -83,7 +108,7 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
             rows.append(f"""<tr>
                 <td>D1cc</td>
                 <td>{data["d1cc_gy_per_fraction"]}</td>
-                <td>{data["d1cc_gy_per_fraction"] * number_of_fractions:.2f}</td>
+                <td></td>
                 <td>{data["bed_d1cc"]}</td>
                 <td>{data["bed_previous_brachy"]}</td>
                 <td>{data["bed_ebrt"]}</td>
@@ -279,7 +304,9 @@ def main(args, selected_point_names=None): # Added selected_point_names paramete
     }
 
     if args.output_html:
-        generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_fraction, number_of_fractions, args.ebrt_dose, dvh_results, constraint_evaluation, output_data['dose_references'], output_data['point_dose_results'], args.output_html, current_alpha_beta_ratios)
+        html_content = generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_fraction, number_of_fractions, args.ebrt_dose, dvh_results, constraint_evaluation, output_data['dose_references'], output_data['point_dose_results'], args.output_html, current_alpha_beta_ratios)
+        output_data['html_report'] = html_content
+
 
     return output_data
 

@@ -3,11 +3,14 @@ import argparse
 import sys
 import os
 import pydicom
+
+# Add the project root to the Python path
+# This is necessary for the 'src' module to be found
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, project_root)
+
 from src.dicom_parser import get_plan_data
-
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from src.main import main as run_analysis
+from src.main import main as run_analysis, convert_html_to_pdf
 from src.config import alpha_beta_ratios
 import tempfile
 
@@ -20,6 +23,7 @@ def main():
     st.sidebar.header("Parameters")
     ebrt_dose = st.sidebar.number_input("EBRT Dose (Gy)", value=0.0)
     previous_brachy_html = st.sidebar.file_uploader("Upload previous brachytherapy report (optional)", type=["html"])
+    wkhtmltopdf_path = st.sidebar.text_input("Path to wkhtmltopdf.exe (optional)")
 
     st.sidebar.header("Alpha/Beta Ratios")
 
@@ -207,9 +211,33 @@ def main():
                     
                     with tab3:
                         st.subheader("Report")
-                        with open(os.path.join(tmpdir_analysis, "report.html"), "r") as f: # Use tmpdir_analysis
-                            html_report = f.read()
-                        st.components.v1.html(html_report, height=600, scrolling=True)
+                        html_report = results.get('html_report', '')
+                        if html_report:
+                            st.components.v1.html(html_report, height=600, scrolling=True)
+                            
+                            try:
+                                pdf_path = os.path.join(tmpdir_analysis, "report.pdf")
+                                convert_html_to_pdf(html_report, pdf_path, wkhtmltopdf_path=wkhtmltopdf_path)
+
+                                with open(pdf_path, "rb") as f:
+                                    pdf_bytes = f.read()
+                                
+                                st.download_button(
+                                    label="Download PDF",
+                                    data=pdf_bytes,
+                                    file_name="report.pdf",
+                                    mime="application/pdf"
+                                )
+                            except IOError as e:
+                                st.error(
+                                    "Could not generate PDF. This is likely because the 'wkhtmltopdf' executable was not found."
+                                    "\n\nPlease install 'wkhtmltopdf' and ensure it is in your system's PATH."
+                                    "\n\nSee the installation guide: https://wkhtmltopdf.org/downloads.html"
+                                    f"\n\n**Error details:**\n\n{e}"
+                                )
+                        else:
+                            st.warning("Could not generate HTML report.")
+
                 else:
                     st.error("Please upload all required DICOM files (RTDOSE, RTSTRUCT, RTPLAN).")
         else:
