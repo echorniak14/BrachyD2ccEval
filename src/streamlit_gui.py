@@ -11,7 +11,7 @@ sys.path.insert(0, project_root)
 
 from src.dicom_parser import get_plan_data
 from src.main import main as run_analysis, convert_html_to_pdf
-from src.config import alpha_beta_ratios
+from src.config import alpha_beta_ratios, constraints # Added constraints
 import tempfile
 
 def main():
@@ -46,6 +46,27 @@ def main():
     ab_ratios = {}
     for organ, val in alpha_beta_ratios.items():
         ab_ratios[organ] = st.session_state[f"ab_{organ}"]
+
+    st.sidebar.header("Constraints")
+
+    # Initialize session state for constraints from defaults if not already present
+    if "custom_constraints" not in st.session_state:
+        st.session_state.custom_constraints = constraints.copy()
+
+    # Reset constraints button
+    if st.sidebar.button("Reset Constraints to Default"):
+        st.session_state.custom_constraints = constraints.copy()
+
+    # Display and update constraints
+    with st.sidebar.expander("Edit Constraints"):
+        for organ, organ_constraints in st.session_state.custom_constraints.items():
+            st.subheader(f"{organ} Constraints")
+            if "EQD2" in organ_constraints:
+                st.session_state.custom_constraints[organ]["EQD2"]["max"] = st.number_input(
+                    f"{organ} EQD2 Max (Gy)",
+                    value=float(organ_constraints["EQD2"]["max"]),
+                    key=f"constraint_{organ}_EQD2_max"
+                )
 
     # Initialize selected_point_names and available_point_names in session state at the top
     if 'available_point_names' not in st.session_state:
@@ -148,7 +169,8 @@ def main():
                         previous_brachy_html=previous_brachy_html,
                         output_html=os.path.join(tmpdir_analysis, "report.html"),
                         alpha_beta_ratios=ab_ratios,
-                        selected_point_names=st.session_state.selected_point_names # Pass selected points
+                        selected_point_names=st.session_state.selected_point_names, # Pass selected points
+                        custom_constraints=st.session_state.custom_constraints # Pass custom constraints
                     )
 
                     results = run_analysis(args, selected_point_names=st.session_state.selected_point_names)

@@ -177,7 +177,7 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
     
     return html_content
 
-def main(args, selected_point_names=None): # Added selected_point_names parameter
+def main(args, selected_point_names=None, custom_constraints=None): # Added selected_point_names parameter
     data_dir = Path(args.data_dir)
 
     # Use custom alpha/beta ratios if provided, otherwise use defaults
@@ -249,7 +249,7 @@ def main(args, selected_point_names=None): # Added selected_point_names paramete
         alpha_beta_ratios=current_alpha_beta_ratios
     )
 
-    current_constraints = constraints
+    current_constraints = constraints if custom_constraints is None else custom_constraints
     # Evaluate constraints
     constraint_evaluation = evaluate_constraints(dvh_results, constraints=current_constraints)
 

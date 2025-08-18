@@ -53,10 +53,7 @@ This file is for internal use by the Gemini CLI agent to track project progress,
 - **Constraint Evaluation:**
     - Implemented constraint evaluation based on EMBRACE II.
     - Generated initial report in Excel format.
-- **Report Layout Reorganization:**
-            - Restructured the HTML report to display D0.1cc, D1cc, and D2cc as separate rows under each organ, improving readability and data presentation.
-    - Corrected the column header from "Value (per fraction) (Gy)" to "Dose (per fraction) (Gy)" and from "D2cc (total) (Gy)" to "Total Planned Dose (Gy)" in the HTML report.
-    - Aligned "Total Planned Dose (Gy)" and subsequent columns with the D2cc row in the HTML report.
+
 - **Robust Plan Name Extraction:**
     - Modified `src/dicom_parser.py` to ensure the extracted plan name is never an empty string, defaulting to 'N/A' if DICOM tags `RTPlanLabel`, `RTPlanName`, or `SeriesDescription` are missing or empty. This prevents `IndexError` issues in downstream processing.
 - **Streamlit File Uploader Type Restriction:**
@@ -75,6 +72,14 @@ This file is for internal use by the Gemini CLI agent to track project progress,
 - **Flame Logo Display Fix:**
     - Modified `src/templates/report_template.html` to use a placeholder `{{ logo_base64 }}` for the image source.
     - Modified `src/main.py` to read the `2020-flame-red-01.png` image, Base64 encode it, and embed it directly into the HTML report as a data URI. This ensures the logo displays correctly in the generated PDF and Streamlit report tab, as it eliminates reliance on external file paths.
+- **Customizable Constraints in GUI:**
+    - Imported `constraints` from `src/config.py` into `src/streamlit_gui.py`.
+    - Added a "Constraints" section to the Streamlit sidebar with an expander for editing.
+    - Implemented `st.number_input` widgets for EQD2 max values using `st.session_state` for persistence within the session.
+    - Removed BED constraint customization as per user request.
+    - Added a "Reset Constraints to Default" button.
+    - Modified the `main` function in `src/main.py` to accept a `custom_constraints` argument.
+    - Updated the `current_constraints` variable in `src/main.py` to use `custom_constraints` if provided, otherwise fall back to the default `constraints` from `config.py`.
 
 ## Next Steps:
 - **Previous Brachytherapy Data Integration:**
