@@ -80,6 +80,11 @@ This file is for internal use by the Gemini CLI agent to track project progress,
     - Added a "Reset Constraints to Default" button.
     - Modified the `main` function in `src/main.py` to accept a `custom_constraints` argument.
     - Updated the `current_constraints` variable in `src/main.py` to use `custom_constraints` if provided, otherwise fall back to the default `constraints` from `config.py`.
+- **Enhanced DVH Results Display in Streamlit:**
+    - Imported `pandas` into `src/streamlit_gui.py`.
+    - Changed `st.table` to `st.dataframe` for DVH results display.
+    - Included "Constraint Met" status (Met/NOT Met) and "Dose to Meet Constraint (Gy)" for OARs in the displayed data.
+    - Implemented conditional styling (red/green background) for OAR rows in `st.dataframe` based on constraint adherence.
 
 ## Next Steps:
 - **Previous Brachytherapy Data Integration:**

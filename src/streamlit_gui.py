@@ -3,6 +3,7 @@ import argparse
 import sys
 import os
 import pydicom
+import pandas as pd # Added pandas import
 
 # Add the project root to the Python path
 # This is necessary for the 'src' module to be found
@@ -203,6 +204,13 @@ def main():
                                     "Min Dose (Gy)": data["min_dose_gy_per_fraction"],
                                 })
                             else:
+                                # Get constraint evaluation for OARs
+                                constraint_status = "N/A"
+                                dose_to_meet = "N/A"
+                                if organ in results["constraint_evaluation"] and "EQD2_met" in results["constraint_evaluation"][organ]:
+                                    constraint_status = "Met" if results["constraint_evaluation"][organ]["EQD2_met"] == "True" else "NOT Met"
+                                    dose_to_meet = data.get("dose_to_meet_constraint", "N/A")
+
                                 oar_dvh_data.append({
                                     "Organ": organ,
                                     "Volume (cc)": data["volume_cc"],
@@ -215,16 +223,27 @@ def main():
                                     "EQD2_D1cc (Gy)": data["eqd2_d1cc"],
                                     "BED_D2cc (Gy)": data["bed_d2cc"],
                                     "EQD2_D2cc (Gy)": data["eqd2_d2cc"],
+                                    "Constraint Met": constraint_status,
+                                    "Dose to Meet Constraint (Gy)": dose_to_meet,
                                 })
                         
                         if target_dvh_data:
-                            st.table(target_dvh_data)
+                            st.dataframe(pd.DataFrame(target_dvh_data))
                         else:
                             st.info("No target volume DVH data available.")
 
                         st.subheader("OAR DVH Results")
                         if oar_dvh_data:
-                            st.table(oar_dvh_data)
+                            oar_df = pd.DataFrame(oar_dvh_data)
+                            
+                            def highlight_constraint_status(row):
+                                if row["Constraint Met"] == "Met":
+                                    return ['background-color: #d4edda'] * len(row) # Greenish
+                                elif row["Constraint Met"] == "NOT Met":
+                                    return ['background-color: #f8d7da'] * len(row) # Reddish
+                                return [''] * len(row)
+
+                            st.dataframe(oar_df.style.apply(highlight_constraint_status, axis=1))
                         else:
                             st.info("No OAR DVH data available.")
 
