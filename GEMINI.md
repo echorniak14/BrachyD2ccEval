@@ -107,6 +107,8 @@ This file is for internal use by the Gemini CLI agent to track project progress,
     - Revised the "Features" section to include new functionalities like customizable constraints, enhanced DVH display, JSON export/import, and updated GUI description.
     - Updated the "Dosimetric Calculations" section under "Core Concepts" to clarify DVH metrics and provide more detail on dose accumulation.
     - Revised the "Usage" section to reflect Streamlit GUI usage and updated `main.py` arguments for `previous_brachy_data` and `custom_constraints`.
+- **Logo Image Update:**
+    - Modified `src/main.py` to use `2020-flame-red-02.PNG` as the logo image instead of `2020-flame-red-01.png`.
 
 ## Next Steps:
 - **Previous Brachytherapy Data Integration:**

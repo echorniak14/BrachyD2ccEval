@@ -43,7 +43,7 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
         base_path = Path(__file__).parent
 
     template_path = Path(base_path) / "templates" / "report_template.html"
-    logo_path = Path(base_path) / "assets" / "2020-flame-red-01.png"
+    logo_path = Path(base_path) / "assets" / "2020-flame-red-02.PNG"
 
     with open(template_path, "r") as f:
         template = f.read()
