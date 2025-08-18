@@ -5,9 +5,34 @@ from .calculations import get_dvh, evaluate_constraints, calculate_dose_to_meet_
 import argparse
 from pathlib import Path
 import json
-from .config import alpha_beta_ratios
+from .config import alpha_beta_ratios, constraints
+import pdfkit
 
-def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_fraction, number_of_fractions, ebrt_dose, dvh_results, constraint_evaluation, dose_references, point_dose_results, output_path):
+def convert_html_to_pdf(html_content, output_path, wkhtmltopdf_path=None):
+    """
+    Converts HTML content to a PDF file using pdfkit.
+    """
+    try:
+        config = None
+        if wkhtmltopdf_path:
+            config = pdfkit.configuration(wkhtmltopdf=wkhtmltopdf_path)
+        
+        options = {
+            'enable-local-file-access': None
+        }
+        
+        pdfkit.from_string(html_content, output_path, configuration=config, options=options)
+    except IOError as e:
+        # Re-raise the error with a more helpful message for the GUI
+        raise IOError(
+            "Could not locate wkhtmltopdf. Please install it and ensure it's in your system's PATH, or provide the path in the sidebar."
+            "\n\nSee: https://wkhtmltopdf.org/downloads.html"
+            f"\n\nOriginal error: {e}"
+        )
+
+
+
+def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_fraction, number_of_fractions, ebrt_dose, dvh_results, constraint_evaluation, dose_references, point_dose_results, output_path, alpha_beta_ratios):
     # Determine the base path for data files
     if getattr(sys, 'frozen', False):
         # Running in a PyInstaller bundle
@@ -26,9 +51,9 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
     for organ, data in dvh_results.items():
         eqd2_met_class = ""
         if organ in constraint_evaluation:
-            constraints = constraint_evaluation[organ]
-            if "EQD2_met" in constraints:
-                eqd2_met_class = "met" if constraints["EQD2_met"] == "True" else "not-met"
+            organ_constraints = constraint_evaluation[organ]
+            if "EQD2_met" in organ_constraints:
+                eqd2_met_class = "met" if organ_constraints["EQD2_met"] == "True" else "not-met"
 
         alpha_beta = alpha_beta_ratios.get(organ, alpha_beta_ratios["Default"])
         is_target = alpha_beta == 10
@@ -72,7 +97,7 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
                 <td rowspan="{rowspan}">{data["volume_cc"]}</td>
                 <td>D0.1cc</td>
                 <td>{data["d0_1cc_gy_per_fraction"]}</td>
-                <td>{data["d0_1cc_gy_per_fraction"] * number_of_fractions:.2f}</td>
+                <td></td>
                 <td>{data["bed_d0_1cc"]}</td>
                 <td>{data["bed_previous_brachy"]}</td>
                 <td>{data["bed_ebrt"]}</td>
@@ -83,7 +108,7 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
             rows.append(f"""<tr>
                 <td>D1cc</td>
                 <td>{data["d1cc_gy_per_fraction"]}</td>
-                <td>{data["d1cc_gy_per_fraction"] * number_of_fractions:.2f}</td>
+                <td></td>
                 <td>{data["bed_d1cc"]}</td>
                 <td>{data["bed_previous_brachy"]}</td>
                 <td>{data["bed_ebrt"]}</td>
@@ -139,8 +164,14 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
     
     return html_content
 
-def main(args):
+def main(args, selected_point_names=None): # Added selected_point_names parameter
     data_dir = Path(args.data_dir)
+
+    # Use custom alpha/beta ratios if provided, otherwise use defaults
+    current_alpha_beta_ratios = alpha_beta_ratios.copy()
+    if hasattr(args, 'alpha_beta_ratios') and args.alpha_beta_ratios:
+        for organ, ratio in args.alpha_beta_ratios.items():
+            current_alpha_beta_ratios[organ] = ratio
 
     # Find the subdirectories
     subdirectories = [d for d in data_dir.iterdir() if d.is_dir()]
@@ -201,24 +232,27 @@ def main(args):
         structure_data,
         number_of_fractions,
         ebrt_dose=args.ebrt_dose,
-        previous_brachy_eqd2_per_organ=previous_brachy_eqd2_per_organ
+        previous_brachy_eqd2_per_organ=previous_brachy_eqd2_per_organ,
+        alpha_beta_ratios=current_alpha_beta_ratios
     )
 
+    current_constraints = constraints
     # Evaluate constraints
-    constraint_evaluation = evaluate_constraints(dvh_results)
+    constraint_evaluation = evaluate_constraints(dvh_results, constraints=current_constraints)
 
     # Calculate dose to meet constraint for unmet EQD2 constraints
     for organ, data in dvh_results.items():
         if organ in constraint_evaluation:
-            constraints = constraint_evaluation[organ]
-            if "EQD2_met" in constraints and constraints["EQD2_met"] == "False":
-                eqd2_constraint = constraints["EQD2_max"]
+            organ_constraints = constraint_evaluation[organ]
+            if "EQD2_met" in organ_constraints and organ_constraints["EQD2_met"] == "False":
+                eqd2_constraint = organ_constraints["EQD2_max"]
                 dose_needed = calculate_dose_to_meet_constraint(
                     eqd2_constraint,
                     organ,
                     number_of_fractions,
                     args.ebrt_dose,
-                    previous_brachy_eqd2=previous_brachy_eqd2_per_organ.get(organ, 0)
+                    previous_brachy_eqd2=previous_brachy_eqd2_per_organ.get(organ, 0),
+                    alpha_beta_ratios=current_alpha_beta_ratios
                 )
                 dvh_results[organ]["dose_to_meet_constraint"] = dose_needed
             else:
@@ -226,13 +260,23 @@ def main(args):
 
     # Calculate BED and EQD2 for point doses
     point_dose_results = []
-    for dr in plan_data.get('dose_references', []):
+    # Filter dose references based on selected_point_names
+    filtered_dose_references = []
+    if selected_point_names:
+        for dr in plan_data.get('dose_references', []):
+            if dr['name'] in selected_point_names:
+                filtered_dose_references.append(dr)
+    else:
+        filtered_dose_references = plan_data.get('dose_references', []) # If no selection, include all
+
+    for dr in filtered_dose_references: # Use filtered_dose_references
         total_bed, eqd2, bed_brachy, bed_ebrt, bed_previous_brachy = calculate_point_dose_bed_eqd2(
             dr['dose'],
             number_of_fractions,
             dr['name'],
             args.ebrt_dose,
-            previous_brachy_eqd2=previous_brachy_eqd2_per_organ.get(dr['name'], 0)
+            previous_brachy_eqd2=previous_brachy_eqd2_per_organ.get(dr['name'], 0),
+            alpha_beta_ratios=current_alpha_beta_ratios
         )
         point_dose_results.append({
             'name': dr['name'],
@@ -255,11 +299,14 @@ def main(args):
         "dvh_results": dvh_results,
         "constraint_evaluation": constraint_evaluation,
         "dose_references": plan_data.get('dose_references', []),
-        "point_dose_results": point_dose_results
+        "point_dose_results": point_dose_results,
+        "used_alpha_beta_ratios": current_alpha_beta_ratios
     }
 
     if args.output_html:
-        generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_fraction, number_of_fractions, args.ebrt_dose, dvh_results, constraint_evaluation, output_data['dose_references'], output_data['point_dose_results'], args.output_html)
+        html_content = generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_fraction, number_of_fractions, args.ebrt_dose, dvh_results, constraint_evaluation, output_data['dose_references'], output_data['point_dose_results'], args.output_html, current_alpha_beta_ratios)
+        output_data['html_report'] = html_content
+
 
     return output_data
 
