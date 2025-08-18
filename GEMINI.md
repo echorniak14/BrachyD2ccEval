@@ -94,6 +94,10 @@ This file is for internal use by the Gemini CLI agent to track project progress,
     - Organ and Volume columns now effectively span 3 rows by duplicating values in the first row and leaving subsequent rows empty.
     - D0.1cc, D1cc, and D2cc are stacked in a single "Dose Metric" column.
     - BED and EQD2 values are layered accordingly for each dose metric.
+- **JSON Export of Plan Data:**
+    - Imported `json` module into `src/streamlit_gui.py`.
+    - Added a "Download Brachy Data (JSON)" button to the "Report" tab in Streamlit.
+    - This button allows users to export the `dvh_results` and `point_dose_results` of the current plan as a JSON file.
 
 ## Next Steps:
 - **Previous Brachytherapy Data Integration:**

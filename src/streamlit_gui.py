@@ -4,6 +4,7 @@ import sys
 import os
 import pydicom
 import pandas as pd # Added pandas import
+import json # Added json import
 
 # Add the project root to the Python path
 # This is necessary for the 'src' module to be found
@@ -278,6 +279,20 @@ def main():
                         if html_report:
                             st.components.v1.html(html_report, height=600, scrolling=True)
                             
+                            # Prepare data for JSON export
+                            export_data = {
+                                "dvh_results": results["dvh_results"],
+                                "point_dose_results": results["point_dose_results"]
+                            }
+                            json_export_str = json.dumps(export_data, indent=4)
+
+                            st.download_button(
+                                label="Download Brachy Data (JSON)",
+                                data=json_export_str,
+                                file_name="brachy_data.json",
+                                mime="application/json"
+                            )
+
                             try:
                                 pdf_path = os.path.join(tmpdir_analysis, "report.pdf")
                                 convert_html_to_pdf(html_report, pdf_path, wkhtmltopdf_path=wkhtmltopdf_path)
