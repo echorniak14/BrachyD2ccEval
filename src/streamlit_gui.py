@@ -3,6 +3,7 @@ import argparse
 import sys
 import os
 import pydicom
+from src.dicom_parser import get_plan_data
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -21,57 +22,131 @@ def main():
     previous_brachy_html = st.sidebar.file_uploader("Upload previous brachytherapy report (optional)", type=["html"])
 
     st.sidebar.header("Alpha/Beta Ratios")
-    ab_ratios = alpha_beta_ratios.copy()
+
+    # Initialize session state from defaults if not already present
+    for organ, val in alpha_beta_ratios.items():
+        if f"ab_{organ}" not in st.session_state:
+            st.session_state[f"ab_{organ}"] = val
+
+    # Reset button
     if st.sidebar.button("Reset to Default"):
-        ab_ratios = alpha_beta_ratios.copy()
-    for organ, val in list(ab_ratios.items()):
-        ab_ratios[organ] = st.sidebar.number_input(f"{organ}", value=val)
+        for organ, val in alpha_beta_ratios.items():
+            st.session_state[f"ab_{organ}"] = val
+
+    # Display and update alpha/beta ratios
+    for organ, val in alpha_beta_ratios.items():
+        st.sidebar.number_input(f"{organ}", key=f"ab_{organ}")
+
+    # Collect the ab_ratios from session state before running analysis
+    ab_ratios = {}
+    for organ, val in alpha_beta_ratios.items():
+        ab_ratios[organ] = st.session_state[f"ab_{organ}"]
+
+    # Initialize selected_point_names and available_point_names in session state at the top
+    if 'available_point_names' not in st.session_state:
+        st.session_state.available_point_names = []
+    if 'selected_point_names' not in st.session_state:
+        st.session_state.selected_point_names = []
+
+    # Logic to handle uploaded files and extract dose references
+    rtplan_file_path = None
+    if uploaded_files:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            rtdose_dir = os.path.join(tmpdir, "RTDOSE")
+            rtstruct_dir = os.path.join(tmpdir, "RTst")
+            rtplan_dir = os.path.join(tmpdir, "RTPLAN")
+
+            os.makedirs(rtdose_dir)
+            os.makedirs(rtstruct_dir)
+            os.makedirs(rtplan_dir)
+
+            for uploaded_file in uploaded_files:
+                file_path = os.path.join(tmpdir, uploaded_file.name)
+                with open(file_path, "wb") as f:
+                    f.write(uploaded_file.getbuffer())
+
+                try:
+                    ds = pydicom.dcmread(file_path)
+                    if ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.481.2': # RT Dose Storage
+                        os.rename(file_path, os.path.join(rtdose_dir, uploaded_file.name))
+                    elif ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.481.3': # RT Structure Set Storage
+                        os.rename(file_path, os.path.join(rtstruct_dir, uploaded_file.name))
+                    elif ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.481.5': # RT Plan Storage
+                        os.rename(file_path, os.path.join(rtplan_dir, uploaded_file.name))
+                        rtplan_file_path = os.path.join(rtplan_dir, uploaded_file.name) # Store RTPLAN path
+                except Exception as e:
+                    st.warning(f"Could not read DICOM file {uploaded_file.name}: {e}")
+
+            # Extract dose references if RTPLAN is available
+            if rtplan_file_path:
+                plan_data = get_plan_data(rtplan_file_path)
+                dose_references = [dr['name'] for dr in plan_data.get('dose_references', [])]
+                
+                # Store dose_references in session state
+                st.session_state.available_point_names = dose_references
+            else:
+                st.session_state.available_point_names = []
+    else:
+        st.session_state.available_point_names = [] # Clear available points if no files uploaded
+        st.session_state.selected_point_names = [] # Clear selected points if no files uploaded
+
+    # Point selection UI
+    if st.session_state.available_point_names:
+        st.session_state.selected_point_names = st.multiselect(
+            "Select Points to Display in Report",
+            options=st.session_state.available_point_names,
+            default=st.session_state.available_point_names # Select all by default
+        )
+    else:
+        st.session_state.selected_point_names = [] # No points to select
 
     if st.button("Run Analysis"):
         if uploaded_files:
             st.write([file.name for file in uploaded_files])
-            with tempfile.TemporaryDirectory() as tmpdir:
-                rtdose_dir = os.path.join(tmpdir, "RTDOSE")
-                rtstruct_dir = os.path.join(tmpdir, "RTst")
-                rtplan_dir = os.path.join(tmpdir, "RTPLAN")
+            # Re-create tmpdir and move files for analysis run
+            with tempfile.TemporaryDirectory() as tmpdir_analysis:
+                rtdose_dir_analysis = os.path.join(tmpdir_analysis, "RTDOSE")
+                rtstruct_dir_analysis = os.path.join(tmpdir_analysis, "RTst")
+                rtplan_dir_analysis = os.path.join(tmpdir_analysis, "RTPLAN")
 
-                os.makedirs(rtdose_dir)
-                os.makedirs(rtstruct_dir)
-                os.makedirs(rtplan_dir)
+                os.makedirs(rtdose_dir_analysis)
+                os.makedirs(rtstruct_dir_analysis)
+                os.makedirs(rtplan_dir_analysis)
 
                 rtdose_path = None
                 rtstruct_path = None
                 rtplan_path = None
 
                 for uploaded_file in uploaded_files:
-                    file_path = os.path.join(tmpdir, uploaded_file.name)
+                    file_path = os.path.join(tmpdir_analysis, uploaded_file.name)
                     with open(file_path, "wb") as f:
                         f.write(uploaded_file.getbuffer())
 
                     try:
                         ds = pydicom.dcmread(file_path)
                         if ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.481.2': # RT Dose Storage
-                            rtdose_path = os.path.join(rtdose_dir, uploaded_file.name)
+                            rtdose_path = os.path.join(rtdose_dir_analysis, uploaded_file.name)
                             os.rename(file_path, rtdose_path)
                         elif ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.481.3': # RT Structure Set Storage
-                            rtstruct_path = os.path.join(rtstruct_dir, uploaded_file.name)
+                            rtstruct_path = os.path.join(rtstruct_dir_analysis, uploaded_file.name)
                             os.rename(file_path, rtstruct_path)
                         elif ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.481.5': # RT Plan Storage
-                            rtplan_path = os.path.join(rtplan_dir, uploaded_file.name)
+                            rtplan_path = os.path.join(rtplan_dir_analysis, uploaded_file.name)
                             os.rename(file_path, rtplan_path)
                     except Exception as e:
                         st.warning(f"Could not read DICOM file {uploaded_file.name}: {e}")
 
                 if rtdose_path and rtstruct_path and rtplan_path:
                     args = argparse.Namespace(
-                        data_dir=tmpdir,
+                        data_dir=tmpdir_analysis, # Use the new tmpdir for analysis
                         ebrt_dose=ebrt_dose,
                         previous_brachy_html=previous_brachy_html,
-                        output_html=os.path.join(tmpdir, "report.html"),
-                        alpha_beta_ratios=ab_ratios
+                        output_html=os.path.join(tmpdir_analysis, "report.html"),
+                        alpha_beta_ratios=ab_ratios,
+                        selected_point_names=st.session_state.selected_point_names # Pass selected points
                     )
 
-                    results = run_analysis(args)
+                    results = run_analysis(args, selected_point_names=st.session_state.selected_point_names)
 
                     st.header("Results")
 
@@ -132,7 +207,7 @@ def main():
                     
                     with tab3:
                         st.subheader("Report")
-                        with open(os.path.join(tmpdir, "report.html"), "r") as f:
+                        with open(os.path.join(tmpdir_analysis, "report.html"), "r") as f: # Use tmpdir_analysis
                             html_report = f.read()
                         st.components.v1.html(html_report, height=600, scrolling=True)
                 else:

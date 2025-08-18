@@ -139,7 +139,7 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
     
     return html_content
 
-def main(args):
+def main(args, selected_point_names=None): # Added selected_point_names parameter
     data_dir = Path(args.data_dir)
 
     # Use custom alpha/beta ratios if provided, otherwise use defaults
@@ -235,7 +235,16 @@ def main(args):
 
     # Calculate BED and EQD2 for point doses
     point_dose_results = []
-    for dr in plan_data.get('dose_references', []):
+    # Filter dose references based on selected_point_names
+    filtered_dose_references = []
+    if selected_point_names:
+        for dr in plan_data.get('dose_references', []):
+            if dr['name'] in selected_point_names:
+                filtered_dose_references.append(dr)
+    else:
+        filtered_dose_references = plan_data.get('dose_references', []) # If no selection, include all
+
+    for dr in filtered_dose_references: # Use filtered_dose_references
         total_bed, eqd2, bed_brachy, bed_ebrt, bed_previous_brachy = calculate_point_dose_bed_eqd2(
             dr['dose'],
             number_of_fractions,
