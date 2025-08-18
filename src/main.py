@@ -163,10 +163,10 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
             <td>{alpha_beta_ratios.get(pr['name'], alpha_beta_ratios["Default"])}</td>
             <td>{pr['dose']:.2f}</td>
             <td>{pr['total_dose']:.2f}</td>
-            <td>{pr['bed_this_plan']:.2f}</td>
-            <td>{pr['bed_previous_brachy']:.2f}</td>
-            <td>{pr['bed_ebrt']:.2f}</td>
-            <td>{pr['eqd2']:.2f}</td>
+            <td>{pr['BED_this_plan']:.2f}</td>
+            <td>{pr['BED_previous_brachy']:.2f}</td>
+            <td>{pr['BED_EBRT']:.2f}</td>
+            <td>{pr['EQD2']:.2f}</td>
             <td></td>
             <td></td>
         </tr>"""
@@ -295,11 +295,10 @@ def main(args, selected_point_names=None, custom_constraints=None): # Added sele
             'name': dr['name'],
             'dose': dr['dose'],
             'total_dose': dr['dose'] * number_of_fractions,
-            'bed': total_bed,
-            'eqd2': eqd2,
-            'bed_this_plan': bed_brachy,
-            'bed_ebrt': bed_ebrt,
-            'bed_previous_brachy': bed_previous_brachy
+            'BED_this_plan': bed_brachy,
+            'BED_previous_brachy': bed_previous_brachy,
+            'BED_EBRT': bed_ebrt,
+            'EQD2': eqd2,
         })
 
     output_data = {

@@ -85,6 +85,10 @@ This file is for internal use by the Gemini CLI agent to track project progress,
     - Changed `st.table` to `st.dataframe` for DVH results display.
     - Included "Constraint Met" status (Met/NOT Met) and "Dose to Meet Constraint (Gy)" for OARs in the displayed data.
     - Implemented conditional styling (red/green background) for OAR rows in `st.dataframe` based on constraint adherence.
+- **Point Dose Results Column Reordering:**
+    - Modified `src/main.py` to reorder the columns in the `point_dose_results` dictionary to `name`, `dose`, `total_dose`, `BED_this_plan`, `BED_previous_brachy`, `BED_EBRT`, `EQD2` for consistent display in the Streamlit GUI.
+- **Fix KeyError in Point Dose Results:**
+    - Corrected key names in `src/main.py` from `bed_this_plan`, `bed_previous_brachy`, and `bed_ebrt` to `BED_this_plan`, `BED_previous_brachy`, and `BED_EBRT` respectively, to match the updated dictionary keys.
 
 ## Next Steps:
 - **Previous Brachytherapy Data Integration:**
