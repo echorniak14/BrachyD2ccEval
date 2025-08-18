@@ -15,6 +15,7 @@ from src.config import alpha_beta_ratios
 import tempfile
 
 def main():
+    st.set_page_config(layout="wide")
     st.title("Brachytherapy Plan Evaluator")
 
     st.header("Upload DICOM Files")
