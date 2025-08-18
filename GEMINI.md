@@ -109,6 +109,8 @@ This file is for internal use by the Gemini CLI agent to track project progress,
     - Revised the "Usage" section to reflect Streamlit GUI usage and updated `main.py` arguments for `previous_brachy_data` and `custom_constraints`.
 - **Logo Image Update:**
     - Modified `src/main.py` to use `2020-flame-red-02.PNG` as the logo image instead of `2020-flame-red-01.png`.
+- **Report Header Change:**
+    - Modified `src/templates/report_template.html` to change the main report header from "Brachytherapy Evaluation Report" to "Dose Summary".
 
 ## Next Steps:
 - **Previous Brachytherapy Data Integration:**

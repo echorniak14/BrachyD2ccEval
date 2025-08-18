@@ -7,10 +7,11 @@
 
 ### User Interface & Experience
 - [ ] Interactive DVH Plots
-- [ ] Visual Constraint Indicators
-- [ ] Customizable Constraints
+- [x] Visual Constraint Indicatorsoka
+- [x] Customizable Constraints
 - [ ] Batch Processing
 - [ ] Report Customization
+- [ ] Templates and Presets for alpha/beta ratios, point selections and dose constraints.
 
 ### Backend & Calculation Engine
 - [ ] Expanded DICOM Support (e.g., CT/MR images)
