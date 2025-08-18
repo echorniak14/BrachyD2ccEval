@@ -89,6 +89,11 @@ This file is for internal use by the Gemini CLI agent to track project progress,
     - Modified `src/main.py` to reorder the columns in the `point_dose_results` dictionary to `name`, `dose`, `total_dose`, `BED_this_plan`, `BED_previous_brachy`, `BED_EBRT`, `EQD2` for consistent display in the Streamlit GUI.
 - **Fix KeyError in Point Dose Results:**
     - Corrected key names in `src/main.py` from `bed_this_plan`, `bed_previous_brachy`, and `bed_ebrt` to `BED_this_plan`, `BED_previous_brachy`, and `BED_EBRT` respectively, to match the updated dictionary keys.
+- **OAR DVH Results Layout Adjustment:**
+    - Modified `src/streamlit_gui.py` to restructure the `oar_dvh_data` to mimic the HTML report layout.
+    - Organ and Volume columns now effectively span 3 rows by duplicating values in the first row and leaving subsequent rows empty.
+    - D0.1cc, D1cc, and D2cc are stacked in a single "Dose Metric" column.
+    - BED and EQD2 values are layered accordingly for each dose metric.
 
 ## Next Steps:
 - **Previous Brachytherapy Data Integration:**
