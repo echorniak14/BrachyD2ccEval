@@ -21,25 +21,11 @@ def main():
     previous_brachy_html = st.sidebar.file_uploader("Upload previous brachytherapy report (optional)", type=["html"])
 
     st.sidebar.header("Alpha/Beta Ratios")
-
-    # Initialize session state from defaults if not already present
-    for organ, val in alpha_beta_ratios.items():
-        if f"ab_{organ}" not in st.session_state:
-            st.session_state[f"ab_{organ}"] = val
-
-    # Reset button
+    ab_ratios = alpha_beta_ratios.copy()
     if st.sidebar.button("Reset to Default"):
-        for organ, val in alpha_beta_ratios.items():
-            st.session_state[f"ab_{organ}"] = val
-
-    # Display and update alpha/beta ratios
-    for organ, val in alpha_beta_ratios.items():
-        st.sidebar.number_input(f"{organ}", key=f"ab_{organ}")
-
-    # Collect the ab_ratios from session state before running analysis
-    ab_ratios = {}
-    for organ, val in alpha_beta_ratios.items():
-        ab_ratios[organ] = st.session_state[f"ab_{organ}"]
+        ab_ratios = alpha_beta_ratios.copy()
+    for organ, val in list(ab_ratios.items()):
+        ab_ratios[organ] = st.sidebar.number_input(f"{organ}", value=val)
 
     if st.button("Run Analysis"):
         if uploaded_files:
@@ -101,7 +87,7 @@ def main():
                         oar_dvh_data = []
 
                         for organ, data in results["dvh_results"].items():
-                            alpha_beta = alpha_beta_ratios.get(organ, alpha_beta_ratios["Default"])
+                            alpha_beta = ab_ratios.get(organ, alpha_beta_ratios["Default"])
                             is_target = alpha_beta == 10
 
                             if is_target:
