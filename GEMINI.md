@@ -102,6 +102,11 @@ This file is for internal use by the Gemini CLI agent to track project progress,
     - Modified `st.sidebar.file_uploader` in `src/streamlit_gui.py` to accept both `.html` and `.json` file types for previous brachytherapy data.
     - Implemented logic in `src/streamlit_gui.py` to read and parse uploaded JSON files, extracting EQD2 values for accumulation.
     - Modified the `main` function in `src/main.py` to accept either a file path (for HTML) or a dictionary (for parsed JSON data) for `previous_brachy_data`.
+- **README.md Update:**
+    - Updated the "Project Overview" section to mention the Streamlit GUI and expanded dose metrics.
+    - Revised the "Features" section to include new functionalities like customizable constraints, enhanced DVH display, JSON export/import, and updated GUI description.
+    - Updated the "Dosimetric Calculations" section under "Core Concepts" to clarify DVH metrics and provide more detail on dose accumulation.
+    - Revised the "Usage" section to reflect Streamlit GUI usage and updated `main.py` arguments for `previous_brachy_data` and `custom_constraints`.
 
 ## Next Steps:
 - **Previous Brachytherapy Data Integration:**
