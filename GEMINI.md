@@ -57,6 +57,12 @@ This file is for internal use by the Gemini CLI agent to track project progress,
             - Restructured the HTML report to display D0.1cc, D1cc, and D2cc as separate rows under each organ, improving readability and data presentation.
     - Corrected the column header from "Value (per fraction) (Gy)" to "Dose (per fraction) (Gy)" and from "D2cc (total) (Gy)" to "Total Planned Dose (Gy)" in the HTML report.
     - Aligned "Total Planned Dose (Gy)" and subsequent columns with the D2cc row in the HTML report.
+- **Robust Plan Name Extraction:**
+    - Modified `src/dicom_parser.py` to ensure the extracted plan name is never an empty string, defaulting to 'N/A' if DICOM tags `RTPlanLabel`, `RTPlanName`, or `SeriesDescription` are missing or empty. This prevents `IndexError` issues in downstream processing.
+- **Streamlit File Uploader Type Restriction:**
+    - Modified `src/streamlit_gui.py` to restrict the `st.file_uploader` to accept only `.dcm` or `.DCM` file types, removing the empty string from the `type` parameter. This prevents `IndexError` issues caused by uploading files without extensions.
+- **`NameError: current_constraints` Fix:**
+    - Resolved `NameError: name 'current_constraints' is not defined` in `src/main.py` by importing `constraints` from `src/config.py` and initializing `current_constraints` with these default values.
 
 ## Next Steps:
 - **Previous Brachytherapy Data Integration:**

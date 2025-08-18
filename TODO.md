@@ -1,6 +1,4 @@
 ## TODO
+- improve previous brachy dose summation
 
-- Implement functionality to incorporate previous brachytherapy EQD2 data from HTML reports, allowing for organ-specific dose accumulation.
-- Implement functionality to calculate the highest fractional dose needed to meet any unmet constraints.
-- Further investigate and resolve any remaining discrepancies in D2cc/BED/EQD2 calculations if necessary.
-- Research dicompyler-core
+- having multiple issues with streamlit displaying the GUI. We were trying to revert the src/streamlit_gui.py to its previous state. Now, I'll comment out the st.data_editor section for constraints in that file but we kept getting failed to edit errors because the exact text in old_string was not found.

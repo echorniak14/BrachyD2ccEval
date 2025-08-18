@@ -10,9 +10,9 @@ def normalize_structure_name(name):
     """Normalizes structure names for consistent matching."""
     # Remove content in brackets (e.g., [cm3]) or parentheses
     name = re.sub(r'\s*\[.*?\]', '', name)
-    name = re.sub(r'\s*\(.*?\]', '', name)
-    # Convert to lowercase and strip whitespace
-    return name.strip().lower()
+    name = re.sub(r'\s*\(.*?\)', '', name)
+    # Convert to lowercase, strip whitespace, and then capitalize the first letter
+    return name.strip().lower().capitalize()
 
 def calculate_contour_volumes(rtstruct_file, structure_data):
     """Calculates the volume of each contour in an RTSTRUCT file."""
@@ -70,8 +70,12 @@ def calculate_d_volume(dvh, volume_cc):
 
 # This file will contain the logic for dose-volume calculations.
 
-def calculate_bed_and_eqd2(total_dose, dose_per_fraction, organ_name, ebrt_dose=0, previous_brachy_eqd2=0):
+def calculate_bed_and_eqd2(total_dose, dose_per_fraction, organ_name, ebrt_dose=0, previous_brachy_eqd2=0, alpha_beta_ratios=None):
     """Calculates BED and EQD2 for a given total dose and dose per fraction, with an optional EBRT dose."""
+    if alpha_beta_ratios is None:
+        from .config import alpha_beta_ratios as default_alpha_beta_ratios
+        alpha_beta_ratios = default_alpha_beta_ratios
+
     alpha_beta = alpha_beta_ratios.get(organ_name, alpha_beta_ratios["Default"])
     
     # Calculate BED for brachytherapy
@@ -91,8 +95,12 @@ def calculate_bed_and_eqd2(total_dose, dose_per_fraction, organ_name, ebrt_dose=
     
     return round(total_bed, 2), round(eqd2, 2), round(bed_brachy, 2), round(bed_ebrt, 2), round(bed_previous_brachy, 2)
 
-def calculate_dose_to_meet_constraint(eqd2_constraint, organ_name, number_of_fractions, ebrt_dose=0, previous_brachy_eqd2=0):
+def calculate_dose_to_meet_constraint(eqd2_constraint, organ_name, number_of_fractions, ebrt_dose=0, previous_brachy_eqd2=0, alpha_beta_ratios=None):
     """Calculates the brachytherapy dose per fraction needed to meet a specific EQD2 constraint."""
+    if alpha_beta_ratios is None:
+        from .config import alpha_beta_ratios as default_alpha_beta_ratios
+        alpha_beta_ratios = default_alpha_beta_ratios
+
     alpha_beta = alpha_beta_ratios.get(organ_name, alpha_beta_ratios["Default"])
 
     # Convert EQD2 constraint back to total BED target
@@ -128,8 +136,12 @@ def calculate_dose_to_meet_constraint(eqd2_constraint, organ_name, number_of_fra
 
     return round(dose_per_fraction_solution, 2)
 
-def calculate_point_dose_bed_eqd2(point_dose, number_of_fractions, organ_name, ebrt_dose=0, previous_brachy_eqd2=0):
+def calculate_point_dose_bed_eqd2(point_dose, number_of_fractions, organ_name, ebrt_dose=0, previous_brachy_eqd2=0, alpha_beta_ratios=None):
     """Calculates BED and EQD2 for a given point dose."""
+    if alpha_beta_ratios is None:
+        from .config import alpha_beta_ratios as default_alpha_beta_ratios
+        alpha_beta_ratios = default_alpha_beta_ratios
+
     alpha_beta = alpha_beta_ratios.get(organ_name, alpha_beta_ratios["Default"])
     
     total_dose = point_dose * number_of_fractions
@@ -151,7 +163,7 @@ def calculate_point_dose_bed_eqd2(point_dose, number_of_fractions, organ_name, e
     
     return round(total_bed, 2), round(eqd2, 2), round(bed_brachy, 2), round(bed_ebrt, 2), round(bed_previous_brachy, 2)
 
-def get_dvh(rtss_file, rtdose_file, structure_data, number_of_fractions, ebrt_dose=0, previous_brachy_eqd2_per_organ=None):
+def get_dvh(rtss_file, rtdose_file, structure_data, number_of_fractions, ebrt_dose=0, previous_brachy_eqd2_per_organ=None, alpha_beta_ratios=None):
     """Calculates the Dose-Volume Histogram (DVH) for each structure."""
     if previous_brachy_eqd2_per_organ is None:
         previous_brachy_eqd2_per_organ = {}
@@ -229,22 +241,22 @@ def get_dvh(rtss_file, rtdose_file, structure_data, number_of_fractions, ebrt_do
         # Calculations for D2cc
         total_d2cc_gy = d2cc_gy_per_fraction * number_of_fractions
         bed_d2cc, eqd2_d2cc, bed_brachy_d2cc, bed_ebrt, bed_previous_brachy = calculate_bed_and_eqd2(
-            total_d2cc_gy, d2cc_gy_per_fraction, name, ebrt_dose, previous_brachy_eqd2=previous_brachy_eqd2_per_organ.get(name, 0)
+            total_d2cc_gy, d2cc_gy_per_fraction, normalized_name, ebrt_dose, previous_brachy_eqd2=previous_brachy_eqd2_per_organ.get(normalized_name, 0), alpha_beta_ratios=alpha_beta_ratios
         )
 
         # Calculations for D1cc
         total_d1cc_gy = d1cc_gy_per_fraction * number_of_fractions
         bed_d1cc, eqd2_d1cc, _, _, _ = calculate_bed_and_eqd2(
-            total_d1cc_gy, d1cc_gy_per_fraction, name, ebrt_dose, previous_brachy_eqd2=previous_brachy_eqd2_per_organ.get(name, 0)
+            total_d1cc_gy, d1cc_gy_per_fraction, normalized_name, ebrt_dose, previous_brachy_eqd2=previous_brachy_eqd2_per_organ.get(normalized_name, 0), alpha_beta_ratios=alpha_beta_ratios
         )
 
         # Calculations for D0.1cc
         total_d0_1cc_gy = d0_1cc_gy_per_fraction * number_of_fractions
         bed_d0_1cc, eqd2_d0_1cc, _, _, _ = calculate_bed_and_eqd2(
-            total_d0_1cc_gy, d0_1cc_gy_per_fraction, name, ebrt_dose, previous_brachy_eqd2=previous_brachy_eqd2_per_organ.get(name, 0)
+            total_d0_1cc_gy, d0_1cc_gy_per_fraction, normalized_name, ebrt_dose, previous_brachy_eqd2=previous_brachy_eqd2_per_organ.get(normalized_name, 0), alpha_beta_ratios=alpha_beta_ratios
         )
 
-        dvh_results[name] = {
+        dvh_results[normalized_name] = {
             "volume_cc": round(organ_volume_cc, 2),
             "d2cc_gy_per_fraction": round(d2cc_gy_per_fraction, 2),
             "d1cc_gy_per_fraction": round(d1cc_gy_per_fraction, 2),
@@ -271,8 +283,12 @@ def get_dvh(rtss_file, rtdose_file, structure_data, number_of_fractions, ebrt_do
 
     return dvh_results
 
-def evaluate_constraints(dvh_results):
+def evaluate_constraints(dvh_results, constraints=None):
     """Evaluates calculated DVH results against predefined constraints."""
+    if constraints is None:
+        from .config import constraints as default_constraints
+        constraints = default_constraints
+
     constraint_evaluation = {}
     for organ, data in dvh_results.items():
         if organ in constraints:

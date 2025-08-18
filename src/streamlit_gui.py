@@ -14,14 +14,22 @@ def main():
     st.title("Brachytherapy Plan Evaluator")
 
     st.header("Upload DICOM Files")
-    uploaded_files = st.file_uploader("Upload RTDOSE, RTSTRUCT, and RTPLAN files", type=["dcm"], accept_multiple_files=True)
+    uploaded_files = st.file_uploader("Upload RTDOSE, RTSTRUCT, and RTPLAN files", type=["dcm", "DCM"], accept_multiple_files=True)
 
-    st.header("Enter Parameters")
-    ebrt_dose = st.number_input("EBRT Dose (Gy)", value=0.0)
-    previous_brachy_html = st.file_uploader("Upload previous brachytherapy report (optional)", type=["html"])
+    st.sidebar.header("Parameters")
+    ebrt_dose = st.sidebar.number_input("EBRT Dose (Gy)", value=0.0)
+    previous_brachy_html = st.sidebar.file_uploader("Upload previous brachytherapy report (optional)", type=["html"])
+
+    st.sidebar.header("Alpha/Beta Ratios")
+    ab_ratios = alpha_beta_ratios.copy()
+    if st.sidebar.button("Reset to Default"):
+        ab_ratios = alpha_beta_ratios.copy()
+    for organ, val in list(ab_ratios.items()):
+        ab_ratios[organ] = st.sidebar.number_input(f"{organ}", value=val)
 
     if st.button("Run Analysis"):
         if uploaded_files:
+            st.write([file.name for file in uploaded_files])
             with tempfile.TemporaryDirectory() as tmpdir:
                 rtdose_dir = os.path.join(tmpdir, "RTDOSE")
                 rtstruct_dir = os.path.join(tmpdir, "RTst")
@@ -59,7 +67,8 @@ def main():
                         data_dir=tmpdir,
                         ebrt_dose=ebrt_dose,
                         previous_brachy_html=previous_brachy_html,
-                        output_html=os.path.join(tmpdir, "report.html")
+                        output_html=os.path.join(tmpdir, "report.html"),
+                        alpha_beta_ratios=ab_ratios
                     )
 
                     results = run_analysis(args)
