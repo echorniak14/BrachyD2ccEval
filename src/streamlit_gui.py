@@ -62,20 +62,21 @@ def main():
     if "custom_constraints" not in st.session_state:
         st.session_state.custom_constraints = templates[st.session_state.current_template_name]["constraints"].copy()
 
-    st.sidebar.header("Alpha/Beta Ratios")
+    if st.session_state.current_template_name == "Custom":
+        st.sidebar.header("Alpha/Beta Ratios")
 
-    # Reset button for alpha/beta ratios
-    if st.sidebar.button("Reset Alpha/Beta Ratios to Template Defaults"):
-        st.session_state.ab_ratios = templates[st.session_state.current_template_name]["alpha_beta_ratios"].copy()
-        st.session_state.widget_key_suffix = st.session_state.get('widget_key_suffix', 0) + 1 # Force re-render
+        # Reset button for alpha/beta ratios
+        if st.sidebar.button("Reset Alpha/Beta Ratios to Template Defaults"):
+            st.session_state.ab_ratios = templates[st.session_state.current_template_name]["alpha_beta_ratios"].copy()
+            st.session_state.widget_key_suffix = st.session_state.get('widget_key_suffix', 0) + 1 # Force re-render
 
-    # Display and update alpha/beta ratios
-    for organ, val in st.session_state.ab_ratios.items():
-        st.session_state.ab_ratios[organ] = st.sidebar.number_input(
-            f"{organ}",
-            value=float(val),
-            key=f"ab_{organ}_{st.session_state.widget_key_suffix}"
-        )
+        # Display and update alpha/beta ratios
+        for organ, val in st.session_state.ab_ratios.items():
+            st.session_state.ab_ratios[organ] = st.sidebar.number_input(
+                f"{organ}",
+                value=float(val),
+                key=f"ab_{organ}_{st.session_state.widget_key_suffix}"
+            )
 
     st.sidebar.header("Constraints")
 
