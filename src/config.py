@@ -47,6 +47,27 @@ templates = {
             "Bowel": {"D2cc": {"warning": 70.0, "max": 75.0, "unit": "Gy"}}
         }
     },
+    "Vaginal Cylinder HDR": {
+        "alpha_beta_ratios": {
+            "Bladder": 3,
+            "Rectum": 3,
+            "Sigmoid": 3,
+            "Bowel": 3,
+            "Vagina": 3, # Explicitly set for vaginal template
+            "Uterus": 3,
+            "Cervix": 3, # No HRCTV, so Cervix alpha/beta is not 10
+            "HRCTV": 3, # No HRCTV
+            "GTV": 3, # No GTV
+            "Default": 3
+        },
+        "constraints": {
+            # No HRCTV D90, HRCTV D98, GTV D98 for this template
+            "Bladder": {"D2cc": {"max": 80.0, "unit": "Gy"}}, # No warning specified, so max is the only limit
+            "Rectum": {"D2cc": {"warning": 65.0, "max": 70.0, "unit": "Gy"}},
+            "Sigmoid": {"D2cc": {"warning": 65.0, "max": 70.0, "unit": "Gy"}},
+            "Bowel": {"D2cc": {"warning": 65.0, "max": 70.0, "unit": "Gy"}} # Assuming same as Rectum/Sigmoid
+        }
+    },
     "Custom": {
         "alpha_beta_ratios": {
             "Bladder": 3,
