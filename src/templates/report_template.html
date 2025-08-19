@@ -6,30 +6,30 @@
         :root {
             --text-color: #333;
             --background-color: #fff;
-            --header-color-1: #d9534f; /* A shade of red */
-            --header-color-2: #c9302c; /* A darker shade of red */
+            --header-color-1: #2a7ae2; /* Blue from the PDF */
+            --header-color-2: #1e5aab; /* Darker blue from the PDF */
             --border-color: #ddd;
-            --table-header-bg: #34495e;
+            --table-header-bg: #2a7ae2; /* Blue from the PDF */
             --table-header-text: white;
-            --table-even-row-bg: #f2f2f2;
-            --met-bg: #5cb85c; /* Green */
+            --table-even-row-bg: #eaf2fa; /* Light blue from the PDF */
+            --met-bg: #77dd77; /* Green from the PDF */
             --met-text: white;
-            --not-met-bg: #d9534f; /* Red */
+            --not-met-bg: #ff6961; /* Red from the PDF */
             --not-met-text: white;
-            --warning-bg: #f0ad4e; /* Orange */
-            --warning-text: white;
+            --warning-bg: #fdfd96; /* Yellow from the PDF */
+            --warning-text: black;
         }
 
         @media (prefers-color-scheme: dark) {
             :root {
                 --text-color: #f2f2f2;
                 --background-color: #1a1a1a;
-                --header-color-1: #e74c3c; /* Brighter red for dark mode */
-                --header-color-2: #c0392b; /* Darker red for dark mode */
+                --header-color-1: #3498db;
+                --header-color-2: #6cb6ff;
                 --border-color: #555;
-                --table-header-bg: #2c3e50;
+                --table-header-bg: #2a7ae2;
                 --table-header-text: #f2f2f2;
-                --table-even-row-bg: #2a2a2a;
+                --table-even-row-bg: #2c3e50;
                 --met-bg: #27ae60;
                 --met-text: white;
                 --not-met-bg: #c0392b;
@@ -41,34 +41,34 @@
 
         body { font-family: Arial, sans-serif; margin: 20px; color: var(--text-color); background-color: var(--background-color); }
         .logo { float: right; max-height: 80px; }
-        h1 { 
-            color: var(--header-color-1); 
-            border-bottom: 2px solid var(--header-color-2); 
-            padding-bottom: 10px; 
-            margin-bottom: 30px; 
+        h1 {
+            color: var(--header-color-1);
+            border-bottom: 2px solid var(--header-color-2);
+            padding-bottom: 10px;
+            margin-bottom: 30px;
             font-size: 28px;
         }
-        h2 { 
-            color: var(--header-color-1); 
+        h2 {
+            color: var(--header-color-1);
             border-bottom: 1px solid var(--border-color);
             padding-bottom: 5px;
-            margin-top: 40px; 
+            margin-top: 40px;
             font-size: 22px;
         }
-        table { 
-            width: 100%; 
-            border-collapse: collapse; 
-            margin-top: 20px; 
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
-        th, td { 
-            border: 1px solid var(--border-color); 
-            padding: 12px 15px; 
-            text-align: left; 
+        th, td {
+            border: 1px solid var(--border-color);
+            padding: 12px 15px;
+            text-align: left;
         }
-        th { 
-            background-color: var(--table-header-bg); 
-            color: var(--table-header-text); 
+        th {
+            background-color: var(--table-header-bg);
+            color: var(--table-header-text);
             font-weight: bold;
             text-transform: uppercase;
         }
@@ -92,7 +92,7 @@
     <table>
         <thead>
             <tr>
-                <th>Organ</th>
+                <th>Structure</th>
                 <th>&alpha;/&beta;</th>
                 <th>Volume (cc)</th>
                 <th>Dose Metric</th>
@@ -110,7 +110,7 @@
     <table>
         <thead>
             <tr>
-                <th>Organ</th>
+                <th>Structure</th>
                 <th>&alpha;/&beta;</th>
                 <th>Volume (cc)</th>
                 <th>Dose Metric</th>
