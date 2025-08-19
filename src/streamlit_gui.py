@@ -20,6 +20,10 @@ def main():
     st.set_page_config(layout="wide")
     st.title("Brachytherapy Plan Evaluator")
 
+    # Initialize widget_key_suffix for dynamic key generation
+    if 'widget_key_suffix' not in st.session_state:
+        st.session_state.widget_key_suffix = 0
+
     st.header("Upload DICOM Files")
     uploaded_files = st.file_uploader("Upload RTDOSE, RTSTRUCT, and RTPLAN files", type=["dcm", "DCM"], accept_multiple_files=True)
 
@@ -341,11 +345,11 @@ def main():
                                     warning_constraint = constraint_data.get("warning") # Get warning if it exists
 
                                     if eqd2_value > max_constraint:
-                                        return ['background-color: #f8d7da'] * len(row) # Reddish (NOT Met)
+                                        return ['background-color: #dc3545; color: white'] * len(row) # Reddish (NOT Met)
                                     elif warning_constraint is not None and eqd2_value >= warning_constraint and eqd2_value <= max_constraint:
-                                        return ['background-color: #fff3cd'] * len(row) # Yellowish (Warning)
+                                        return ['background-color: #ffc107; color: black'] * len(row) # Yellowish (Warning)
                                     elif eqd2_value < warning_constraint if warning_constraint is not None else eqd2_value <= max_constraint:
-                                        return ['background-color: #d4edda'] * len(row) # Greenish (Met)
+                                        return ['background-color: #28a745; color: white'] * len(row) # Greenish (Met)
                                 return [''] * len(row)
 
                             st.dataframe(oar_df.style.apply(highlight_constraint_status, axis=1))
