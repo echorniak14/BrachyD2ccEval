@@ -260,7 +260,7 @@ def main():
                         oar_dvh_data = []
 
                         for organ, data in results["dvh_results"].items():
-                            alpha_beta = ab_ratios.get(organ, st.session_state.ab_ratios["Default"])
+                            alpha_beta = ab_ratios.get(organ, ab_ratios.get("Default"))
                             is_target = alpha_beta == 10
 
                             if is_target:
@@ -295,7 +295,7 @@ def main():
                                 })
                                 # D1cc row
                                 oar_dvh_data.append({
-                                    "Organ": "", # Mimic rowspan
+                                    "Organ": organ,
                                     "Volume (cc)": "", # Mimic rowspan
                                     "Dose Metric": "D1cc",
                                     "Dose (Gy)": data["d1cc_gy_per_fraction"],
@@ -307,7 +307,7 @@ def main():
                                 })
                                 # D2cc row
                                 oar_dvh_data.append({
-                                    "Organ": "", # Mimic rowspan
+                                    "Organ": organ,
                                     "Volume (cc)": "", # Mimic rowspan
                                     "Dose Metric": "D2cc",
                                     "Dose (Gy)": data["d2cc_gy_per_fraction"],
@@ -328,13 +328,14 @@ def main():
                             oar_df = pd.DataFrame(oar_dvh_data)
                             
                             def highlight_constraint_status(row):
-                                organ = row["Organ"] if row["Organ"] else row["Dose Metric"] # Use Organ for main row, Dose Metric for sub-rows
+                                organ = row["Organ"] # Directly use row["Organ"]
                                 eqd2_value = row["EQD2 (Gy)"]
                                 
                                 # Get the current constraints from session state
                                 current_constraints = st.session_state.custom_constraints
                                 
-                                if organ in current_constraints and "D2cc" in current_constraints[organ]:
+                                # Apply color coding only for D2cc rows
+                                if row["Dose Metric"] == "D2cc" and organ in current_constraints and "D2cc" in current_constraints[organ]:
                                     constraint_data = current_constraints[organ]["D2cc"]
                                     max_constraint = constraint_data["max"]
                                     warning_constraint = constraint_data.get("warning") # Get warning if it exists
