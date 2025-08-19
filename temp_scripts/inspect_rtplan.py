@@ -19,9 +19,6 @@ rtplan_file = find_rtplan_file(dicom_dir)
 if rtplan_file:
     print(f"Inspecting RTPLAN file: {rtplan_file}\n")
     ds = pydicom.dcmread(rtplan_file)
-    if "DoseReferenceSequence" in ds:
-        print(ds.DoseReferenceSequence)
-    else:
-        print("DoseReferenceSequence not found in the RTPLAN file.")
+    print(ds) # Print the entire dataset
 else:
     print("RTPLAN file not found in the specified directory.")
