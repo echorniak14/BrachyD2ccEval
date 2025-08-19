@@ -24,6 +24,29 @@ templates = {
             "Bowel": {"D2cc": {"warning": 65.0, "max": 70.0, "unit": "Gy"}}
         }
     },
+    "Cervix HDR - ABS/GEC-Estro": {
+        "alpha_beta_ratios": { # Assuming same as EMBRACE II
+            "Bladder": 3,
+            "Rectum": 3,
+            "Sigmoid": 3,
+            "Bowel": 3,
+            "Vagina": 3,
+            "Uterus": 3,
+            "Cervix": 10,
+            "HRCTV": 10,
+            "GTV": 10,
+            "Default": 3
+        },
+        "constraints": {
+            "HRCTV D90": {"min": 85.0, "max": 90.0, "unit": "Gy"}, # Same as EMBRACE II
+            "HRCTV D98": {"min": 75.0, "unit": "Gy"}, # Same as EMBRACE II
+            "GTV D98": {"min": 95.0, "unit": "Gy"}, # Same as EMBRACE II
+            "Bladder": {"D2cc": {"warning": 80.0, "max": 90.0, "unit": "Gy"}},
+            "Rectum": {"D2cc": {"warning": 70.0, "max": 75.0, "unit": "Gy"}},
+            "Sigmoid": {"D2cc": {"warning": 70.0, "max": 75.0, "unit": "Gy"}},
+            "Bowel": {"D2cc": {"warning": 70.0, "max": 75.0, "unit": "Gy"}}
+        }
+    },
     "Custom": {
         "alpha_beta_ratios": {
             "Bladder": 3,

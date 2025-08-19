@@ -115,6 +115,9 @@ def main():
                     key=f"constraint_{organ}_D2cc_max_{st.session_state.widget_key_suffix}"
                 )
 
+    # Ensure ab_ratios is defined for use in args and DVH loop
+    ab_ratios = st.session_state.ab_ratios
+
     # Initialize selected_point_names and available_point_names in session state at the top
     if 'available_point_names' not in st.session_state:
         st.session_state.available_point_names = []
@@ -257,7 +260,7 @@ def main():
                         oar_dvh_data = []
 
                         for organ, data in results["dvh_results"].items():
-                            alpha_beta = ab_ratios.get(organ, alpha_beta_ratios["Default"])
+                            alpha_beta = ab_ratios.get(organ, st.session_state.ab_ratios["Default"])
                             is_target = alpha_beta == 10
 
                             if is_target:

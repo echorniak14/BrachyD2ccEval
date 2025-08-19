@@ -34,6 +34,10 @@ def convert_html_to_pdf(html_content, output_path, wkhtmltopdf_path=None):
 
 
 def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_fraction, number_of_fractions, ebrt_dose, dvh_results, constraint_evaluation, dose_references, point_dose_results, output_path, alpha_beta_ratios):
+    # Ensure alpha_beta_ratios is a dictionary and has a 'Default' key
+    if not isinstance(alpha_beta_ratios, dict) or "Default" not in alpha_beta_ratios:
+        from .config import templates
+        alpha_beta_ratios = templates["Cervix HDR - EMBRACE II"]["alpha_beta_ratios"].copy()
     # Determine the base path for data files
     if getattr(sys, 'frozen', False):
         # Running in a PyInstaller bundle
@@ -194,11 +198,18 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
 def main(args, selected_point_names=None, custom_constraints=None): # Added selected_point_names parameter
     data_dir = Path(args.data_dir)
 
-    # Use custom alpha/beta ratios if provided, otherwise use defaults
-    current_alpha_beta_ratios = alpha_beta_ratios.copy()
+    # Use custom alpha/beta ratios if provided, otherwise use defaults from the default template
     if hasattr(args, 'alpha_beta_ratios') and args.alpha_beta_ratios:
-        for organ, ratio in args.alpha_beta_ratios.items():
-            current_alpha_beta_ratios[organ] = ratio
+        current_alpha_beta_ratios = args.alpha_beta_ratios.copy()
+        # Ensure 'Default' key exists, if not, add it from the template
+        if "Default" not in current_alpha_beta_ratios:
+            from .config import templates
+            default_template_ratios = templates["Cervix HDR - EMBRACE II"]["alpha_beta_ratios"]
+            current_alpha_beta_ratios["Default"] = default_template_ratios["Default"]
+    else:
+        # Fallback to the default template's alpha_beta_ratios if not provided via args
+        from .config import templates
+        current_alpha_beta_ratios = templates["Cervix HDR - EMBRACE II"]["alpha_beta_ratios"].copy()
 
     # Find the subdirectories
     subdirectories = [d for d in data_dir.iterdir() if d.is_dir()]
