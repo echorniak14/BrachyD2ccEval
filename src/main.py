@@ -229,7 +229,7 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
     
     return html_content
 
-def main(args, selected_point_names=None, custom_constraints=None): # Added selected_point_names parameter
+def main(args, selected_point_names=None, custom_constraints=None, dose_point_mapping=None):
     data_dir = Path(args.data_dir)
 
     # Use custom alpha/beta ratios if provided, otherwise use defaults from the default template
@@ -404,4 +404,4 @@ if __name__ == "__main__":
     parser.add_argument("--output_html", type=str, help="If provided, the results will be saved to this HTML file.")
 
     args = parser.parse_args()
-    main(args)
+    main(args, dose_point_mapping=None)

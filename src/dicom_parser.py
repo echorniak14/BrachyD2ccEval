@@ -127,11 +127,20 @@ def get_dose_point_mapping(rtplan_file, point_dose_constraints):
     for dose_ref in ds.DoseReferenceSequence:
         if "DoseReferenceDescription" in dose_ref:
             dicom_point_name = dose_ref.DoseReferenceDescription.lower()
+            # First, try to find an exact match (case-insensitive)
+            exact_match_found = False
             for constraint_name in point_dose_constraints.keys():
-                # Simple matching: if the constraint name is in the DICOM point name
-                if constraint_name.lower() in dicom_point_name:
+                if dicom_point_name == constraint_name.lower():
                     mapping[dose_ref.DoseReferenceDescription] = constraint_name
-                    break  # Move to the next dose reference once a match is found
+                    exact_match_found = True
+                    break
+            
+            # If no exact match, then try substring matching
+            if not exact_match_found:
+                for constraint_name in point_dose_constraints.keys():
+                    if constraint_name.lower() in dicom_point_name:
+                        mapping[dose_ref.DoseReferenceDescription] = constraint_name
+                        break  # Move to the next dose reference once a match is found
 
     return mapping
 

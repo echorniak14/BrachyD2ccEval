@@ -274,7 +274,7 @@ def main():
                         custom_constraints=st.session_state.custom_constraints # Pass custom constraints
                     )
 
-                    results = run_analysis(args, selected_point_names=st.session_state.selected_point_names)
+                    results = run_analysis(args, selected_point_names=st.session_state.selected_point_names, dose_point_mapping=dose_point_mapping)
 
                     st.header("Results")
 
