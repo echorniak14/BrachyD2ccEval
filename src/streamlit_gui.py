@@ -350,7 +350,8 @@ def main():
                                         return ['background-color: #ffc107; color: black'] * len(row) # Yellowish (Warning)
                                     elif eqd2_value < warning_constraint if warning_constraint is not None else eqd2_value <= max_constraint:
                                         return ['background-color: #28a745; color: white'] * len(row) # Greenish (Met)
-                                return [''] * len(row)
+                                # If not a D2cc row or no constraint applies, return transparent background
+                                return ['background-color: transparent'] * len(row)
 
                             st.dataframe(oar_df.style.apply(highlight_constraint_status, axis=1))
                         else:

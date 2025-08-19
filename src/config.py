@@ -22,6 +22,11 @@ templates = {
             "Rectum": {"D2cc": {"warning": 65.0, "max": 70.0, "unit": "Gy"}},
             "Sigmoid": {"D2cc": {"warning": 65.0, "max": 70.0, "unit": "Gy"}},
             "Bowel": {"D2cc": {"warning": 65.0, "max": 70.0, "unit": "Gy"}}
+        },
+        "point_dose_constraints": {
+            "Point A": {"alpha_beta": 10, "report_only": True},
+            "Bladder Point": {"alpha_beta": 3, "report_only": True},
+            "RV Point": {"alpha_beta": 3, "max_eqd2": 65.0, "unit": "Gy"}
         }
     },
     "Cervix HDR - ABS/GEC-Estro": {
@@ -45,6 +50,11 @@ templates = {
             "Rectum": {"D2cc": {"warning": 70.0, "max": 75.0, "unit": "Gy"}},
             "Sigmoid": {"D2cc": {"warning": 70.0, "max": 75.0, "unit": "Gy"}},
             "Bowel": {"D2cc": {"warning": 70.0, "max": 75.0, "unit": "Gy"}}
+        },
+        "point_dose_constraints": {
+            "Point A": {"alpha_beta": 10, "report_only": True},
+            "Bladder Point": {"alpha_beta": 3, "report_only": True},
+            "RV Point": {"alpha_beta": 3, "max_eqd2": 65.0, "unit": "Gy"}
         }
     },
     "Vaginal Cylinder HDR": {
