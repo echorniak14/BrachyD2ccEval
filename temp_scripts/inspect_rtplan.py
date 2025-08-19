@@ -13,12 +13,15 @@ def find_rtplan_file(directory):
     return None
 
 # Main script
-dicom_dir = Path("C:\\Users\\echorniak\\GIT\\BrachyD2ccEval")
+dicom_dir = Path("C:\\Users\\echorniak\\GIT\\BrachyD2ccEval\\sample_data\\Jane Doe")
 rtplan_file = find_rtplan_file(dicom_dir)
 
 if rtplan_file:
     print(f"Inspecting RTPLAN file: {rtplan_file}\n")
     ds = pydicom.dcmread(rtplan_file)
-    print(ds)
+    if "DoseReferenceSequence" in ds:
+        print(ds.DoseReferenceSequence)
+    else:
+        print("DoseReferenceSequence not found in the RTPLAN file.")
 else:
     print("RTPLAN file not found in the specified directory.")

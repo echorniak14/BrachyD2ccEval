@@ -11,7 +11,7 @@ import json # Added json import
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, project_root)
 
-from src.dicom_parser import get_plan_data
+from src.dicom_parser import get_plan_data, get_dose_point_mapping
 from src.main import main as run_analysis, convert_html_to_pdf
 from src.config import templates # Added templates
 import tempfile
@@ -180,6 +180,16 @@ def main():
                 
                 # Store dose_references in session state
                 st.session_state.available_point_names = dose_references
+
+                # Get point dose constraints from the selected template
+                point_dose_constraints = templates[st.session_state.current_template_name].get("point_dose_constraints", {})
+                
+                # Get the dose point mapping
+                dose_point_mapping = get_dose_point_mapping(rtplan_file_path, point_dose_constraints)
+                
+                # Display the mapping
+                st.subheader("Dose Point to Constraint Mapping")
+                st.table(dose_point_mapping)
             else:
                 st.session_state.available_point_names = []
     else:

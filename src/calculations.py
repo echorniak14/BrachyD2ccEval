@@ -283,7 +283,7 @@ def get_dvh(rtss_file, rtdose_file, structure_data, number_of_fractions, ebrt_do
 
     return dvh_results
 
-def evaluate_constraints(dvh_results, point_dose_results, constraints=None, point_dose_constraints=None):
+def evaluate_constraints(dvh_results, point_dose_results, constraints=None, point_dose_constraints=None, dose_point_mapping=None):
     """Evaluates calculated DVH and point dose results against predefined constraints."""
     if constraints is None:
         from .config import templates
@@ -291,6 +291,8 @@ def evaluate_constraints(dvh_results, point_dose_results, constraints=None, poin
     if point_dose_constraints is None:
         from .config import templates
         point_dose_constraints = templates["Cervix HDR - EMBRACE II"]["point_dose_constraints"]
+    if dose_point_mapping is None:
+        dose_point_mapping = {}
 
     constraint_evaluation = {}
     for organ, data in dvh_results.items():
@@ -372,17 +374,19 @@ def evaluate_constraints(dvh_results, point_dose_results, constraints=None, poin
 
     for point_dose in point_dose_results:
         point_name = point_dose['name']
-        if point_name in point_dose_constraints:
-            constraint = point_dose_constraints[point_name]
-            if not constraint.get('report_only', False):
-                max_eqd2 = constraint.get('max_eqd2')
-                if max_eqd2 is not None:
-                    current_eqd2 = point_dose['EQD2']
-                    status = "Met" if current_eqd2 <= max_eqd2 else "NOT Met"
-                    constraint_evaluation[f"Point Dose - {point_name}"] = {
-                        "status": status,
-                        "EQD2_value": current_eqd2,
-                        "EQD2_max": max_eqd2
-                    }
+        if point_name in dose_point_mapping:
+            constraint_name = dose_point_mapping[point_name]
+            if constraint_name in point_dose_constraints:
+                constraint = point_dose_constraints[constraint_name]
+                if not constraint.get('report_only', False):
+                    max_eqd2 = constraint.get('max_eqd2')
+                    if max_eqd2 is not None:
+                        current_eqd2 = point_dose['EQD2']
+                        status = "Met" if current_eqd2 <= max_eqd2 else "NOT Met"
+                        constraint_evaluation[f"Point Dose - {point_name}"] = {
+                            "status": status,
+                            "EQD2_value": current_eqd2,
+                            "EQD2_max": max_eqd2
+                        }
 
     return constraint_evaluation

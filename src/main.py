@@ -321,7 +321,7 @@ def main(args, selected_point_names=None, custom_constraints=None): # Added sele
     if custom_constraints and "point_dose_constraints" in custom_constraints:
         point_dose_constraints = custom_constraints["point_dose_constraints"]
     # Evaluate constraints
-    constraint_evaluation = evaluate_constraints(dvh_results, point_dose_results, constraints=current_constraints, point_dose_constraints=point_dose_constraints)
+    constraint_evaluation = evaluate_constraints(dvh_results, point_dose_results, constraints=current_constraints, point_dose_constraints=point_dose_constraints, dose_point_mapping=dose_point_mapping)
 
     # Add constraint status to point_dose_results
     for pr in point_dose_results:
