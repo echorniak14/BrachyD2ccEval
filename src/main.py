@@ -6,7 +6,7 @@ from .calculations import get_dvh, evaluate_constraints, calculate_dose_to_meet_
 import argparse
 from pathlib import Path
 import json
-from .config import alpha_beta_ratios, constraints
+# from .config import alpha_beta_ratios, constraints # No longer needed as they are passed as arguments
 import pdfkit
 
 def convert_html_to_pdf(html_content, output_path, wkhtmltopdf_path=None):
@@ -60,49 +60,64 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
     target_volume_rows = ""
     oar_rows = ""
     for organ, data in dvh_results.items():
-        eqd2_met_class = ""
-        if organ in constraint_evaluation:
-            organ_constraints = constraint_evaluation[organ]
-            if "EQD2_met" in organ_constraints:
-                eqd2_met_class = "met" if organ_constraints["EQD2_met"] == "True" else "not-met"
-
         alpha_beta = alpha_beta_ratios.get(organ, alpha_beta_ratios["Default"])
         is_target = alpha_beta == 10
 
         if is_target:
-            rowspan = 5
+            # Target Volume (HRCTV, GTV)
+            # Assuming HRCTV D90, HRCTV D98, GTV D98 are evaluated in constraint_evaluation
+            hrctv_d90_eval = constraint_evaluation.get("HRCTV D90", {})
+            hrctv_d98_eval = constraint_evaluation.get("HRCTV D98", {})
+            gtv_d98_eval = constraint_evaluation.get("GTV D98", {})
+
             target_volume_rows += f"""<tr>
-                <td rowspan="{rowspan}">{organ}</td>
-                <td rowspan="{rowspan}">{alpha_beta}</td>
-                <td rowspan="{rowspan}">{data["volume_cc"]}</td>"""
-            target_volume_rows += f"""<td>D98</td>
+                <td rowspan="5">{organ}</td>
+                <td rowspan="5">{alpha_beta}</td>
+                <td rowspan="5">{data["volume_cc"]}</td>
+                <td>D98</td>
                 <td>{data["d98_gy_per_fraction"]}</td>
-                <td colspan="6"></td>
-            </tr>"""
-            target_volume_rows += f"""<tr>
+                <td>{data["eqd2_d98"]}</td>
+                <td class="{'met' if hrctv_d98_eval.get('EQD2_met_D98') == 'True' else 'not-met'}">
+                    {hrctv_d98_eval.get('EQD2_status_D98', 'N/A')}
+                </td>
+            </tr>
+            <tr>
                 <td>D90</td>
                 <td>{data.get("d90_gy_per_fraction", "N/A")}</td>
-                <td colspan="6"></td>
-            </tr>"""
-            target_volume_rows += f"""<tr>
+                <td>{data["eqd2_d90"]}</td>
+                <td class="{'met' if hrctv_d90_eval.get('EQD2_met_D90') == 'True' else 'not-met'}">
+                    {hrctv_d90_eval.get('EQD2_status_D90', 'N/A')}
+                </td>
+            </tr>
+            <tr>
                 <td>Max</td>
                 <td>{data["max_dose_gy_per_fraction"]}</td>
-                <td colspan="6"></td>
-            </tr>"""
-            target_volume_rows += f"""<tr>
+                <td colspan="2"></td>
+            </tr>
+            <tr>
                 <td>Mean</td>
                 <td>{data["mean_dose_gy_per_fraction"]}</td>
-                <td colspan="6"></td>
-            </tr>"""
-            target_volume_rows += f"""<tr>
+                <td colspan="2"></td>
+            </tr>
+            <tr>
                 <td>Min</td>
                 <td>{data["min_dose_gy_per_fraction"]}</td>
-                <td colspan="6"></td>
+                <td colspan="2"></td>
             </tr>"""
         else:
+            # OARs
             rowspan = 3
-            rows = []
-            rows.append(f"""<tr>
+            oar_eval = constraint_evaluation.get(organ, {})
+            eqd2_status = oar_eval.get("EQD2_status", "N/A")
+            eqd2_met_class = ""
+            if eqd2_status == "Met":
+                eqd2_met_class = "met"
+            elif eqd2_status == "Warning":
+                eqd2_met_class = "warning"
+            elif eqd2_status == "NOT Met":
+                eqd2_met_class = "not-met"
+
+            oar_rows += f"""<tr>
                 <td rowspan="{rowspan}">{organ}</td>
                 <td rowspan="{rowspan}">{alpha_beta}</td>
                 <td rowspan="{rowspan}">{data["volume_cc"]}</td>
@@ -115,8 +130,8 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
                 <td>{data["eqd2_d0_1cc"]}</td>
                 <td></td>
                 <td></td>
-            </tr>""")
-            rows.append(f"""<tr>
+            </tr>
+            <tr>
                 <td>D1cc</td>
                 <td>{data["d1cc_gy_per_fraction"]}</td>
                 <td></td>
@@ -126,8 +141,8 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
                 <td>{data["eqd2_d1cc"]}</td>
                 <td></td>
                 <td></td>
-            </tr>""")
-            rows.append(f"""<tr>
+            </tr>
+            <tr>
                 <td>D2cc</td>
                 <td>{data["d2cc_gy_per_fraction"]}</td>
                 <td>{data["total_d2cc_gy"]}</td>
@@ -135,10 +150,9 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
                 <td>{data["bed_previous_brachy"]}</td>
                 <td>{data["bed_ebrt"]}</td>
                 <td>{data["eqd2_d2cc"]}</td>
-                <td class="{eqd2_met_class}">{'Met' if eqd2_met_class == 'met' else 'NOT Met'}</td>
+                <td class="{eqd2_met_class}">{eqd2_status}</td>
                 <td>{data.get("dose_to_meet_constraint", "N/A")}</td>
-            </tr>""")
-            oar_rows += "".join(rows)
+            </tr>"""
 
     html_content = template.replace("{{ patient_name }}", patient_name)
     html_content = html_content.replace("{{ patient_mrn }}", patient_mrn)
@@ -252,7 +266,7 @@ def main(args, selected_point_names=None, custom_constraints=None): # Added sele
         alpha_beta_ratios=current_alpha_beta_ratios
     )
 
-    current_constraints = constraints if custom_constraints is None else custom_constraints
+    current_constraints = custom_constraints
     # Evaluate constraints
     constraint_evaluation = evaluate_constraints(dvh_results, constraints=current_constraints)
 

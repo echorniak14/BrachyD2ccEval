@@ -13,7 +13,7 @@ sys.path.insert(0, project_root)
 
 from src.dicom_parser import get_plan_data
 from src.main import main as run_analysis, convert_html_to_pdf
-from src.config import alpha_beta_ratios, constraints # Added constraints
+from src.config import templates # Added templates
 import tempfile
 
 def main():
@@ -28,46 +28,91 @@ def main():
     previous_brachy_data_file = st.sidebar.file_uploader("Upload previous brachytherapy data (optional)", type=["html", "json"])
     wkhtmltopdf_path = st.sidebar.text_input("Path to wkhtmltopdf.exe (optional)")
 
+    st.sidebar.header("Templates")
+    template_names = list(templates.keys())
+    
+    # Initialize current_template_name in session state
+    if "current_template_name" not in st.session_state:
+        st.session_state.current_template_name = "Cervix HDR - EMBRACE II" # Default template
+
+    selected_template_name = st.sidebar.selectbox(
+        "Select Template",
+        options=template_names,
+        index=template_names.index(st.session_state.current_template_name),
+        key="template_selector"
+    )
+
+    # Update session state if a new template is selected
+    if selected_template_name != st.session_state.current_template_name:
+        st.session_state.current_template_name = selected_template_name
+        # Reset alpha/beta ratios and constraints to the selected template's defaults
+        st.session_state.ab_ratios = templates[selected_template_name]["alpha_beta_ratios"].copy()
+        st.session_state.custom_constraints = templates[selected_template_name]["constraints"].copy()
+        # Clear input widgets by setting a unique key for each
+        st.session_state.widget_key_suffix = st.session_state.get('widget_key_suffix', 0) + 1
+
+
+    # Initialize ab_ratios and custom_constraints in session state if not already present
+    if "ab_ratios" not in st.session_state:
+        st.session_state.ab_ratios = templates[st.session_state.current_template_name]["alpha_beta_ratios"].copy()
+    if "custom_constraints" not in st.session_state:
+        st.session_state.custom_constraints = templates[st.session_state.current_template_name]["constraints"].copy()
+
     st.sidebar.header("Alpha/Beta Ratios")
 
-    # Initialize session state from defaults if not already present
-    for organ, val in alpha_beta_ratios.items():
-        if f"ab_{organ}" not in st.session_state:
-            st.session_state[f"ab_{organ}"] = val
-
-    # Reset button
-    if st.sidebar.button("Reset to Default"):
-        for organ, val in alpha_beta_ratios.items():
-            st.session_state[f"ab_{organ}"] = val
+    # Reset button for alpha/beta ratios
+    if st.sidebar.button("Reset Alpha/Beta Ratios to Template Defaults"):
+        st.session_state.ab_ratios = templates[st.session_state.current_template_name]["alpha_beta_ratios"].copy()
+        st.session_state.widget_key_suffix = st.session_state.get('widget_key_suffix', 0) + 1 # Force re-render
 
     # Display and update alpha/beta ratios
-    for organ, val in alpha_beta_ratios.items():
-        st.sidebar.number_input(f"{organ}", key=f"ab_{organ}")
-
-    # Collect the ab_ratios from session state before running analysis
-    ab_ratios = {}
-    for organ, val in alpha_beta_ratios.items():
-        ab_ratios[organ] = st.session_state[f"ab_{organ}"]
+    for organ, val in st.session_state.ab_ratios.items():
+        st.session_state.ab_ratios[organ] = st.sidebar.number_input(
+            f"{organ}",
+            value=float(val),
+            key=f"ab_{organ}_{st.session_state.widget_key_suffix}"
+        )
 
     st.sidebar.header("Constraints")
 
-    # Initialize session state for constraints from defaults if not already present
-    if "custom_constraints" not in st.session_state:
-        st.session_state.custom_constraints = constraints.copy()
-
     # Reset constraints button
-    if st.sidebar.button("Reset Constraints to Default"):
-        st.session_state.custom_constraints = constraints.copy()
+    if st.sidebar.button("Reset Constraints to Template Defaults"):
+        st.session_state.custom_constraints = templates[st.session_state.current_template_name]["constraints"].copy()
+        st.session_state.widget_key_suffix = st.session_state.get('widget_key_suffix', 0) + 1 # Force re-render
 
     # Display and update constraints
     with st.sidebar.expander("Edit Constraints"):
         for organ, organ_constraints in st.session_state.custom_constraints.items():
             st.subheader(f"{organ} Constraints")
-            if "EQD2" in organ_constraints:
-                st.session_state.custom_constraints[organ]["EQD2"]["max"] = st.number_input(
-                    f"{organ} EQD2 Max (Gy)",
-                    value=float(organ_constraints["EQD2"]["max"]),
-                    key=f"constraint_{organ}_EQD2_max"
+            # Handle HRCTV D90, D98, GTV D98
+            if "min" in organ_constraints and "max" in organ_constraints: # HRCTV D90
+                st.session_state.custom_constraints[organ]["min"] = st.number_input(
+                    f"{organ} Min (Gy)",
+                    value=float(organ_constraints["min"]),
+                    key=f"constraint_{organ}_min_{st.session_state.widget_key_suffix}"
+                )
+                st.session_state.custom_constraints[organ]["max"] = st.number_input(
+                    f"{organ} Max (Gy)",
+                    value=float(organ_constraints["max"]),
+                    key=f"constraint_{organ}_max_{st.session_state.widget_key_suffix}"
+                )
+            elif "min" in organ_constraints: # HRCTV D98, GTV D98
+                st.session_state.custom_constraints[organ]["min"] = st.number_input(
+                    f"{organ} Min (Gy)",
+                    value=float(organ_constraints["min"]),
+                    key=f"constraint_{organ}_min_{st.session_state.widget_key_suffix}"
+                )
+            elif "D2cc" in organ_constraints: # OARs
+                if "warning" in organ_constraints["D2cc"]:
+                    st.session_state.custom_constraints[organ]["D2cc"]["warning"] = st.number_input(
+                        f"{organ} D2cc Warning (Gy)",
+                        value=float(organ_constraints["D2cc"]["warning"]),
+                        key=f"constraint_{organ}_D2cc_warning_{st.session_state.widget_key_suffix}"
+                    )
+                st.session_state.custom_constraints[organ]["D2cc"]["max"] = st.number_input(
+                    f"{organ} D2cc Max (Gy)",
+                    value=float(organ_constraints["D2cc"]["max"]),
+                    key=f"constraint_{organ}_D2cc_max_{st.session_state.widget_key_suffix}"
                 )
 
     # Initialize selected_point_names and available_point_names in session state at the top
@@ -280,10 +325,23 @@ def main():
                             oar_df = pd.DataFrame(oar_dvh_data)
                             
                             def highlight_constraint_status(row):
-                                if row["Constraint Met"] == "Met":
-                                    return ['background-color: #d4edda'] * len(row) # Greenish
-                                elif row["Constraint Met"] == "NOT Met":
-                                    return ['background-color: #f8d7da'] * len(row) # Reddish
+                                organ = row["Organ"] if row["Organ"] else row["Dose Metric"] # Use Organ for main row, Dose Metric for sub-rows
+                                eqd2_value = row["EQD2 (Gy)"]
+                                
+                                # Get the current constraints from session state
+                                current_constraints = st.session_state.custom_constraints
+                                
+                                if organ in current_constraints and "D2cc" in current_constraints[organ]:
+                                    constraint_data = current_constraints[organ]["D2cc"]
+                                    max_constraint = constraint_data["max"]
+                                    warning_constraint = constraint_data.get("warning") # Get warning if it exists
+
+                                    if eqd2_value > max_constraint:
+                                        return ['background-color: #f8d7da'] * len(row) # Reddish (NOT Met)
+                                    elif warning_constraint is not None and eqd2_value >= warning_constraint and eqd2_value <= max_constraint:
+                                        return ['background-color: #fff3cd'] * len(row) # Yellowish (Warning)
+                                    elif eqd2_value < warning_constraint if warning_constraint is not None else eqd2_value <= max_constraint:
+                                        return ['background-color: #d4edda'] * len(row) # Greenish (Met)
                                 return [''] * len(row)
 
                             st.dataframe(oar_df.style.apply(highlight_constraint_status, axis=1))
