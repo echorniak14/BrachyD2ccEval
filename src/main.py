@@ -295,8 +295,17 @@ def main(args, selected_point_names=None, custom_constraints=None): # Added sele
     )
 
     current_constraints = custom_constraints
+    point_dose_constraints = None
+    if custom_constraints and "point_dose_constraints" in custom_constraints:
+        point_dose_constraints = custom_constraints["point_dose_constraints"]
     # Evaluate constraints
-    constraint_evaluation = evaluate_constraints(dvh_results, point_dose_results, constraints=current_constraints)
+    constraint_evaluation = evaluate_constraints(dvh_results, point_dose_results, constraints=current_constraints, point_dose_constraints=point_dose_constraints)
+
+    # Add constraint status to point_dose_results
+    for pr in point_dose_results:
+        point_eval_key = f"Point Dose - {pr['name']}"
+        point_eval = constraint_evaluation.get(point_eval_key, {})
+        pr['Constraint Status'] = point_eval.get('status', 'N/A') # Add the status here
 
     # Calculate dose to meet constraint for unmet EQD2 constraints
     for organ, data in dvh_results.items():

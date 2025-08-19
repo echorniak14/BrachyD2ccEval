@@ -6,73 +6,76 @@
         :root {
             --text-color: #333;
             --background-color: #fff;
-            --header-color-1: #2c3e50;
-            --header-color-2: #3498db;
+            --header-color-1: #d9534f; /* A shade of red */
+            --header-color-2: #c9302c; /* A darker shade of red */
             --border-color: #ddd;
             --table-header-bg: #34495e;
             --table-header-text: white;
             --table-even-row-bg: #f2f2f2;
-            --met-bg: #2ecc71;
+            --met-bg: #5cb85c; /* Green */
             --met-text: white;
-            --not-met-bg: #e74c3c;
+            --not-met-bg: #d9534f; /* Red */
             --not-met-text: white;
-            --warning-bg: #f1c40f;
-            --warning-text: black;
+            --warning-bg: #f0ad4e; /* Orange */
+            --warning-text: white;
         }
 
         @media (prefers-color-scheme: dark) {
             :root {
-                --text-color: #f2f2f2; /* Light gray for dark mode text */
-                --background-color: #1a1a1a; /* Dark background */
-                --header-color-1: #3498db; /* Lighter blue for dark mode headers */
-                --header-color-2: #6cb6ff; /* Even lighter blue */
-                --border-color: #555; /* Lighter border for dark mode */
-                --table-header-bg: #2c3e50; /* Slightly lighter dark blue */
-                --table-header-text: #f2f2f2; /* Light text */
-                --table-even-row-bg: #2a2a2a; /* Darker gray for even rows */
-                --met-bg: #27ae60; /* Slightly darker green */
+                --text-color: #f2f2f2;
+                --background-color: #1a1a1a;
+                --header-color-1: #e74c3c; /* Brighter red for dark mode */
+                --header-color-2: #c0392b; /* Darker red for dark mode */
+                --border-color: #555;
+                --table-header-bg: #2c3e50;
+                --table-header-text: #f2f2f2;
+                --table-even-row-bg: #2a2a2a;
+                --met-bg: #27ae60;
                 --met-text: white;
-                --not-met-bg: #c0392b; /* Slightly darker red */
+                --not-met-bg: #c0392b;
                 --not-met-text: white;
-                --warning-bg: #e67e22; /* Orange-ish yellow for better contrast */
-                --warning-text: white; /* White text on warning */
+                --warning-bg: #e67e22;
+                --warning-text: white;
             }
         }
 
-        body { font-family: Arial, sans-serif; margin: 10px; color: var(--text-color); background-color: var(--background-color); }
+        body { font-family: Arial, sans-serif; margin: 20px; color: var(--text-color); background-color: var(--background-color); }
+        .logo { float: right; max-height: 80px; }
         h1 { 
             color: var(--header-color-1); 
             border-bottom: 2px solid var(--header-color-2); 
             padding-bottom: 10px; 
             margin-bottom: 30px; 
+            font-size: 28px;
         }
         h2 { 
-            color: var(--header-color-2); 
-            border-top: 1px solid var(--border-color); 
-            padding-top: 20px; 
+            color: var(--header-color-1); 
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 5px;
             margin-top: 40px; 
+            font-size: 22px;
         }
         table { 
             width: 100%; 
             border-collapse: collapse; 
             margin-top: 20px; 
-            box-shadow: 0 2px 3px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
         th, td { 
             border: 1px solid var(--border-color); 
-            padding: 12px; 
+            padding: 12px 15px; 
             text-align: left; 
         }
         th { 
             background-color: var(--table-header-bg); 
             color: var(--table-header-text); 
             font-weight: bold;
+            text-transform: uppercase;
         }
         tbody tr:nth-child(even) { background-color: var(--table-even-row-bg); }
-        .met { background-color: #2ecc71; color: white; font-weight: bold; }
-        .not-met { background-color: #e74c3c; color: white; font-weight: bold; }
-        .warning { background-color: #f1c40f; color: black; font-weight: bold; } /* Yellow for warning */
-        .logo { float: right; max-height: 80px; }
+        .met { background-color: var(--met-bg); color: var(--met-text); font-weight: bold; }
+        .not-met { background-color: var(--not-met-bg); color: var(--not-met-text); font-weight: bold; }
+        .warning { background-color: var(--warning-bg); color: var(--warning-text); font-weight: bold; }
     </style>
 </head>
 <body>

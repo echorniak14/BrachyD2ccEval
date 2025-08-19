@@ -283,21 +283,21 @@ def get_dvh(rtss_file, rtdose_file, structure_data, number_of_fractions, ebrt_do
 
     return dvh_results
 
-def evaluate_constraints(dvh_results, constraints=None):
-    """Evaluates calculated DVH results against predefined constraints."""
+def evaluate_constraints(dvh_results, point_dose_results, constraints=None, point_dose_constraints=None):
+    """Evaluates calculated DVH and point dose results against predefined constraints."""
     if constraints is None:
-        # This should ideally not be reached if custom_constraints are always passed from Streamlit
         from .config import templates
-        constraints = templates["Cervix HDR - EMBRACE II"]["constraints"] # Fallback to default template
+        constraints = templates["Cervix HDR - EMBRACE II"]["constraints"]
+    if point_dose_constraints is None:
+        from .config import templates
+        point_dose_constraints = templates["Cervix HDR - EMBRACE II"]["point_dose_constraints"]
 
     constraint_evaluation = {}
     for organ, data in dvh_results.items():
         evaluation = {}
         
-        # Normalize organ name for constraint matching
         normalized_organ = normalize_structure_name(organ)
 
-        # Check for OAR constraints (D2cc)
         if normalized_organ in constraints and "D2cc" in constraints[normalized_organ]:
             constraint_data = constraints[normalized_organ]["D2cc"]
             max_eqd2 = constraint_data["max"]
@@ -307,7 +307,7 @@ def evaluate_constraints(dvh_results, constraints=None):
             
             evaluation["EQD2_value"] = current_eqd2
             evaluation["EQD2_max"] = max_eqd2
-            evaluation["EQD2_warning"] = warning_eqd2 # Store warning for potential use
+            evaluation["EQD2_warning"] = warning_eqd2
 
             if current_eqd2 <= max_eqd2:
                 evaluation["EQD2_met"] = "True"
@@ -321,14 +321,12 @@ def evaluate_constraints(dvh_results, constraints=None):
             
             constraint_evaluation[normalized_organ] = evaluation
 
-        # Check for Target Volume constraints (HRCTV D90, HRCTV D98, GTV D98)
-        # These are typically evaluated on EQD2 values
         if "HRCTV D90" in constraints and normalized_organ == "Hrctv":
             constraint_data = constraints["HRCTV D90"]
             min_eqd2 = constraint_data["min"]
-            max_eqd2 = constraint_data.get("max") # Max might not always be present
+            max_eqd2 = constraint_data.get("max")
             
-            current_eqd2 = data["eqd2_d90"] # Assuming eqd2_d90 is available in dvh_results
+            current_eqd2 = data["eqd2_d90"]
             
             evaluation["EQD2_value_D90"] = current_eqd2
             evaluation["EQD2_min_D90"] = min_eqd2
@@ -340,13 +338,13 @@ def evaluate_constraints(dvh_results, constraints=None):
             
             evaluation["EQD2_met_D90"] = str(is_met)
             evaluation["EQD2_status_D90"] = "Met" if is_met else "NOT Met"
-            constraint_evaluation["HRCTV D90"] = evaluation # Store under specific key
+            constraint_evaluation["HRCTV D90"] = evaluation
 
         if "HRCTV D98" in constraints and normalized_organ == "Hrctv":
             constraint_data = constraints["HRCTV D98"]
             min_eqd2 = constraint_data["min"]
             
-            current_eqd2 = data["eqd2_d98"] # Assuming eqd2_d98 is available
+            current_eqd2 = data["eqd2_d98"]
             
             evaluation["EQD2_value_D98"] = current_eqd2
             evaluation["EQD2_min_D98"] = min_eqd2
@@ -355,13 +353,13 @@ def evaluate_constraints(dvh_results, constraints=None):
             
             evaluation["EQD2_met_D98"] = str(is_met)
             evaluation["EQD2_status_D98"] = "Met" if is_met else "NOT Met"
-            constraint_evaluation["HRCTV D98"] = evaluation # Store under specific key
+            constraint_evaluation["HRCTV D98"] = evaluation
 
         if "GTV D98" in constraints and normalized_organ == "Gtv":
             constraint_data = constraints["GTV D98"]
             min_eqd2 = constraint_data["min"]
             
-            current_eqd2 = data["eqd2_d98"] # Assuming eqd2_d98 is available
+            current_eqd2 = data["eqd2_d98"]
             
             evaluation["EQD2_value_D98"] = current_eqd2
             evaluation["EQD2_min_D98"] = min_eqd2
@@ -370,6 +368,21 @@ def evaluate_constraints(dvh_results, constraints=None):
             
             evaluation["EQD2_met_D98"] = str(is_met)
             evaluation["EQD2_status_D98"] = "Met" if is_met else "NOT Met"
-            constraint_evaluation["GTV D98"] = evaluation # Store under specific key
+            constraint_evaluation["GTV D98"] = evaluation
+
+    for point_dose in point_dose_results:
+        point_name = point_dose['name']
+        if point_name in point_dose_constraints:
+            constraint = point_dose_constraints[point_name]
+            if not constraint.get('report_only', False):
+                max_eqd2 = constraint.get('max_eqd2')
+                if max_eqd2 is not None:
+                    current_eqd2 = point_dose['EQD2']
+                    status = "Met" if current_eqd2 <= max_eqd2 else "NOT Met"
+                    constraint_evaluation[f"Point Dose - {point_name}"] = {
+                        "status": status,
+                        "EQD2_value": current_eqd2,
+                        "EQD2_max": max_eqd2
+                    }
 
     return constraint_evaluation

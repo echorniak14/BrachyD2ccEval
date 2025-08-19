@@ -85,40 +85,55 @@ def main():
         st.session_state.custom_constraints = templates[st.session_state.current_template_name]["constraints"].copy()
         st.session_state.widget_key_suffix = st.session_state.get('widget_key_suffix', 0) + 1 # Force re-render
 
-    # Display and update constraints
-    with st.sidebar.expander("Edit Constraints"):
-        for organ, organ_constraints in st.session_state.custom_constraints.items():
-            st.subheader(f"{organ} Constraints")
-            # Handle HRCTV D90, D98, GTV D98
-            if "min" in organ_constraints and "max" in organ_constraints: # HRCTV D90
-                st.session_state.custom_constraints[organ]["min"] = st.number_input(
-                    f"{organ} Min (Gy)",
-                    value=float(organ_constraints["min"]),
-                    key=f"constraint_{organ}_min_{st.session_state.widget_key_suffix}"
-                )
-                st.session_state.custom_constraints[organ]["max"] = st.number_input(
-                    f"{organ} Max (Gy)",
-                    value=float(organ_constraints["max"]),
-                    key=f"constraint_{organ}_max_{st.session_state.widget_key_suffix}"
-                )
-            elif "min" in organ_constraints: # HRCTV D98, GTV D98
-                st.session_state.custom_constraints[organ]["min"] = st.number_input(
-                    f"{organ} Min (Gy)",
-                    value=float(organ_constraints["min"]),
-                    key=f"constraint_{organ}_min_{st.session_state.widget_key_suffix}"
-                )
-            elif "D2cc" in organ_constraints: # OARs
-                if "warning" in organ_constraints["D2cc"]:
-                    st.session_state.custom_constraints[organ]["D2cc"]["warning"] = st.number_input(
-                        f"{organ} D2cc Warning (Gy)",
-                        value=float(organ_constraints["D2cc"]["warning"]),
-                        key=f"constraint_{organ}_D2cc_warning_{st.session_state.widget_key_suffix}"
+    if st.session_state.current_template_name == "Custom":
+        # Display and update constraints for Custom template
+        with st.sidebar.expander("Edit Constraints"):
+            for organ, organ_constraints in st.session_state.custom_constraints.items():
+                st.subheader(f"{organ} Constraints")
+                # Handle HRCTV D90, D98, GTV D98
+                if "min" in organ_constraints and "max" in organ_constraints: # HRCTV D90
+                    st.session_state.custom_constraints[organ]["min"] = st.number_input(
+                        f"{organ} Min (Gy)",
+                        value=float(organ_constraints["min"]),
+                        key=f"constraint_{organ}_min_{st.session_state.widget_key_suffix}"
                     )
-                st.session_state.custom_constraints[organ]["D2cc"]["max"] = st.number_input(
-                    f"{organ} D2cc Max (Gy)",
-                    value=float(organ_constraints["D2cc"]["max"]),
-                    key=f"constraint_{organ}_D2cc_max_{st.session_state.widget_key_suffix}"
-                )
+                    st.session_state.custom_constraints[organ]["max"] = st.number_input(
+                        f"{organ} Max (Gy)",
+                        value=float(organ_constraints["max"]),
+                        key=f"constraint_{organ}_max_{st.session_state.widget_key_suffix}"
+                    )
+                elif "min" in organ_constraints: # HRCTV D98, GTV D98
+                    st.session_state.custom_constraints[organ]["min"] = st.number_input(
+                        f"{organ} Min (Gy)",
+                        value=float(organ_constraints["min"]),
+                        key=f"constraint_{organ}_min_{st.session_state.widget_key_suffix}"
+                    )
+                elif "D2cc" in organ_constraints: # OARs
+                    if "warning" in organ_constraints["D2cc"]:
+                        st.session_state.custom_constraints[organ]["D2cc"]["warning"] = st.number_input(
+                            f"{organ} D2cc Warning (Gy)",
+                            value=float(organ_constraints["D2cc"]["warning"]),
+                            key=f"constraint_{organ}_D2cc_warning_{st.session_state.widget_key_suffix}"
+                        )
+                    st.session_state.custom_constraints[organ]["D2cc"]["max"] = st.number_input(
+                        f"{organ} D2cc Max (Gy)",
+                        value=float(organ_constraints["D2cc"]["max"]),
+                        key=f"constraint_{organ}_D2cc_max_{st.session_state.widget_key_suffix}"
+                    )
+    else:
+        # Display constraints for non-Custom templates (read-only)
+        st.subheader("Loaded Constraints:")
+        for organ, organ_constraints in st.session_state.custom_constraints.items():
+            st.write(f"**{organ}:**")
+            if "min" in organ_constraints and "max" in organ_constraints:
+                st.write(f"  Min: {organ_constraints['min']} Gy, Max: {organ_constraints['max']} Gy")
+            elif "min" in organ_constraints:
+                st.write(f"  Min: {organ_constraints['min']} Gy")
+            elif "D2cc" in organ_constraints:
+                if "warning" in organ_constraints["D2cc"]:
+                    st.write(f"  D2cc Warning: {organ_constraints['D2cc']['warning']} Gy, Max: {organ_constraints['D2cc']['max']} Gy")
+                else:
+                    st.write(f"  D2cc Max: {organ_constraints['D2cc']['max']} Gy")
 
     # Ensure ab_ratios is defined for use in args and DVH loop
     ab_ratios = st.session_state.ab_ratios

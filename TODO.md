@@ -1,10 +1,12 @@
 ## TODO
 - improve previous brachy dose summation
 - Fix the total planned dose column in the report.
-- Dose to meet constraint and constraint met status in DVH results table should use user-input constraints.
-- Dose constraint templates
+- [x] Dose to meet constraint and constraint met status in DVH results table should use user-input constraints.
+- [x] Dose constraint templates
+- [ ] test all dose constraint templates
 - Remove BED in report
-- fix contrast on dark mode
+- [x] fix contrast on dark mode
+- [ ] fix point dose reporting and constraint evaluation (need details for point dose constraints eg bladder point, metrics and constraint values)
 
 ## Future Enhancements
 
