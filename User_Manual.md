@@ -24,6 +24,11 @@ pip install -r requirements.txt
 
 The BrachyD2ccEval tool features a user-friendly graphical user interface (GUI) that allows you to easily perform plan evaluations.
 
+To launch the application, open a new terminal, navigate to the project directory, and run the command:
+```
+streamlit run src/streamlit_gui.py
+```
+
 ![GUI Screenshot](src/assets/gui_screenshot.png)  <!-- This is the updated GUI screenshot -->
 
 ### Components:
@@ -36,9 +41,9 @@ The BrachyD2ccEval tool features a user-friendly graphical user interface (GUI) 
 
 ## 4. Step-by-Step Workflow
 
-1.  **Launch the application:** Run the `gui.py` script from your terminal:
+
     ```
-    python src/gui.py
+    
     ```
 2.  **Select DICOM Data Directory:** Click the "Browse" button and select the folder containing the patient's DICOM files.
 3.  **Enter EBRT Dose:** If applicable, enter the EBRT dose in the corresponding field.
