@@ -9,6 +9,28 @@ import json
 # from .config import alpha_beta_ratios, constraints # No longer needed as they are passed as arguments
 import pdfkit
 
+def replace_css_variables(html_content):
+    """Replaces CSS variables with their actual values for PDF generation."""
+    colors = {
+        '--text-color': '#333',
+        '--background-color': '#fff',
+        '--header-color-1': '#2a7ae2',
+        '--header-color-2': '#1e5aab',
+        '--border-color': '#ddd',
+        '--table-header-bg': '#1e5aab',  # Darker blue
+        '--table-header-text': 'white',
+        '--table-even-row-bg': '#eaf2fa',
+        '--met-bg': '#77dd77',
+        '--met-text': 'white',
+        '--not-met-bg': '#ff6961',
+        '--not-met-text': 'white',
+        '--warning-bg': '#fdfd96',
+        '--warning-text': 'black',
+    }
+    for var, value in colors.items():
+        html_content = html_content.replace(f'var({var})', value)
+    return html_content
+
 def convert_html_to_pdf(html_content, output_path, wkhtmltopdf_path=None):
     """
     Converts HTML content to a PDF file using pdfkit.
@@ -22,7 +44,8 @@ def convert_html_to_pdf(html_content, output_path, wkhtmltopdf_path=None):
             'enable-local-file-access': None
         }
         
-        pdfkit.from_string(html_content, output_path, configuration=config, options=options)
+        pdf_html_content = replace_css_variables(html_content)
+        pdfkit.from_string(pdf_html_content, output_path, configuration=config, options=options)
     except IOError as e:
         # Re-raise the error with a more helpful message for the GUI
         raise IOError(
@@ -30,7 +53,6 @@ def convert_html_to_pdf(html_content, output_path, wkhtmltopdf_path=None):
             "\n\nSee: https://wkhtmltopdf.org/downloads.html"
             f"\n\nOriginal error: {e}"
         )
-
 
 
 def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_fraction, number_of_fractions, ebrt_dose, dvh_results, constraint_evaluation, dose_references, point_dose_results, output_path, alpha_beta_ratios):
