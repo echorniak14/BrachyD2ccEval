@@ -176,6 +176,18 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
 
     point_dose_rows = ""
     for pr in point_dose_results:
+        point_eval_key = f"Point Dose - {pr['name']}"
+        point_eval = constraint_evaluation.get(point_eval_key, {})
+        
+        status = point_eval.get("status", "N/A")
+        met_class = ""
+        if status == "Met":
+            met_class = "met"
+        elif status == "NOT Met":
+            met_class = "not-met"
+        elif status == "Warning": # Assuming a warning status for point doses if applicable
+            met_class = "warning"
+
         point_dose_rows += f"""<tr>
             <td>{pr['name']}</td>
             <td>{alpha_beta_ratios.get(pr['name'], alpha_beta_ratios["Default"])}</td>
@@ -185,7 +197,7 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
             <td>{pr['BED_previous_brachy']:.2f}</td>
             <td>{pr['BED_EBRT']:.2f}</td>
             <td>{pr['EQD2']:.2f}</td>
-            <td></td>
+            <td class="{met_class}">{status}</td>
             <td></td>
         </tr>"""
     html_content = html_content.replace("{{ point_dose_rows }}", point_dose_rows)
@@ -210,6 +222,11 @@ def main(args, selected_point_names=None, custom_constraints=None): # Added sele
         # Fallback to the default template's alpha_beta_ratios if not provided via args
         from .config import templates
         current_alpha_beta_ratios = templates["Cervix HDR - EMBRACE II"]["alpha_beta_ratios"].copy()
+
+    # Calculate BED and EQD2 for point doses
+    point_dose_results = []
+
+    point_dose_results = [] # Initialize point_dose_results here
 
     # Find the subdirectories
     subdirectories = [d for d in data_dir.iterdir() if d.is_dir()]
@@ -279,7 +296,7 @@ def main(args, selected_point_names=None, custom_constraints=None): # Added sele
 
     current_constraints = custom_constraints
     # Evaluate constraints
-    constraint_evaluation = evaluate_constraints(dvh_results, constraints=current_constraints)
+    constraint_evaluation = evaluate_constraints(dvh_results, point_dose_results, constraints=current_constraints)
 
     # Calculate dose to meet constraint for unmet EQD2 constraints
     for organ, data in dvh_results.items():
@@ -299,9 +316,7 @@ def main(args, selected_point_names=None, custom_constraints=None): # Added sele
             else:
                 dvh_results[organ]["dose_to_meet_constraint"] = "N/A"
 
-    # Calculate BED and EQD2 for point doses
-    point_dose_results = []
-    # Filter dose references based on selected_point_names
+    
     filtered_dose_references = []
     if selected_point_names:
         for dr in plan_data.get('dose_references', []):
