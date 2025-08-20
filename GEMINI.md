@@ -122,6 +122,7 @@ This file is for internal use by the Gemini CLI agent to track project progress,
     - Removed "Dose to Meet Constraint (Gy)" column from OAR DVH Results and Point Dose Results tables in `src/templates/report_template.html` and `src/main.py`.
     - Removed "Constraint Status" from Target DVH Results table in `src/templates/report_template.html` and `src/main.py`.
     - Removed "EQD2 Constraint Met" column from OAR DVH Results and Point Dose Results tables in `src/templates/report_template.html` and `src/main.py`.
+    - Removed BED columns from OAR DVH Results and Point Dose Results tables in `src/templates/report_template.html` and `src/main.py`.
 
 ## Next Steps:
 - **Previous Brachytherapy Data Integration:**

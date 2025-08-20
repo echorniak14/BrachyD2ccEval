@@ -144,9 +144,6 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
                 <td>D0.1cc</td>
                 <td>{data["d0_1cc_gy_per_fraction"]}</td>
                 <td></td>
-                <td>{data["bed_d0_1cc"]}</td>
-                <td>{data["bed_previous_brachy"]}</td>
-                <td>{data["bed_ebrt"]}</td>
                 <td>{data["eqd2_d0_1cc"]}</td>
                 <td></td>
                 <td></td>
@@ -155,9 +152,6 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
                 <td>D1cc</td>
                 <td>{data["d1cc_gy_per_fraction"]}</td>
                 <td></td>
-                <td>{data["bed_d1cc"]}</td>
-                <td>{data["bed_previous_brachy"]}</td>
-                <td>{data["bed_ebrt"]}</td>
                 <td>{data["eqd2_d1cc"]}</td>
                 <td></td>
                 <td></td>
@@ -166,9 +160,6 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
                 <td>D2cc</td>
                 <td>{data["d2cc_gy_per_fraction"]}</td>
                 <td>{data["total_d2cc_gy"]}</td>
-                <td>{data["bed_this_plan"]}</td>
-                <td>{data["bed_previous_brachy"]}</td>
-                <td>{data["bed_ebrt"]}</td>
                 <td>{data["eqd2_d2cc"]}</td>
                 </tr>"""
 
@@ -207,9 +198,6 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
             <td>{alpha_beta_ratios.get(pr['name'], alpha_beta_ratios["Default"])}</td>
             <td>{pr['dose']:.2f}</td>
             <td>{pr['total_dose']:.2f}</td>
-            <td>{pr['BED_this_plan']:.2f}</td>
-            <td>{pr['BED_previous_brachy']:.2f}</td>
-            <td>{pr['BED_EBRT']:.2f}</td>
             <td>{pr['EQD2']:.2f}</td>
             </tr>"""
     html_content = html_content.replace("{{ point_dose_rows }}", point_dose_rows)
