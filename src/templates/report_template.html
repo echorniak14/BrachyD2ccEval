@@ -67,6 +67,9 @@
             font-weight: bold;
             text-transform: uppercase;
         }
+        .no-transform {
+            text-transform: none;
+        }
         tbody tr:nth-child(even) { background-color: var(--table-even-row-bg); }
         
     </style>
@@ -86,7 +89,7 @@
         <thead>
             <tr>
                 <th>Structure</th>
-                <th>α/β</th>
+                <th class="no-transform">&#x3B1;/&#x3B2;</th>
                 <th>Volume (cc)</th>
                 <th>Dose Metric</th>
                 <th>Dose (per fraction) (Gy)</th>
@@ -104,7 +107,7 @@
         <thead>
             <tr>
                 <th>Structure</th>
-                <th>α/β</th>
+                <th class="no-transform">&#x3B1;/&#x3B2;</th>
                 <th>Volume (cc)</th>
                 <th>Dose Metric</th>
                 <th>Dose (per fraction) (Gy)</th>
@@ -122,7 +125,7 @@
         <thead>
             <tr>
                 <th>Point Name</th>
-                <th>α/β</th>
+                <th class="no-transform">&#x3B1;/&#x3B2;</th>
                 <th>Dose (per fraction) (Gy)</th>
                 <th>Total Planned Dose (Gy)</th>
                 <th>EQD2 (Gy)</th>
