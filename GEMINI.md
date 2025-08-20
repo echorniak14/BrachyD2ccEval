@@ -123,6 +123,14 @@ This file is for internal use by the Gemini CLI agent to track project progress,
     - Removed "Constraint Status" from Target DVH Results table in `src/templates/report_template.html` and `src/main.py`.
     - Removed "EQD2 Constraint Met" column from OAR DVH Results and Point Dose Results tables in `src/templates/report_template.html` and `src/main.py`.
     - Removed BED columns from OAR DVH Results and Point Dose Results tables in `src/templates/report_template.html` and `src/main.py`.
+    - Fixed "total planned dose column" in `src/main.py`.
+    - Fixed "alpha/beta symbol" in `src/templates/report_template.html`.
+
+## Next Steps:
+- **Previous Brachytherapy Data Integration:**
+    - Implemented functionality to incorporate previous brachytherapy EQD2 data from HTML reports, allowing for organ-specific dose accumulation.
+- **Dose to Meet Constraint Calculation:**
+    - Implemented functionality to calculate the highest fractional dose needed to meet any unmet constraints.
 
 ## Next Steps:
 - **Previous Brachytherapy Data Integration:**

@@ -143,7 +143,7 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
                 <td rowspan="{rowspan}">{data["volume_cc"]}</td>
                 <td>D0.1cc</td>
                 <td>{data["d0_1cc_gy_per_fraction"]}</td>
-                <td></td>
+                <td>{data["d0_1cc_gy_per_fraction"] * number_of_fractions}</td>
                 <td>{data["eqd2_d0_1cc"]}</td>
                 <td></td>
                 <td></td>
@@ -151,7 +151,7 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
             <tr>
                 <td>D1cc</td>
                 <td>{data["d1cc_gy_per_fraction"]}</td>
-                <td></td>
+                <td>{data["d1cc_gy_per_fraction"] * number_of_fractions}</td>
                 <td>{data["eqd2_d1cc"]}</td>
                 <td></td>
                 <td></td>
