@@ -20,6 +20,20 @@ def main():
     st.set_page_config(layout="wide")
     st.title("Brachytherapy Plan Evaluator")
 
+    st.markdown("""
+    This tool allows you to analyze and evaluate brachytherapy treatment plans.
+
+    **Instructions:**
+
+    1.  **Upload DICOM Files:** Use the file uploader below to select the RTDOSE, RTSTRUCT, and RTPLAN files for the plan you want to evaluate.
+    2.  **Set Parameters:** In the sidebar on the left, you can:
+        *   Enter the External Beam Radiation Therapy (EBRT) dose.
+        *   Upload a previous brachytherapy report (in HTML or JSON format) to accumulate doses.
+        *   Select a constraint template or customize your own.
+    3.  **Run Analysis:** Click the "Run Analysis" button to process the files and view the results.
+    4.  **View Results:** The results will be displayed in tabs, including DVH data, point doses, and a downloadable PDF report.
+    """)
+
     # Initialize widget_key_suffix for dynamic key generation
     if 'widget_key_suffix' not in st.session_state:
         st.session_state.widget_key_suffix = 0
@@ -422,7 +436,7 @@ def main():
                             except IOError as e:
                                 st.error(
                                     "Could not generate PDF. This is likely because the 'wkhtmltopdf' executable was not found."
-                                    "\n\nPlease install 'wkhtmltopdf' and ensure it is in your system's PATH."
+                                    "\n\n""Please install 'wkhtmltopdf' and ensure it is in your system's PATH."
                                     "\n\nSee the installation guide: https://wkhtmltopdf.org/downloads.html"
                                     f"\n\n**Error details:**\n\n{e}"
                                 )

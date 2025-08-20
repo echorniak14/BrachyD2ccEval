@@ -160,7 +160,7 @@ def get_control_point_data(rtplan_file):
                     })
     return control_points
 
-from .calculations import get_dvh
+from src.calculations import get_dvh
 
 if __name__ == "__main__":
     # Example usage:
