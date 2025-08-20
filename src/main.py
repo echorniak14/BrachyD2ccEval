@@ -1,12 +1,35 @@
 import sys
+import base64
 from .html_parser import parse_html_report
 from .dicom_parser import find_dicom_file, load_dicom_file, get_structure_data, get_plan_data
 from .calculations import get_dvh, evaluate_constraints, calculate_dose_to_meet_constraint, calculate_point_dose_bed_eqd2
 import argparse
 from pathlib import Path
 import json
-from .config import alpha_beta_ratios, constraints
+# from .config import alpha_beta_ratios, constraints # No longer needed as they are passed as arguments
 import pdfkit
+
+def replace_css_variables(html_content):
+    """Replaces CSS variables with their actual values for PDF generation."""
+    colors = {
+        '--text-color': '#333',
+        '--background-color': '#fff',
+        '--header-color-1': '#2a7ae2',
+        '--header-color-2': '#1e5aab',
+        '--border-color': '#ddd',
+        '--table-header-bg': '#1e5aab',  # Darker blue
+        '--table-header-text': 'white',
+        '--table-even-row-bg': '#eaf2fa',
+        '--met-bg': '#77dd77',
+        '--met-text': 'white',
+        '--not-met-bg': '#ff6961',
+        '--not-met-text': 'white',
+        '--warning-bg': '#fdfd96',
+        '--warning-text': 'black',
+    }
+    for var, value in colors.items():
+        html_content = html_content.replace(f'var({var})', value)
+    return html_content
 
 def convert_html_to_pdf(html_content, output_path, wkhtmltopdf_path=None):
     """
@@ -21,7 +44,8 @@ def convert_html_to_pdf(html_content, output_path, wkhtmltopdf_path=None):
             'enable-local-file-access': None
         }
         
-        pdfkit.from_string(html_content, output_path, configuration=config, options=options)
+        pdf_html_content = replace_css_variables(html_content)
+        pdfkit.from_string(pdf_html_content, output_path, configuration=config, options=options)
     except IOError as e:
         # Re-raise the error with a more helpful message for the GUI
         raise IOError(
@@ -31,8 +55,11 @@ def convert_html_to_pdf(html_content, output_path, wkhtmltopdf_path=None):
         )
 
 
-
 def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_fraction, number_of_fractions, ebrt_dose, dvh_results, constraint_evaluation, dose_references, point_dose_results, output_path, alpha_beta_ratios):
+    # Ensure alpha_beta_ratios is a dictionary and has a 'Default' key
+    if not isinstance(alpha_beta_ratios, dict) or "Default" not in alpha_beta_ratios:
+        from .config import templates
+        alpha_beta_ratios = templates["Cervix HDR - EMBRACE II"]["alpha_beta_ratios"].copy()
     # Determine the base path for data files
     if getattr(sys, 'frozen', False):
         # Running in a PyInstaller bundle
@@ -42,92 +69,100 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
         base_path = Path(__file__).parent
 
     template_path = Path(base_path) / "templates" / "report_template.html"
+    logo_path = Path(base_path) / "assets" / "2020-flame-red-02.PNG"
 
     with open(template_path, "r") as f:
         template = f.read()
 
+    # Read and base64 encode the logo
+    try:
+        with open(logo_path, "rb") as img_file:
+            logo_base64 = base64.b64encode(img_file.read()).decode('utf-8')
+            logo_data_uri = f"data:image/png;base64,{logo_base64}"
+    except FileNotFoundError:
+        print(f"Warning: Logo file not found at {logo_path}. Image will not be displayed.")
+        logo_data_uri = "" # Fallback to empty string if logo not found
+
     target_volume_rows = ""
     oar_rows = ""
     for organ, data in dvh_results.items():
-        eqd2_met_class = ""
-        if organ in constraint_evaluation:
-            organ_constraints = constraint_evaluation[organ]
-            if "EQD2_met" in organ_constraints:
-                eqd2_met_class = "met" if organ_constraints["EQD2_met"] == "True" else "not-met"
-
         alpha_beta = alpha_beta_ratios.get(organ, alpha_beta_ratios["Default"])
         is_target = alpha_beta == 10
 
         if is_target:
-            rowspan = 5
+            # Target Volume (HRCTV, GTV)
+            # Assuming HRCTV D90, HRCTV D98, GTV D98 are evaluated in constraint_evaluation
+            hrctv_d90_eval = constraint_evaluation.get("HRCTV D90", {})
+            hrctv_d98_eval = constraint_evaluation.get("HRCTV D98", {})
+            gtv_d98_eval = constraint_evaluation.get("GTV D98", {})
+
             target_volume_rows += f"""<tr>
-                <td rowspan="{rowspan}">{organ}</td>
-                <td rowspan="{rowspan}">{alpha_beta}</td>
-                <td rowspan="{rowspan}">{data["volume_cc"]}</td>"""
-            target_volume_rows += f"""<td>D98</td>
-                <td>{data["d98_gy_per_fraction"]}</td>
-                <td colspan="6"></td>
-            </tr>"""
-            target_volume_rows += f"""<tr>
+                <td rowspan="5">{organ}</td>
+                <td rowspan="5">{alpha_beta}</td>
+                <td rowspan="5">{data["volume_cc"]}</td>
+                <td>D98</td>
+                <td>{data["d98_gy_per_fraction"]:.2f}</td>
+                <td>{(data["d98_gy_per_fraction"] * number_of_fractions):.2f}</td>
+                <td>{data["eqd2_d98"]:.2f}</td>
+            </tr>
+            <tr>
                 <td>D90</td>
-                <td>{data.get("d90_gy_per_fraction", "N/A")}</td>
-                <td colspan="6"></td>
-            </tr>"""
-            target_volume_rows += f"""<tr>
+                <td>{data.get("d90_gy_per_fraction", "N/A"):.2f}</td>
+                <td>{(data.get("d90_gy_per_fraction", 0) * number_of_fractions):.2f}</td>
+                <td>{data["eqd2_d90"]:.2f}</td>
+            </tr>
+            <tr>
                 <td>Max</td>
-                <td>{data["max_dose_gy_per_fraction"]}</td>
-                <td colspan="6"></td>
-            </tr>"""
-            target_volume_rows += f"""<tr>
+                <td>{data["max_dose_gy_per_fraction"]:.2f}</td>
+                <td>{(data["max_dose_gy_per_fraction"] * number_of_fractions):.2f}</td>
+                <td colspan="1"></td>
+            </tr>
+            <tr>
                 <td>Mean</td>
-                <td>{data["mean_dose_gy_per_fraction"]}</td>
-                <td colspan="6"></td>
-            </tr>"""
-            target_volume_rows += f"""<tr>
+                <td>{data["mean_dose_gy_per_fraction"]:.2f}</td>
+                <td>{(data["mean_dose_gy_per_fraction"] * number_of_fractions):.2f}</td>
+                <td colspan="1"></td>
+            </tr>
+            <tr>
                 <td>Min</td>
-                <td>{data["min_dose_gy_per_fraction"]}</td>
-                <td colspan="6"></td>
+                <td>{data["min_dose_gy_per_fraction"]:.2f}</td>
+                <td>{(data["min_dose_gy_per_fraction"] * number_of_fractions):.2f}</td>
+                <td colspan="1"></td>
             </tr>"""
         else:
+            # OARs
             rowspan = 3
-            rows = []
-            rows.append(f"""<tr>
+            oar_eval = constraint_evaluation.get(organ, {})
+            eqd2_status = oar_eval.get("EQD2_status", "N/A")
+            eqd2_met_class = ""
+            if eqd2_status == "Met":
+                eqd2_met_class = "met"
+            elif eqd2_status == "Warning":
+                eqd2_met_class = "warning"
+            elif eqd2_status == "NOT Met":
+                eqd2_met_class = "not-met"
+
+            oar_rows += f"""<tr>
                 <td rowspan="{rowspan}">{organ}</td>
                 <td rowspan="{rowspan}">{alpha_beta}</td>
                 <td rowspan="{rowspan}">{data["volume_cc"]}</td>
                 <td>D0.1cc</td>
-                <td>{data["d0_1cc_gy_per_fraction"]}</td>
-                <td></td>
-                <td>{data["bed_d0_1cc"]}</td>
-                <td>{data["bed_previous_brachy"]}</td>
-                <td>{data["bed_ebrt"]}</td>
-                <td>{data["eqd2_d0_1cc"]}</td>
-                <td></td>
-                <td></td>
-            </tr>""")
-            rows.append(f"""<tr>
+                <td>{data["d0_1cc_gy_per_fraction"]:.2f}</td>
+                <td>{(data["d0_1cc_gy_per_fraction"] * number_of_fractions):.2f}</td>
+                <td>{data["eqd2_d0_1cc"]:.2f}</td>
+            </tr>
+            <tr>
                 <td>D1cc</td>
-                <td>{data["d1cc_gy_per_fraction"]}</td>
-                <td></td>
-                <td>{data["bed_d1cc"]}</td>
-                <td>{data["bed_previous_brachy"]}</td>
-                <td>{data["bed_ebrt"]}</td>
-                <td>{data["eqd2_d1cc"]}</td>
-                <td></td>
-                <td></td>
-            </tr>""")
-            rows.append(f"""<tr>
+                <td>{data["d1cc_gy_per_fraction"]:.2f}</td>
+                <td>{(data["d1cc_gy_per_fraction"] * number_of_fractions):.2f}</td>
+                <td>{data["eqd2_d1cc"]:.2f}</td>
+            </tr>
+            <tr>
                 <td>D2cc</td>
-                <td>{data["d2cc_gy_per_fraction"]}</td>
-                <td>{data["total_d2cc_gy"]}</td>
-                <td>{data["bed_this_plan"]}</td>
-                <td>{data["bed_previous_brachy"]}</td>
-                <td>{data["bed_ebrt"]}</td>
-                <td>{data["eqd2_d2cc"]}</td>
-                <td class="{eqd2_met_class}">{'Met' if eqd2_met_class == 'met' else 'NOT Met'}</td>
-                <td>{data.get("dose_to_meet_constraint", "N/A")}</td>
-            </tr>""")
-            oar_rows += "".join(rows)
+                <td>{data["d2cc_gy_per_fraction"]:.2f}</td>
+                <td>{data["total_d2cc_gy"]:.2f}</td>
+                <td>{data["eqd2_d2cc"]:.2f}</td>
+                </tr>"""
 
     html_content = template.replace("{{ patient_name }}", patient_name)
     html_content = html_content.replace("{{ patient_mrn }}", patient_mrn)
@@ -138,6 +173,8 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
     html_content = html_content.replace("{{ target_volume_rows }}", target_volume_rows)
     html_content = html_content.replace("{{ oar_rows }}", oar_rows)
 
+    html_content = html_content.replace("{{ logo_base64 }}", logo_data_uri)
+
     dose_ref_rows = ""
     for dr in dose_references:
         dose_ref_rows += f"<tr><td>{dr['name']}</td><td>{dr['dose']}</td></tr>"
@@ -145,18 +182,25 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
 
     point_dose_rows = ""
     for pr in point_dose_results:
+        point_eval_key = f"Point Dose - {pr['name']}"
+        point_eval = constraint_evaluation.get(point_eval_key, {})
+        
+        status = point_eval.get("status", "N/A")
+        met_class = ""
+        if status == "Met":
+            met_class = "met"
+        elif status == "NOT Met":
+            met_class = "not-met"
+        elif status == "Warning": # Assuming a warning status for point doses if applicable
+            met_class = "warning"
+
         point_dose_rows += f"""<tr>
             <td>{pr['name']}</td>
             <td>{alpha_beta_ratios.get(pr['name'], alpha_beta_ratios["Default"])}</td>
             <td>{pr['dose']:.2f}</td>
             <td>{pr['total_dose']:.2f}</td>
-            <td>{pr['bed_this_plan']:.2f}</td>
-            <td>{pr['bed_previous_brachy']:.2f}</td>
-            <td>{pr['bed_ebrt']:.2f}</td>
-            <td>{pr['eqd2']:.2f}</td>
-            <td></td>
-            <td></td>
-        </tr>"""
+            <td>{pr['EQD2']:.2f}</td>
+            </tr>"""
     html_content = html_content.replace("{{ point_dose_rows }}", point_dose_rows)
 
     with open(output_path, "w") as f:
@@ -164,14 +208,26 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
     
     return html_content
 
-def main(args, selected_point_names=None): # Added selected_point_names parameter
+def main(args, selected_point_names=None, custom_constraints=None, dose_point_mapping=None):
     data_dir = Path(args.data_dir)
 
-    # Use custom alpha/beta ratios if provided, otherwise use defaults
-    current_alpha_beta_ratios = alpha_beta_ratios.copy()
+    # Use custom alpha/beta ratios if provided, otherwise use defaults from the default template
     if hasattr(args, 'alpha_beta_ratios') and args.alpha_beta_ratios:
-        for organ, ratio in args.alpha_beta_ratios.items():
-            current_alpha_beta_ratios[organ] = ratio
+        current_alpha_beta_ratios = args.alpha_beta_ratios.copy()
+        # Ensure 'Default' key exists, if not, add it from the template
+        if "Default" not in current_alpha_beta_ratios:
+            from .config import templates
+            default_template_ratios = templates["Cervix HDR - EMBRACE II"]["alpha_beta_ratios"]
+            current_alpha_beta_ratios["Default"] = default_template_ratios["Default"]
+    else:
+        # Fallback to the default template's alpha_beta_ratios if not provided via args
+        from .config import templates
+        current_alpha_beta_ratios = templates["Cervix HDR - EMBRACE II"]["alpha_beta_ratios"].copy()
+
+    # Calculate BED and EQD2 for point doses
+    point_dose_results = []
+
+    point_dose_results = [] # Initialize point_dose_results here
 
     # Find the subdirectories
     subdirectories = [d for d in data_dir.iterdir() if d.is_dir()]
@@ -220,10 +276,13 @@ def main(args, selected_point_names=None): # Added selected_point_names paramete
     # Get structure data
     structure_data = get_structure_data(rt_struct_dataset)
 
-    # Parse previous brachytherapy HTML report if provided
+    # Parse previous brachytherapy data if provided
     previous_brachy_eqd2_per_organ = {}
-    if args.previous_brachy_html:
-        previous_brachy_eqd2_per_organ = parse_html_report(args.previous_brachy_html)
+    if hasattr(args, 'previous_brachy_data') and args.previous_brachy_data:
+        if isinstance(args.previous_brachy_data, str): # It's an HTML file path
+            previous_brachy_eqd2_per_organ = parse_html_report(args.previous_brachy_data)
+        elif isinstance(args.previous_brachy_data, dict): # It's parsed JSON data
+            previous_brachy_eqd2_per_organ = args.previous_brachy_data
 
     # Calculate DVH
     dvh_results = get_dvh(
@@ -236,9 +295,18 @@ def main(args, selected_point_names=None): # Added selected_point_names paramete
         alpha_beta_ratios=current_alpha_beta_ratios
     )
 
-    current_constraints = constraints
+    current_constraints = custom_constraints
+    point_dose_constraints = None
+    if custom_constraints and "point_dose_constraints" in custom_constraints:
+        point_dose_constraints = custom_constraints["point_dose_constraints"]
     # Evaluate constraints
-    constraint_evaluation = evaluate_constraints(dvh_results, constraints=current_constraints)
+    constraint_evaluation = evaluate_constraints(dvh_results, point_dose_results, constraints=current_constraints, point_dose_constraints=point_dose_constraints, dose_point_mapping=dose_point_mapping)
+
+    # Add constraint status to point_dose_results
+    for pr in point_dose_results:
+        point_eval_key = f"Point Dose - {pr['name']}"
+        point_eval = constraint_evaluation.get(point_eval_key, {})
+        pr['Constraint Status'] = point_eval.get('status', 'N/A') # Add the status here
 
     # Calculate dose to meet constraint for unmet EQD2 constraints
     for organ, data in dvh_results.items():
@@ -258,9 +326,7 @@ def main(args, selected_point_names=None): # Added selected_point_names paramete
             else:
                 dvh_results[organ]["dose_to_meet_constraint"] = "N/A"
 
-    # Calculate BED and EQD2 for point doses
-    point_dose_results = []
-    # Filter dose references based on selected_point_names
+    
     filtered_dose_references = []
     if selected_point_names:
         for dr in plan_data.get('dose_references', []):
@@ -282,11 +348,10 @@ def main(args, selected_point_names=None): # Added selected_point_names paramete
             'name': dr['name'],
             'dose': dr['dose'],
             'total_dose': dr['dose'] * number_of_fractions,
-            'bed': total_bed,
-            'eqd2': eqd2,
-            'bed_this_plan': bed_brachy,
-            'bed_ebrt': bed_ebrt,
-            'bed_previous_brachy': bed_previous_brachy
+            'BED_this_plan': bed_brachy,
+            'BED_previous_brachy': bed_previous_brachy,
+            'BED_EBRT': bed_ebrt,
+            'EQD2': eqd2,
         })
 
     output_data = {
@@ -318,4 +383,4 @@ if __name__ == "__main__":
     parser.add_argument("--output_html", type=str, help="If provided, the results will be saved to this HTML file.")
 
     args = parser.parse_args()
-    main(args)
+    main(args, dose_point_mapping=None)

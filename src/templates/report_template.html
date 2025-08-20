@@ -3,44 +3,80 @@
 <head>
     <title>Brachytherapy Evaluation Report</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
-        h1 { 
-            color: #2c3e50; 
-            border-bottom: 2px solid #3498db; 
-            padding-bottom: 10px; 
-            margin-bottom: 30px; 
+        :root {
+            --text-color: #333;
+            --background-color: #fff;
+            --header-color-1: #2a7ae2; /* Blue from the PDF */
+            --header-color-2: #1e5aab; /* Darker blue from the PDF */
+            --border-color: #ddd;
+            --table-header-bg: #2a7ae2; /* Blue from the PDF */
+            --table-header-text: white;
+            --table-even-row-bg: #eaf2fa; /* Light blue from the PDF */
+            --met-bg: #77dd77; /* Green from the PDF */
+            --met-text: white;
+            --not-met-bg: #ff6961; /* Red from the PDF */
+            --not-met-text: white;
+            --warning-bg: #fdfd96; /* Yellow from the PDF */
+            --warning-text: black;
         }
-        h2 { 
-            color: #3498db; 
-            border-top: 1px solid #bdc3c7; 
-            padding-top: 20px; 
-            margin-top: 40px; 
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --text-color: #f2f2f2;
+                --background-color: #1a1a1a;
+                --header-color-1: #3498db;
+                --header-color-2: #6cb6ff;
+                --border-color: #555;
+                --table-header-bg: #2a7ae2;
+                --table-header-text: #f2f2f2;
+                --table-even-row-bg: #2c3e50;
+                
+            }
         }
-        table { 
-            width: 100%; 
-            border-collapse: collapse; 
-            margin-top: 20px; 
-            box-shadow: 0 2px 3px rgba(0,0,0,0.1);
-        }
-        th, td { 
-            border: 1px solid #ddd; 
-            padding: 12px; 
-            text-align: left; 
-        }
-        th { 
-            background-color: #34495e; 
-            color: white; 
-            font-weight: bold;
-        }
-        tbody tr:nth-child(even) { background-color: #f2f2f2; }
-        .met { background-color: #2ecc71; color: white; font-weight: bold; }
-        .not-met { background-color: #e74c3c; color: white; font-weight: bold; }
+
+        body { font-family: Arial, sans-serif; margin: 20px; color: var(--text-color); background-color: var(--background-color); }
         .logo { float: right; max-height: 80px; }
+        h1 {
+            color: var(--header-color-1);
+            border-bottom: 2px solid var(--header-color-2);
+            padding-bottom: 10px;
+            margin-bottom: 30px;
+            font-size: 28px;
+        }
+        h2 {
+            color: var(--header-color-1);
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 5px;
+            margin-top: 40px;
+            font-size: 22px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        th, td {
+            border: 1px solid var(--border-color);
+            padding: 12px 15px;
+            text-align: left;
+        }
+        th {
+            background-color: var(--table-header-bg);
+            color: var(--table-header-text);
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        .no-transform {
+            text-transform: none;
+        }
+        tbody tr:nth-child(even) { background-color: var(--table-even-row-bg); }
+        
     </style>
 </head>
 <body>
-    <img src="../src/assets/2020-flame-red-01.png" alt="Institution Logo" class="logo">
-    <h1>Brachytherapy Evaluation Report</h1>
+    <img src="{{ logo_base64 }}" alt="Institution Logo" class="logo">
+    <h1>Dose Summary</h1>
     <p><strong>Patient Name:</strong> {{ patient_name }}</p>
     <p><strong>Patient MRN:</strong> {{ patient_mrn }}</p>
     <p><strong>Plan Name:</strong> {{ plan_name }}</p>
@@ -52,18 +88,13 @@
     <table>
         <thead>
             <tr>
-                <th>Organ</th>
-                <th>&alpha;/&beta;</th>
+                <th>Structure</th>
+                <th class="no-transform">&#x3B1;/&#x3B2;</th>
                 <th>Volume (cc)</th>
                 <th>Dose Metric</th>
                 <th>Dose (per fraction) (Gy)</th>
                 <th>Total Planned Dose (Gy)</th>
-                <th>BED_this plan (Gy)</th>
-                <th>BED_previous Brachy (Gy)</th>
-                <th>BED_EBRT (Gy)</th>
                 <th>EQD2 (Gy)</th>
-                <th>EQD2 Constraint Met</th>
-                <th>Dose to Meet Constraint (Gy)</th>
             </tr>
         </thead>
         <tbody>
@@ -75,18 +106,13 @@
     <table>
         <thead>
             <tr>
-                <th>Organ</th>
-                <th>&alpha;/&beta;</th>
+                <th>Structure</th>
+                <th class="no-transform">&#x3B1;/&#x3B2;</th>
                 <th>Volume (cc)</th>
                 <th>Dose Metric</th>
                 <th>Dose (per fraction) (Gy)</th>
                 <th>Total Planned Dose (Gy)</th>
-                <th>BED_this plan (Gy)</th>
-                <th>BED_previous Brachy (Gy)</th>
-                <th>BED_EBRT (Gy)</th>
                 <th>EQD2 (Gy)</th>
-                <th>EQD2 Constraint Met</th>
-                <th>Dose to Meet Constraint (Gy)</th>
             </tr>
         </thead>
         <tbody>
@@ -99,15 +125,10 @@
         <thead>
             <tr>
                 <th>Point Name</th>
-                <th>&alpha;/&beta;</th>
+                <th class="no-transform">&#x3B1;/&#x3B2;</th>
                 <th>Dose (per fraction) (Gy)</th>
                 <th>Total Planned Dose (Gy)</th>
-                <th>BED_this plan (Gy)</th>
-                <th>BED_previous Brachy (Gy)</th>
-                <th>BED_EBRT (Gy)</th>
                 <th>EQD2 (Gy)</th>
-                <th>EQD2 Constraint Met</th>
-                <th>Dose to Meet Constraint (Gy)</th>
             </tr>
         </thead>
         <tbody>

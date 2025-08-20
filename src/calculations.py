@@ -1,7 +1,7 @@
 import numpy as np
 import pydicom
 from dicompylercore import dvhcalc
-from .config import alpha_beta_ratios, constraints
+# from .config import alpha_beta_ratios, constraints # No longer needed as they are passed or accessed via templates
 import os
 import contextlib
 import re
@@ -73,8 +73,8 @@ def calculate_d_volume(dvh, volume_cc):
 def calculate_bed_and_eqd2(total_dose, dose_per_fraction, organ_name, ebrt_dose=0, previous_brachy_eqd2=0, alpha_beta_ratios=None):
     """Calculates BED and EQD2 for a given total dose and dose per fraction, with an optional EBRT dose."""
     if alpha_beta_ratios is None:
-        from .config import alpha_beta_ratios as default_alpha_beta_ratios
-        alpha_beta_ratios = default_alpha_beta_ratios
+        from .config import templates
+        alpha_beta_ratios = templates["Cervix HDR - EMBRACE II"]["alpha_beta_ratios"] # Fallback to default template
 
     alpha_beta = alpha_beta_ratios.get(organ_name, alpha_beta_ratios["Default"])
     
@@ -98,8 +98,8 @@ def calculate_bed_and_eqd2(total_dose, dose_per_fraction, organ_name, ebrt_dose=
 def calculate_dose_to_meet_constraint(eqd2_constraint, organ_name, number_of_fractions, ebrt_dose=0, previous_brachy_eqd2=0, alpha_beta_ratios=None):
     """Calculates the brachytherapy dose per fraction needed to meet a specific EQD2 constraint."""
     if alpha_beta_ratios is None:
-        from .config import alpha_beta_ratios as default_alpha_beta_ratios
-        alpha_beta_ratios = default_alpha_beta_ratios
+        from .config import templates
+        alpha_beta_ratios = templates["Cervix HDR - EMBRACE II"]["alpha_beta_ratios"] # Fallback to default template
 
     alpha_beta = alpha_beta_ratios.get(organ_name, alpha_beta_ratios["Default"])
 
@@ -139,8 +139,8 @@ def calculate_dose_to_meet_constraint(eqd2_constraint, organ_name, number_of_fra
 def calculate_point_dose_bed_eqd2(point_dose, number_of_fractions, organ_name, ebrt_dose=0, previous_brachy_eqd2=0, alpha_beta_ratios=None):
     """Calculates BED and EQD2 for a given point dose."""
     if alpha_beta_ratios is None:
-        from .config import alpha_beta_ratios as default_alpha_beta_ratios
-        alpha_beta_ratios = default_alpha_beta_ratios
+        from .config import templates
+        alpha_beta_ratios = templates["Cervix HDR - EMBRACE II"]["alpha_beta_ratios"] # Fallback to default template
 
     alpha_beta = alpha_beta_ratios.get(organ_name, alpha_beta_ratios["Default"])
     
@@ -283,26 +283,110 @@ def get_dvh(rtss_file, rtdose_file, structure_data, number_of_fractions, ebrt_do
 
     return dvh_results
 
-def evaluate_constraints(dvh_results, constraints=None):
-    """Evaluates calculated DVH results against predefined constraints."""
+def evaluate_constraints(dvh_results, point_dose_results, constraints=None, point_dose_constraints=None, dose_point_mapping=None):
+    """Evaluates calculated DVH and point dose results against predefined constraints."""
     if constraints is None:
-        from .config import constraints as default_constraints
-        constraints = default_constraints
+        from .config import templates
+        constraints = templates["Cervix HDR - EMBRACE II"]["constraints"]
+    if point_dose_constraints is None:
+        from .config import templates
+        point_dose_constraints = templates["Cervix HDR - EMBRACE II"]["point_dose_constraints"]
+    if dose_point_mapping is None:
+        dose_point_mapping = {}
 
     constraint_evaluation = {}
     for organ, data in dvh_results.items():
-        if organ in constraints:
-            organ_constraints = constraints[organ]
-            evaluation = {}
-            if "BED" in organ_constraints:
-                max_bed = organ_constraints["BED"]["max"]
-                evaluation["BED_met"] = str(data["bed_d2cc"] <= max_bed)
-                evaluation["BED_value"] = data["bed_d2cc"]
-                evaluation["BED_max"] = max_bed
-            if "EQD2" in organ_constraints:
-                max_eqd2 = organ_constraints["EQD2"]["max"]
-                evaluation["EQD2_met"] = str(data["eqd2_d2cc"] <= max_eqd2)
-                evaluation["EQD2_value"] = data["eqd2_d2cc"]
-                evaluation["EQD2_max"] = max_eqd2
-            constraint_evaluation[organ] = evaluation
+        evaluation = {}
+        
+        normalized_organ = normalize_structure_name(organ)
+
+        if normalized_organ in constraints and "D2cc" in constraints[normalized_organ]:
+            constraint_data = constraints[normalized_organ]["D2cc"]
+            max_eqd2 = constraint_data["max"]
+            warning_eqd2 = constraint_data.get("warning")
+            
+            current_eqd2 = data["eqd2_d2cc"]
+            
+            evaluation["EQD2_value"] = current_eqd2
+            evaluation["EQD2_max"] = max_eqd2
+            evaluation["EQD2_warning"] = warning_eqd2
+
+            if current_eqd2 <= max_eqd2:
+                evaluation["EQD2_met"] = "True"
+                if warning_eqd2 is not None and current_eqd2 > warning_eqd2:
+                    evaluation["EQD2_status"] = "Warning"
+                else:
+                    evaluation["EQD2_status"] = "Met"
+            else:
+                evaluation["EQD2_met"] = "False"
+                evaluation["EQD2_status"] = "NOT Met"
+            
+            constraint_evaluation[normalized_organ] = evaluation
+
+        if "HRCTV D90" in constraints and normalized_organ == "Hrctv":
+            constraint_data = constraints["HRCTV D90"]
+            min_eqd2 = constraint_data["min"]
+            max_eqd2 = constraint_data.get("max")
+            
+            current_eqd2 = data["eqd2_d90"]
+            
+            evaluation["EQD2_value_D90"] = current_eqd2
+            evaluation["EQD2_min_D90"] = min_eqd2
+            evaluation["EQD2_max_D90"] = max_eqd2
+
+            is_met = current_eqd2 >= min_eqd2
+            if max_eqd2 is not None:
+                is_met = is_met and current_eqd2 <= max_eqd2
+            
+            evaluation["EQD2_met_D90"] = str(is_met)
+            evaluation["EQD2_status_D90"] = "Met" if is_met else "NOT Met"
+            constraint_evaluation["HRCTV D90"] = evaluation
+
+        if "HRCTV D98" in constraints and normalized_organ == "Hrctv":
+            constraint_data = constraints["HRCTV D98"]
+            min_eqd2 = constraint_data["min"]
+            
+            current_eqd2 = data["eqd2_d98"]
+            
+            evaluation["EQD2_value_D98"] = current_eqd2
+            evaluation["EQD2_min_D98"] = min_eqd2
+
+            is_met = current_eqd2 >= min_eqd2
+            
+            evaluation["EQD2_met_D98"] = str(is_met)
+            evaluation["EQD2_status_D98"] = "Met" if is_met else "NOT Met"
+            constraint_evaluation["HRCTV D98"] = evaluation
+
+        if "GTV D98" in constraints and normalized_organ == "Gtv":
+            constraint_data = constraints["GTV D98"]
+            min_eqd2 = constraint_data["min"]
+            
+            current_eqd2 = data["eqd2_d98"]
+            
+            evaluation["EQD2_value_D98"] = current_eqd2
+            evaluation["EQD2_min_D98"] = min_eqd2
+
+            is_met = current_eqd2 >= min_eqd2
+            
+            evaluation["EQD2_met_D98"] = str(is_met)
+            evaluation["EQD2_status_D98"] = "Met" if is_met else "NOT Met"
+            constraint_evaluation["GTV D98"] = evaluation
+
+    for point_dose in point_dose_results:
+        point_name = point_dose['name']
+        if point_name in dose_point_mapping:
+            constraint_name = dose_point_mapping[point_name]
+            if constraint_name in point_dose_constraints:
+                constraint = point_dose_constraints[constraint_name]
+                if not constraint.get('report_only', False):
+                    max_eqd2 = constraint.get('max_eqd2')
+                    if max_eqd2 is not None:
+                        current_eqd2 = point_dose['EQD2']
+                        status = "Met" if current_eqd2 <= max_eqd2 else "NOT Met"
+                        constraint_evaluation[f"Point Dose - {point_name}"] = {
+                            "status": status,
+                            "EQD2_value": current_eqd2,
+                            "EQD2_max": max_eqd2
+                        }
+
     return constraint_evaluation

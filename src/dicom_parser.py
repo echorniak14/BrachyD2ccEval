@@ -105,6 +105,45 @@ def get_plan_data(rtplan_file):
 
     return plan_data
 
+def get_dose_point_mapping(rtplan_file, point_dose_constraints):
+    """
+    Parses the RTPLAN file to find dose reference points and maps them to the
+    point dose constraints based on naming conventions.
+
+    Args:
+        rtplan_file (str): The path to the RTPLAN DICOM file.
+        point_dose_constraints (dict): The dictionary of point dose constraints from the config.
+
+    Returns:
+        dict: A dictionary mapping the DICOM dose reference description to the
+              corresponding key in the point_dose_constraints dictionary.
+    """
+    ds = pydicom.dcmread(rtplan_file)
+    mapping = {}
+
+    if "DoseReferenceSequence" not in ds:
+        return mapping
+
+    for dose_ref in ds.DoseReferenceSequence:
+        if "DoseReferenceDescription" in dose_ref:
+            dicom_point_name = dose_ref.DoseReferenceDescription.lower()
+            # First, try to find an exact match (case-insensitive)
+            exact_match_found = False
+            for constraint_name in point_dose_constraints.keys():
+                if dicom_point_name == constraint_name.lower():
+                    mapping[dose_ref.DoseReferenceDescription] = constraint_name
+                    exact_match_found = True
+                    break
+            
+            # If no exact match, then try substring matching
+            if not exact_match_found:
+                for constraint_name in point_dose_constraints.keys():
+                    if constraint_name.lower() in dicom_point_name:
+                        mapping[dose_ref.DoseReferenceDescription] = constraint_name
+                        break  # Move to the next dose reference once a match is found
+
+    return mapping
+
 def get_control_point_data(rtplan_file):
     """Extracts control point data from an RTPLAN file."""
     if not rtplan_file:

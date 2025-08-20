@@ -53,10 +53,7 @@ This file is for internal use by the Gemini CLI agent to track project progress,
 - **Constraint Evaluation:**
     - Implemented constraint evaluation based on EMBRACE II.
     - Generated initial report in Excel format.
-- **Report Layout Reorganization:**
-            - Restructured the HTML report to display D0.1cc, D1cc, and D2cc as separate rows under each organ, improving readability and data presentation.
-    - Corrected the column header from "Value (per fraction) (Gy)" to "Dose (per fraction) (Gy)" and from "D2cc (total) (Gy)" to "Total Planned Dose (Gy)" in the HTML report.
-    - Aligned "Total Planned Dose (Gy)" and subsequent columns with the D2cc row in the HTML report.
+
 - **Robust Plan Name Extraction:**
     - Modified `src/dicom_parser.py` to ensure the extracted plan name is never an empty string, defaulting to 'N/A' if DICOM tags `RTPlanLabel`, `RTPlanName`, or `SeriesDescription` are missing or empty. This prevents `IndexError` issues in downstream processing.
 - **Streamlit File Uploader Type Restriction:**
@@ -72,27 +69,67 @@ This file is for internal use by the Gemini CLI agent to track project progress,
     - Modified the OAR DVH results table in `src/main.py` to align the "Total Planned Dose (Gy)" column with the D2cc row, leaving D0.1cc and D1cc rows empty in that column for improved readability.
 - **PDF Report Generation (Error Handling):**
     - Added a `try-except` block in `src/streamlit_gui.py` around PDF generation to catch `IOError` (e.g., if `wkhtmltopdf` is not found) and display a user-friendly error message.
+- **Flame Logo Display Fix:**
+    - Modified `src/templates/report_template.html` to use a placeholder `{{ logo_base64 }}` for the image source.
+    - Modified `src/main.py` to read the `2020-flame-red-01.png` image, Base64 encode it, and embed it directly into the HTML report as a data URI. This ensures the logo displays correctly in the generated PDF and Streamlit report tab, as it eliminates reliance on external file paths.
+- **Customizable Constraints in GUI:**
+    - Imported `constraints` from `src/config.py` into `src/streamlit_gui.py`.
+    - Added a "Constraints" section to the Streamlit sidebar with an expander for editing.
+    - Implemented `st.number_input` widgets for EQD2 max values using `st.session_state` for persistence within the session.
+    - Removed BED constraint customization as per user request.
+    - Added a "Reset Constraints to Default" button.
+    - Modified the `main` function in `src/main.py` to accept a `custom_constraints` argument.
+    - Updated the `current_constraints` variable in `src/main.py` to use `custom_constraints` if provided, otherwise fall back to the default `constraints` from `config.py`.
+- **Enhanced DVH Results Display in Streamlit:**
+    - Imported `pandas` into `src/streamlit_gui.py`.
+    - Changed `st.table` to `st.dataframe` for DVH results display.
+    - Included "Constraint Met" status (Met/NOT Met) and "Dose to Meet Constraint (Gy)" for OARs in the displayed data.
+    - Implemented conditional styling (red/green background) for OAR rows in `st.dataframe` based on constraint adherence.
+- **Point Dose Results Column Reordering:**
+    - Modified `src/main.py` to reorder the columns in the `point_dose_results` dictionary to `name`, `dose`, `total_dose`, `BED_this_plan`, `BED_previous_brachy`, `BED_EBRT`, `EQD2` for consistent display in the Streamlit GUI.
+- **Fix KeyError in Point Dose Results:**
+    - Corrected key names in `src/main.py` from `bed_this_plan`, `bed_previous_brachy`, and `bed_ebrt` to `BED_this_plan`, `BED_previous_brachy`, and `BED_EBRT` respectively, to match the updated dictionary keys.
+- **OAR DVH Results Layout Adjustment:**
+    - Modified `src/streamlit_gui.py` to restructure the `oar_dvh_data` to mimic the HTML report layout.
+    - Organ and Volume columns now effectively span 3 rows by duplicating values in the first row and leaving subsequent rows empty.
+    - D0.1cc, D1cc, and D2cc are stacked in a single "Dose Metric" column.
+    - BED and EQD2 values are layered accordingly for each dose metric.
+- **JSON Export of Plan Data:**
+    - Imported `json` module into `src/streamlit_gui.py`.
+    - Added a "Download Brachy Data (JSON)" button to the "Report" tab in Streamlit.
+    - This button allows users to export the `dvh_results` and `point_dose_results` of the current plan as a JSON file.
+- **JSON Import for Previous Brachytherapy Data:**
+    - Modified `st.sidebar.file_uploader` in `src/streamlit_gui.py` to accept both `.html` and `.json` file types for previous brachytherapy data.
+    - Implemented logic in `src/streamlit_gui.py` to read and parse uploaded JSON files, extracting EQD2 values for accumulation.
+    - Modified the `main` function in `src/main.py` to accept either a file path (for HTML) or a dictionary (for parsed JSON data) for `previous_brachy_data`.
+- **README.md Update:**
+    - Updated the "Project Overview" section to mention the Streamlit GUI and expanded dose metrics.
+    - Revised the "Features" section to include new functionalities like customizable constraints, enhanced DVH display, JSON export/import, and updated GUI description.
+    - Updated the "Dosimetric Calculations" section under "Core Concepts" to clarify DVH metrics and provide more detail on dose accumulation.
+    - Revised the "Usage" section to reflect Streamlit GUI usage and updated `main.py` arguments for `previous_brachy_data` and `custom_constraints`.
+- **Logo Image Update:**
+    - Modified `src/main.py` to use `2020-flame-red-02.PNG` as the logo image instead of `2020-flame-red-01.png`.
+- **Report Header Change:**
+    - Modified `src/templates/report_template.html` to change the main report header from "Brachytherapy Evaluation Report" to "Dose Summary".
+- **GUI Display:**
+    - Added the display of "Brachytherapy Dose per Fraction" and "Number of Fractions" to the Streamlit results page.
+- **GUI Display Refinement:**
+    - Removed duplicate "Constraint Met" column from OAR DVH results table in `src/streamlit_gui.py`.
+- **Bug Fix:**
+    - Corrected syntax error in `src/streamlit_gui.py` at line 339 (extra parenthesis).
+- **Report Refinement:**
+    - Removed color coding indicators from `src/templates/report_template.html` and `src/main.py`.
+    - Removed "Dose to Meet Constraint (Gy)" column from OAR DVH Results and Point Dose Results tables in `src/templates/report_template.html` and `src/main.py`.
+    - Removed "Constraint Status" from Target DVH Results table in `src/templates/report_template.html` and `src/main.py`.
+    - Removed "EQD2 Constraint Met" column from OAR DVH Results and Point Dose Results tables in `src/templates/report_template.html` and `src/main.py`.
+    - Removed BED columns from OAR DVH Results and Point Dose Results tables in `src/templates/report_template.html` and `src/main.py`.
+    - Fixed "total planned dose column" in `src/main.py`.
+    - Fixed "alpha/beta symbol" in `src/templates/report_template.html`.
+    - Added "Total Planned Dose" column to Target Volume DVH Results table in `src/templates/report_template.html` and `src/main.py`.
 
 ## Next Steps:
 - **Previous Brachytherapy Data Integration:**
     - Implemented functionality to incorporate previous brachytherapy EQD2 data from HTML reports, allowing for organ-specific dose accumulation.
 - **Dose to Meet Constraint Calculation:**
     - Implemented functionality to calculate the highest fractional dose needed to meet any unmet constraints.
-- Further investigate and resolve any remaining discrepancies in D2cc/BED/EQD2 calculations if necessary.
-- **Executable Creation:**
-    - Successfully packaged the application into a standalone executable using PyInstaller, handling internal module imports and data file paths.
 
-## Git Best Practices:
-- **Commit Frequently:** Aim to commit your work after completing each logical unit or phase of development (e.g., after completing DICOM parsing, after implementing a specific calculation, after fixing a bug). This creates clear checkpoints and makes it easier to track progress and revert if necessary.
-- **Descriptive Commit Messages:** Write clear and concise commit messages that explain *what* was changed and *why*.
-- **Use Branches:** Utilize branches for new features or experimental work to keep your main branch clean and stable.
-
-## Agent Workflow and Documentation:
-To ensure transparency and maintain high-quality documentation, the agent will follow these steps:
-1.  **Understand Request:** Fully comprehend the user's request and its implications.
-2.  **Plan Execution:** Formulate a clear plan of action, breaking down complex tasks into smaller, manageable steps.
-3.  **Execute Task:** Perform the necessary coding, file operations, or shell commands.
-4.  **Verify (Internal):** Conduct internal checks (e.g., running tests, checking output) to ensure the task was completed correctly.
-5.  **Update Documentation:** Before any Git commit, update relevant documentation files (e.g., `README.md`, `TODO.md`, `GEMINI.md`) to reflect the latest changes and progress. This ensures the documentation is always in sync with the codebase.
-6.  **Explain Changes:** Clearly explain the changes made and the reasoning behind them to the user.
-7.  **Propose Git Commit:** Propose a Git commit, including a descriptive message, and await user approval before committing.
