@@ -103,17 +103,11 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
                 <td>D98</td>
                 <td>{data["d98_gy_per_fraction"]}</td>
                 <td>{data["eqd2_d98"]}</td>
-                <td>
-                    {hrctv_d98_eval.get('EQD2_status_D98', 'N/A')}
-                </td>
             </tr>
             <tr>
                 <td>D90</td>
                 <td>{data.get("d90_gy_per_fraction", "N/A")}</td>
                 <td>{data["eqd2_d90"]}</td>
-                <td>
-                    {hrctv_d90_eval.get('EQD2_status_D90', 'N/A')}
-                </td>
             </tr>
             <tr>
                 <td>Max</td>
@@ -176,8 +170,7 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
                 <td>{data["bed_previous_brachy"]}</td>
                 <td>{data["bed_ebrt"]}</td>
                 <td>{data["eqd2_d2cc"]}</td>
-                <td>{eqd2_status}</td>
-            </tr>"""
+                </tr>"""
 
     html_content = template.replace("{{ patient_name }}", patient_name)
     html_content = html_content.replace("{{ patient_mrn }}", patient_mrn)
@@ -218,8 +211,7 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
             <td>{pr['BED_previous_brachy']:.2f}</td>
             <td>{pr['BED_EBRT']:.2f}</td>
             <td>{pr['EQD2']:.2f}</td>
-            <td>{status}</td>
-        </tr>"""
+            </tr>"""
     html_content = html_content.replace("{{ point_dose_rows }}", point_dose_rows)
 
     with open(output_path, "w") as f:
