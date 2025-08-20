@@ -113,6 +113,10 @@ This file is for internal use by the Gemini CLI agent to track project progress,
     - Modified `src/templates/report_template.html` to change the main report header from "Brachytherapy Evaluation Report" to "Dose Summary".
 - **GUI Display:**
     - Added the display of "Brachytherapy Dose per Fraction" and "Number of Fractions" to the Streamlit results page.
+- **GUI Display Refinement:**
+    - Removed duplicate "Constraint Met" column from OAR DVH results table in `src/streamlit_gui.py`.
+- **Bug Fix:**
+    - Corrected syntax error in `src/streamlit_gui.py` at line 339 (extra parenthesis).
 
 ## Next Steps:
 - **Previous Brachytherapy Data Integration:**

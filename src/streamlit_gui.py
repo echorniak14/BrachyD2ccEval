@@ -321,7 +321,6 @@ def main():
                                     "Dose (Gy)": data["d0_1cc_gy_per_fraction"],
                                     "BED (Gy)": data["bed_d0_1cc"],
                                     "EQD2 (Gy)": data["eqd2_d0_1cc"],
-                                    "Constraint Met": "", # Only for D2cc
                                     "Dose to Meet Constraint (Gy)": "", # Only for D2cc
                                     "Constraint Status": constraint_status # Hidden column for styling
                                 })
@@ -333,7 +332,6 @@ def main():
                                     "Dose (Gy)": data["d1cc_gy_per_fraction"],
                                     "BED (Gy)": data["bed_d1cc"],
                                     "EQD2 (Gy)": data["eqd2_d1cc"],
-                                    "Constraint Met": "", # Only for D2cc
                                     "Dose to Meet Constraint (Gy)": "", # Only for D2cc
                                     "Constraint Status": constraint_status # Hidden column for styling
                                 })
@@ -345,7 +343,6 @@ def main():
                                     "Dose (Gy)": data["d2cc_gy_per_fraction"],
                                     "BED (Gy)": data["bed_d2cc"],
                                     "EQD2 (Gy)": data["eqd2_d2cc"],
-                                    "Constraint Met": constraint_status,
                                     "Dose to Meet Constraint (Gy)": dose_to_meet,
                                     "Constraint Status": constraint_status # Hidden column for styling
                                 })
