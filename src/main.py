@@ -102,27 +102,32 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
                 <td rowspan="5">{data["volume_cc"]}</td>
                 <td>D98</td>
                 <td>{data["d98_gy_per_fraction"]:.2f}</td>
+                <td>{(data["d98_gy_per_fraction"] * number_of_fractions):.2f}</td>
                 <td>{data["eqd2_d98"]:.2f}</td>
             </tr>
             <tr>
                 <td>D90</td>
                 <td>{data.get("d90_gy_per_fraction", "N/A"):.2f}</td>
+                <td>{(data.get("d90_gy_per_fraction", 0) * number_of_fractions):.2f}</td>
                 <td>{data["eqd2_d90"]:.2f}</td>
             </tr>
             <tr>
                 <td>Max</td>
                 <td>{data["max_dose_gy_per_fraction"]:.2f}</td>
-                <td colspan="2"></td>
+                <td>{(data["max_dose_gy_per_fraction"] * number_of_fractions):.2f}</td>
+                <td colspan="1"></td>
             </tr>
             <tr>
                 <td>Mean</td>
                 <td>{data["mean_dose_gy_per_fraction"]:.2f}</td>
-                <td colspan="2"></td>
+                <td>{(data["mean_dose_gy_per_fraction"] * number_of_fractions):.2f}</td>
+                <td colspan="1"></td>
             </tr>
             <tr>
                 <td>Min</td>
                 <td>{data["min_dose_gy_per_fraction"]:.2f}</td>
-                <td colspan="2"></td>
+                <td>{(data["min_dose_gy_per_fraction"] * number_of_fractions):.2f}</td>
+                <td colspan="1"></td>
             </tr>"""
         else:
             # OARs

@@ -4,15 +4,17 @@
 - [x] Visual Constraint Indicators
     - [ ] Get MD feedback on dose summary
 - [ ] Conditional Formatting for Point Dose Results
-- [ ] Fix the total planned dose column in the report.
-- [ ] Remove BED in report
+- [x] Fix the total planned dose column in the report.
+- [x] Remove BED in report
 - [x] fix contrast on dark mode
 - [x] check that you don't have to approve a plan before you can export it.
 - [ ] intermediate user input after real-time plan adjustments
 - [x] Customizable Constraints
 - [ ] Batch Processing
 - [ ] Report Customization
-    - [ ] fix alpha/beta symbol on report
+    - [x] fix alpha/beta symbol on report
+    - [x] Remove two extra columns on OAR DVH results table from previous constraint status removal
+    - [x] Round all reported total planned doses to the same number of decimal points
 - [x] Templates and Presets for alpha/beta ratios, point selections and dose constraints.
 
 ### Backend & Calculation Engine

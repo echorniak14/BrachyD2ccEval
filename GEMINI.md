@@ -125,6 +125,7 @@ This file is for internal use by the Gemini CLI agent to track project progress,
     - Removed BED columns from OAR DVH Results and Point Dose Results tables in `src/templates/report_template.html` and `src/main.py`.
     - Fixed "total planned dose column" in `src/main.py`.
     - Fixed "alpha/beta symbol" in `src/templates/report_template.html`.
+    - Added "Total Planned Dose" column to Target Volume DVH Results table in `src/templates/report_template.html` and `src/main.py`.
 
 ## Next Steps:
 - **Previous Brachytherapy Data Integration:**
@@ -132,26 +133,3 @@ This file is for internal use by the Gemini CLI agent to track project progress,
 - **Dose to Meet Constraint Calculation:**
     - Implemented functionality to calculate the highest fractional dose needed to meet any unmet constraints.
 
-## Next Steps:
-- **Previous Brachytherapy Data Integration:**
-    - Implemented functionality to incorporate previous brachytherapy EQD2 data from HTML reports, allowing for organ-specific dose accumulation.
-- **Dose to Meet Constraint Calculation:**
-    - Implemented functionality to calculate the highest fractional dose needed to meet any unmet constraints.
-- Further investigate and resolve any remaining discrepancies in D2cc/BED/EQD2 calculations if necessary.
-- **Executable Creation:**
-    - Successfully packaged the application into a standalone executable using PyInstaller, handling internal module imports and data file paths.
-
-## Git Best Practices:
-- **Commit Frequently:** Aim to commit your work after completing each logical unit or phase of development (e.g., after completing DICOM parsing, after implementing a specific calculation, after fixing a bug). This creates clear checkpoints and makes it easier to track progress and revert if necessary.
-- **Descriptive Commit Messages:** Write clear and concise commit messages that explain *what* was changed and *why*.
-- **Use Branches:** Utilize branches for new features or experimental work to keep your main branch clean and stable.
-
-## Agent Workflow and Documentation:
-To ensure transparency and maintain high-quality documentation, the agent will follow these steps:
-1.  **Understand Request:** Fully comprehend the user's request and its implications.
-2.  **Plan Execution:** Formulate a clear plan of action, breaking down complex tasks into smaller, manageable steps.
-3.  **Execute Task:** Perform the necessary coding, file operations, or shell commands.
-4.  **Verify (Internal):** Conduct internal checks (e.g., running tests, checking output) to ensure the task was completed correctly.
-5.  **Update Documentation:** Before any Git commit, update relevant documentation files (e.g., `README.md`, `TODO.md`, `GEMINI.md`) to reflect the latest changes and progress. This ensures the documentation is always in sync with the codebase.
-6.  **Explain Changes:** Clearly explain the changes made and the reasoning behind them to the user.
-7.  **Propose Git Commit:** Propose a Git commit, including a descriptive message, and await user approval before committing.
