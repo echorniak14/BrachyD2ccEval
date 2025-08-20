@@ -101,27 +101,27 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
                 <td rowspan="5">{alpha_beta}</td>
                 <td rowspan="5">{data["volume_cc"]}</td>
                 <td>D98</td>
-                <td>{data["d98_gy_per_fraction"]}</td>
-                <td>{data["eqd2_d98"]}</td>
+                <td>{data["d98_gy_per_fraction"]:.2f}</td>
+                <td>{data["eqd2_d98"]:.2f}</td>
             </tr>
             <tr>
                 <td>D90</td>
-                <td>{data.get("d90_gy_per_fraction", "N/A")}</td>
-                <td>{data["eqd2_d90"]}</td>
+                <td>{data.get("d90_gy_per_fraction", "N/A"):.2f}</td>
+                <td>{data["eqd2_d90"]:.2f}</td>
             </tr>
             <tr>
                 <td>Max</td>
-                <td>{data["max_dose_gy_per_fraction"]}</td>
+                <td>{data["max_dose_gy_per_fraction"]:.2f}</td>
                 <td colspan="2"></td>
             </tr>
             <tr>
                 <td>Mean</td>
-                <td>{data["mean_dose_gy_per_fraction"]}</td>
+                <td>{data["mean_dose_gy_per_fraction"]:.2f}</td>
                 <td colspan="2"></td>
             </tr>
             <tr>
                 <td>Min</td>
-                <td>{data["min_dose_gy_per_fraction"]}</td>
+                <td>{data["min_dose_gy_per_fraction"]:.2f}</td>
                 <td colspan="2"></td>
             </tr>"""
         else:
@@ -142,25 +142,21 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
                 <td rowspan="{rowspan}">{alpha_beta}</td>
                 <td rowspan="{rowspan}">{data["volume_cc"]}</td>
                 <td>D0.1cc</td>
-                <td>{data["d0_1cc_gy_per_fraction"]}</td>
-                <td>{data["d0_1cc_gy_per_fraction"] * number_of_fractions}</td>
-                <td>{data["eqd2_d0_1cc"]}</td>
-                <td></td>
-                <td></td>
+                <td>{data["d0_1cc_gy_per_fraction"]:.2f}</td>
+                <td>{(data["d0_1cc_gy_per_fraction"] * number_of_fractions):.2f}</td>
+                <td>{data["eqd2_d0_1cc"]:.2f}</td>
             </tr>
             <tr>
                 <td>D1cc</td>
-                <td>{data["d1cc_gy_per_fraction"]}</td>
-                <td>{data["d1cc_gy_per_fraction"] * number_of_fractions}</td>
-                <td>{data["eqd2_d1cc"]}</td>
-                <td></td>
-                <td></td>
+                <td>{data["d1cc_gy_per_fraction"]:.2f}</td>
+                <td>{(data["d1cc_gy_per_fraction"] * number_of_fractions):.2f}</td>
+                <td>{data["eqd2_d1cc"]:.2f}</td>
             </tr>
             <tr>
                 <td>D2cc</td>
-                <td>{data["d2cc_gy_per_fraction"]}</td>
-                <td>{data["total_d2cc_gy"]}</td>
-                <td>{data["eqd2_d2cc"]}</td>
+                <td>{data["d2cc_gy_per_fraction"]:.2f}</td>
+                <td>{data["total_d2cc_gy"]:.2f}</td>
+                <td>{data["eqd2_d2cc"]:.2f}</td>
                 </tr>"""
 
     html_content = template.replace("{{ patient_name }}", patient_name)
