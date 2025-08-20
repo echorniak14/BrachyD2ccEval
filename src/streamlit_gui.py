@@ -281,6 +281,8 @@ def main():
                     st.write(f"**Patient Name:** {results['patient_name']}")
                     st.write(f"**Patient MRN:** {results['patient_mrn']}")
                     st.write(f"**Plan Name:** {results['plan_name']}")
+                    st.write(f"**Brachytherapy Dose per Fraction:** {results['brachy_dose_per_fraction']:.2f} Gy")
+                    st.write(f"**Number of Fractions:** {results['number_of_fractions']}")
 
                     tab1, tab2, tab3 = st.tabs(["DVH Results", "Point Dose Results", "Report"])
 
