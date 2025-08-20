@@ -2,3 +2,5 @@ reports/
 /sample_data/Michelle Albert/
 dist/
 build/
+__pycache__/
+*-p/
