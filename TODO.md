@@ -16,6 +16,7 @@
     - [x] Remove two extra columns on OAR DVH results table from previous constraint status removal
     - [x] Round all reported total planned doses to the same number of decimal points
 - [x] Templates and Presets for alpha/beta ratios, point selections and dose constraints.
+- [ ] Investigate and fix the indentation of min/max dose constraints in the Streamlit GUI.
 
 ### Backend & Calculation Engine
 - [ ] Expanded DICOM Support (e.g., CT/MR images)

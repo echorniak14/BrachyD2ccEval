@@ -113,18 +113,18 @@ def main():
                     st.write(f"**{organ}**")
                     if "min" in organ_constraints and "max" in organ_constraints: # HRCTV D90
                         st.session_state.custom_constraints[organ]["min"] = st.number_input(
-                            f"Min (Gy)",
+                            f"        Min (Gy)",
                             value=float(organ_constraints["min"]),
                             key=f"constraint_{organ}_min_{st.session_state.widget_key_suffix}"
                         )
                         st.session_state.custom_constraints[organ]["max"] = st.number_input(
-                            f"Max (Gy)",
+                            f"        Max (Gy)",
                             value=float(organ_constraints["max"]),
                             key=f"constraint_{organ}_max_{st.session_state.widget_key_suffix}"
                         )
                     elif "min" in organ_constraints: # HRCTV D98, GTV D98
                         st.session_state.custom_constraints[organ]["min"] = st.number_input(
-                            f"Min (Gy)",
+                            f"        Min (Gy)",
                             value=float(organ_constraints["min"]),
                             key=f"constraint_{organ}_min_{st.session_state.widget_key_suffix}"
                         )
@@ -152,9 +152,9 @@ def main():
             for organ, organ_constraints in target_constraints.items():
                 st.write(f"**{organ}:**")
                 if "min" in organ_constraints and "max" in organ_constraints:
-                    st.write(f"  Min: {organ_constraints['min']} Gy, Max: {organ_constraints['max']} Gy")
+                    st.write(f"        Min: {organ_constraints['min']} Gy, Max: {organ_constraints['max']} Gy")
                 elif "min" in organ_constraints:
-                    st.write(f"  Min: {organ_constraints['min']} Gy")
+                    st.write(f"        Min: {organ_constraints['min']} Gy")
         with col2:
             st.subheader("Organs at Risk")
             for organ, organ_constraints in oar_constraints.items():
