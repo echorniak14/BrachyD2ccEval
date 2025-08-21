@@ -17,7 +17,14 @@ import tempfile
 
 def main():
     st.set_page_config(layout="wide")
-    st.title("Brachytherapy Plan Evaluator")
+    st.markdown("""
+    <style>
+    h1, h2, h3, h4, h5, h6 {
+        color: #FF5733 !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    st.title("Brachytherapy Evaluation and Analysis Module")
 
     st.markdown("""
     This tool allows you to analyze and evaluate brachytherapy treatment plans.
@@ -141,7 +148,7 @@ def main():
                         key=f"constraint_{organ}_D2cc_max_{st.session_state.widget_key_suffix}"
                     )
     
-    st.sidebar.header("Loaded Constraints")
+    st.sidebar.header("Loaded EQD2 Constraints")
     target_constraints = {organ: const for organ, const in st.session_state.custom_constraints.items() if "D2cc" not in const}
     oar_constraints = {organ: const for organ, const in st.session_state.custom_constraints.items() if "D2cc" in const}
     st.sidebar.subheader("Target Volumes")
