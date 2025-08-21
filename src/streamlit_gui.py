@@ -373,16 +373,18 @@ def main():
                         with col_summary_right:
                             st.subheader("Channel Mapping")
                             if results.get('channel_mapping'):
-                                # Group channels by SourceApplicatorID (which can act as catheter ID)
-                                catheter_channels = {}
+                                # Group channels by ChannelNumber (for Cath) and TransferTubeNumber (for Chan)
+                                channel_info_display = {}
                                 for channel in results['channel_mapping']:
-                                    catheter_id = channel.get('source_applicator_id', 'N/A')
-                                    if catheter_id not in catheter_channels:
-                                        catheter_channels[catheter_id] = []
-                                    catheter_channels[catheter_id].append(channel.get('channel_number', 'N/A'))
+                                    cath_num = channel.get('channel_number', 'N/A')
+                                    chan_num = channel.get('transfer_tube_number', 'N/A')
+                                    
+                                    if cath_num not in channel_info_display:
+                                        channel_info_display[cath_num] = []
+                                    channel_info_display[cath_num].append(chan_num)
                                 
-                                for cath_id, channels in catheter_channels.items():
-                                    st.write(f"**Cath {cath_id}** - Chan {', '.join(map(str, sorted(channels)))}")
+                                for cath_num, chan_nums in channel_info_display.items():
+                                    st.write(f"**Cath {cath_num}** - Chan {', '.join(map(str, sorted(chan_nums)))}")
                             else:
                                 st.info("No channel mapping data available.")
 

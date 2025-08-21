@@ -116,6 +116,7 @@ def get_plan_data(rtplan_file):
                         'source_position': getattr(source, 'SourcePosition', 'N/A'),
                         'source_dwell_time': getattr(source, 'SourceDwellTime', 'N/A'),
                         'source_dwell_position': getattr(source, 'SourceDwellPosition', 'N/A'),
+                        'transfer_tube_number': getattr(source, 'TransferTubeNumber', 'N/A'),
                     }
                     plan_data['channel_mapping'].append(channel_info)
 
