@@ -150,7 +150,7 @@ def calculate_point_dose_bed_eqd2(point_dose, number_of_fractions, organ_name, e
     bed_brachy = total_dose * (1 + (point_dose / alpha_beta))
     
     # Calculate BED for EBRT
-    bed_ebrt = ebrt_dose * (1 + (2 / alpha_beta)) # Assuming 2 Gy/fraction for EBRT
+    bed_ebrt = ebrt_dose * (1 + (1.8 / alpha_beta)) # Assuming 1.8 Gy/fraction for EBRT
 
     # Calculate BED for previous brachytherapy
     bed_previous_brachy = previous_brachy_eqd2 * (1 + (2 / alpha_beta))

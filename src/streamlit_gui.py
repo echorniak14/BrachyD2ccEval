@@ -112,13 +112,18 @@ def main():
                 st.subheader("Target Volumes")
                 for organ, organ_constraints in target_constraints.items():
                     st.write(f"**{organ}**")
-                    for key, value in organ_constraints.items():
-                        if key in ["min", "max"]:
-                            st.session_state.custom_constraints[organ][key] = st.number_input(
-                                f"{key.capitalize()} (Gy)",
-                                value=float(value),
-                                key=f"constraint_{organ}_{key}_{st.session_state.widget_key_suffix}"
-                            )
+                    if "D90" in organ_constraints:
+                        st.session_state.custom_constraints[organ]["D90"] = st.number_input(
+                            f"D90 (Gy)",
+                            value=float(organ_constraints["D90"]),
+                            key=f"constraint_{organ}_D90_{st.session_state.widget_key_suffix}"
+                        )
+                    if "D98" in organ_constraints:
+                        st.session_state.custom_constraints[organ]["D98"] = st.number_input(
+                            f"D98 (Gy)",
+                            value=float(organ_constraints["D98"]),
+                            key=f"constraint_{organ}_D98_{st.session_state.widget_key_suffix}"
+                        )
 
             with col2:
                 st.subheader("Organs at Risk")
