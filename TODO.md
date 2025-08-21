@@ -35,7 +35,8 @@
 - [ ] check that the planned number of fractions is correct for plan evaluation
 - [x] Display RTPlan info on streamlet plan evaluation summary page - instant second check
 - - [ ] Channel Mapping display for catheters (right side of Results) have it look for channel number, channel length, and transfer tube number
-    - [x] Refine display format to "Cath X - Chan Y"
+    - [ ] Refine display format to "Cath X - Chan Y" (Still needs work)
+
 
 
 ### Deployment & Integration
