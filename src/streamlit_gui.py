@@ -3,17 +3,16 @@ import argparse
 import sys
 import os
 import pydicom
-import pandas as pd # Added pandas import
-import json # Added json import
+import pandas as pd
+import json
 
 # Add the project root to the Python path
-# This is necessary for the 'src' module to be found
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, project_root)
 
 from src.dicom_parser import get_plan_data, get_dose_point_mapping
 from src.main import main as run_analysis, convert_html_to_pdf
-from src.config import templates # Added templates
+from src.config import templates
 import tempfile
 
 def main():
@@ -26,12 +25,10 @@ def main():
     **Instructions:**
 
     1.  **Upload DICOM Files:** Use the file uploader below to select the RTDOSE, RTSTRUCT, and RTPLAN files for the plan you want to evaluate.
-    2.  **Set Parameters:** In the sidebar on the left, you can:
-        *   Enter the External Beam Radiation Therapy (EBRT) dose.
-        *   Upload a previous brachytherapy report (in HTML or JSON format) to accumulate doses.
-        *   Select a constraint template or customize your own.
-    3.  **Run Analysis:** Click the "Run Analysis" button to process the files and view the results.
-    4.  **View Results:** The results will be displayed in tabs, including DVH data, point doses, and a downloadable PDF report.
+    2.  **Select Constraint Template:** Choose a constraint template from the dropdown menu.
+    3.  **Set Parameters:** After uploading DICOM files, you can set optional parameters like EBRT dose and previous brachytherapy data.
+    4.  **Run Analysis:** Click the "Run Analysis" button to process the files and view the results.
+    5.  **View Results:** The results will be displayed in tabs, including DVH data, point doses, and a downloadable PDF report.
     """)
 
     # Initialize widget_key_suffix for dynamic key generation
@@ -41,19 +38,14 @@ def main():
     st.header("Upload DICOM Files")
     uploaded_files = st.file_uploader("Upload RTDOSE, RTSTRUCT, and RTPLAN files", type=["dcm", "DCM"], accept_multiple_files=True)
 
-    st.sidebar.header("Parameters")
-    ebrt_dose = st.sidebar.number_input("EBRT Dose (Gy)", value=0.0)
-    previous_brachy_data_file = st.sidebar.file_uploader("Upload previous brachytherapy data (optional)", type=["html", "json"])
-    wkhtmltopdf_path = st.sidebar.text_input("Path to wkhtmltopdf.exe (optional)")
-
-    st.sidebar.header("Templates")
+    st.header("Constraint Template")
     template_names = list(templates.keys())
     
     # Initialize current_template_name in session state
     if "current_template_name" not in st.session_state:
         st.session_state.current_template_name = "Cervix HDR - EMBRACE II" # Default template
 
-    selected_template_name = st.sidebar.selectbox(
+    selected_template_name = st.selectbox(
         "Select Template",
         options=template_names,
         index=template_names.index(st.session_state.current_template_name),
@@ -69,65 +61,65 @@ def main():
         # Clear input widgets by setting a unique key for each
         st.session_state.widget_key_suffix = st.session_state.get('widget_key_suffix', 0) + 1
 
-
     # Initialize ab_ratios and custom_constraints in session state if not already present
     if "ab_ratios" not in st.session_state:
         st.session_state.ab_ratios = templates[st.session_state.current_template_name]["alpha_beta_ratios"].copy()
     if "custom_constraints" not in st.session_state:
         st.session_state.custom_constraints = templates[st.session_state.current_template_name]["constraints"].copy()
 
-    if st.session_state.current_template_name == "Custom":
-        st.sidebar.header("Alpha/Beta Ratios")
+    # Initialize selected_point_names and available_point_names in session state at the top
+    if 'available_point_names' not in st.session_state:
+        st.session_state.available_point_names = []
+    if 'selected_point_names' not in st.session_state:
+        st.session_state.selected_point_names = []
 
-        # Reset button for alpha/beta ratios
-        if st.sidebar.button("Reset Alpha/Beta Ratios to Template Defaults"):
-            st.session_state.ab_ratios = templates[st.session_state.current_template_name]["alpha_beta_ratios"].copy()
-            st.session_state.widget_key_suffix = st.session_state.get('widget_key_suffix', 0) + 1 # Force re-render
-
-        # Display and update alpha/beta ratios
-        for organ, val in st.session_state.ab_ratios.items():
-            st.session_state.ab_ratios[organ] = st.sidebar.number_input(
-                f"{organ}",
-                value=float(val),
-                key=f"ab_{organ}_{st.session_state.widget_key_suffix}"
-            )
-
-    st.sidebar.header("Constraints")
-
-    # Reset constraints button
-    if st.sidebar.button("Reset Constraints to Template Defaults"):
-        st.session_state.custom_constraints = templates[st.session_state.current_template_name]["constraints"].copy()
-        st.session_state.widget_key_suffix = st.session_state.get('widget_key_suffix', 0) + 1 # Force re-render
-
-    # Separate constraints into target and OAR
-    target_constraints = {organ: const for organ, const in st.session_state.custom_constraints.items() if "D2cc" not in const}
-    oar_constraints = {organ: const for organ, const in st.session_state.custom_constraints.items() if "D2cc" in const}
+    # These will be populated from the UI later
+    ebrt_dose = 0.0
+    previous_brachy_data_file = None
+    wkhtmltopdf_path = ""
 
     if st.session_state.current_template_name == "Custom":
-        # Display and update constraints for Custom template
-        with st.sidebar.expander("Edit Constraints", expanded=True):
+        with st.expander("Customize Template", expanded=True):
+            st.header("Alpha/Beta Ratios")
+
+            # Reset button for alpha/beta ratios
+            if st.button("Reset Alpha/Beta Ratios to Template Defaults"):
+                st.session_state.ab_ratios = templates[st.session_state.current_template_name]["alpha_beta_ratios"].copy()
+                st.session_state.widget_key_suffix = st.session_state.get('widget_key_suffix', 0) + 1 # Force re-render
+
+            # Display and update alpha/beta ratios
+            for organ, val in st.session_state.ab_ratios.items():
+                st.session_state.ab_ratios[organ] = st.number_input(
+                    f"{organ}",
+                    value=float(val),
+                    key=f"ab_{organ}_{st.session_state.widget_key_suffix}"
+                )
+
+            st.header("Constraints")
+
+            # Reset constraints button
+            if st.button("Reset Constraints to Template Defaults"):
+                st.session_state.custom_constraints = templates[st.session_state.current_template_name]["constraints"].copy()
+                st.session_state.widget_key_suffix = st.session_state.get('widget_key_suffix', 0) + 1 # Force re-render
+
+            # Separate constraints into target and OAR
+            target_constraints = {organ: const for organ, const in st.session_state.custom_constraints.items() if "D2cc" not in const}
+            oar_constraints = {organ: const for organ, const in st.session_state.custom_constraints.items() if "D2cc" in const}
+
+            # Display and update constraints for Custom template
             col1, col2 = st.columns(2)
             with col1:
                 st.subheader("Target Volumes")
                 for organ, organ_constraints in target_constraints.items():
                     st.write(f"**{organ}**")
-                    if "min" in organ_constraints and "max" in organ_constraints: # HRCTV D90
-                        st.session_state.custom_constraints[organ]["min"] = st.number_input(
-                            f"        Min (Gy)",
-                            value=float(organ_constraints["min"]),
-                            key=f"constraint_{organ}_min_{st.session_state.widget_key_suffix}"
-                        )
-                        st.session_state.custom_constraints[organ]["max"] = st.number_input(
-                            f"        Max (Gy)",
-                            value=float(organ_constraints["max"]),
-                            key=f"constraint_{organ}_max_{st.session_state.widget_key_suffix}"
-                        )
-                    elif "min" in organ_constraints: # HRCTV D98, GTV D98
-                        st.session_state.custom_constraints[organ]["min"] = st.number_input(
-                            f"        Min (Gy)",
-                            value=float(organ_constraints["min"]),
-                            key=f"constraint_{organ}_min_{st.session_state.widget_key_suffix}"
-                        )
+                    for key, value in organ_constraints.items():
+                        if key in ["min", "max"]:
+                            st.session_state.custom_constraints[organ][key] = st.number_input(
+                                f"{key.capitalize()} (Gy)",
+                                value=float(value),
+                                key=f"constraint_{organ}_{key}_{st.session_state.widget_key_suffix}"
+                            )
+
             with col2:
                 st.subheader("Organs at Risk")
                 for organ, organ_constraints in oar_constraints.items():
@@ -146,6 +138,8 @@ def main():
     else:
         # Display constraints for non-Custom templates (read-only)
         st.subheader("Loaded Constraints:")
+        target_constraints = {organ: const for organ, const in st.session_state.custom_constraints.items() if "D2cc" not in const}
+        oar_constraints = {organ: const for organ, const in st.session_state.custom_constraints.items() if "D2cc" in const}
         col1, col2 = st.columns(2)
         with col1:
             st.subheader("Target Volumes")
@@ -164,18 +158,14 @@ def main():
                 else:
                     st.write(f"  D2cc Max: {organ_constraints['D2cc']['max']} Gy")
 
-    # Ensure ab_ratios is defined for use in args and DVH loop
-    ab_ratios = st.session_state.ab_ratios
-
-    # Initialize selected_point_names and available_point_names in session state at the top
-    if 'available_point_names' not in st.session_state:
-        st.session_state.available_point_names = []
-    if 'selected_point_names' not in st.session_state:
-        st.session_state.selected_point_names = []
-
     # Logic to handle uploaded files and extract dose references
     rtplan_file_path = None
     if uploaded_files:
+        with st.expander("Optional Inputs", expanded=True):
+            ebrt_dose = st.number_input("EBRT Dose (Gy)", value=0.0)
+            previous_brachy_data_file = st.file_uploader("Upload previous brachytherapy data (optional)", type=["html", "json"])
+            wkhtmltopdf_path = st.text_input("Path to wkhtmltopdf.exe (optional)")
+
         with tempfile.TemporaryDirectory() as tmpdir:
             rtdose_dir = os.path.join(tmpdir, "RTDOSE")
             rtstruct_dir = os.path.join(tmpdir, "RTst")
@@ -234,6 +224,10 @@ def main():
         )
     else:
         st.session_state.selected_point_names = [] # No points to select
+
+    # Ensure ab_ratios is defined for use in args and DVH loop
+    ab_ratios = st.session_state.get("ab_ratios", templates["Cervix HDR - EMBRACE II"]["alpha_beta_ratios"].copy())
+
 
     if st.button("Run Analysis"):
         if uploaded_files:
@@ -451,7 +445,8 @@ def main():
                             except IOError as e:
                                 st.error(
                                     "Could not generate PDF. This is likely because the 'wkhtmltopdf' executable was not found."
-                                    "\n\n""Please install 'wkhtmltopdf' and ensure it is in your system's PATH."
+                                    "\n\n"
+                                    "Please install 'wkhtmltopdf' and ensure it is in your system's PATH."
                                     "\n\nSee the installation guide: https://wkhtmltopdf.org/downloads.html"
                                     f"\n\n**Error details:**\n\n{e}"
                                 )
