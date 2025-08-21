@@ -326,7 +326,7 @@ def main():
                         output_html=os.path.join(tmpdir_analysis, "report.html"),
                         alpha_beta_ratios=ab_ratios,
                         selected_point_names=st.session_state.selected_point_names, # Pass selected points
-                        custom_constraints=st.session_state.custom_constraints # Pass custom constraints
+                        custom_constraints=templates[st.session_state.current_template_name] # Pass the full template
                     )
 
                     results = run_analysis(args, selected_point_names=st.session_state.selected_point_names, dose_point_mapping=dose_point_mapping)

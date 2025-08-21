@@ -227,8 +227,6 @@ def main(args, selected_point_names=None, custom_constraints=None, dose_point_ma
     # Calculate BED and EQD2 for point doses
     point_dose_results = []
 
-    point_dose_results = [] # Initialize point_dose_results here
-
     # Find the subdirectories
     subdirectories = [d for d in data_dir.iterdir() if d.is_dir()]
     dose_dir = next((d for d in subdirectories if "RTDOSE" in d.name), None)
@@ -272,7 +270,6 @@ def main(args, selected_point_names=None, custom_constraints=None, dose_point_ma
     plan_name = plan_data.get('plan_name', 'N/A')
     brachy_dose_per_fraction = plan_data.get('brachy_dose_per_fraction', 'N/A')
     
-
     # Get structure data
     structure_data = get_structure_data(rt_struct_dataset)
 
@@ -299,6 +296,37 @@ def main(args, selected_point_names=None, custom_constraints=None, dose_point_ma
     point_dose_constraints = None
     if custom_constraints and "point_dose_constraints" in custom_constraints:
         point_dose_constraints = custom_constraints["point_dose_constraints"]
+
+    # MOVED BLOCK STARTS HERE
+    # This block is moved before constraint evaluation
+    filtered_dose_references = []
+    if selected_point_names:
+        for dr in plan_data.get('dose_references', []):
+            if dr['name'] in selected_point_names:
+                filtered_dose_references.append(dr)
+    else:
+        filtered_dose_references = plan_data.get('dose_references', []) # If no selection, include all
+
+    for dr in filtered_dose_references: # Use filtered_dose_references
+        total_bed, eqd2, bed_brachy, bed_ebrt, bed_previous_brachy = calculate_point_dose_bed_eqd2(
+            dr['dose'],
+            number_of_fractions,
+            dr['name'],
+            args.ebrt_dose,
+            previous_brachy_eqd2=previous_brachy_eqd2_per_organ.get(dr['name'], 0),
+            alpha_beta_ratios=current_alpha_beta_ratios
+        )
+        point_dose_results.append({
+            'name': dr['name'],
+            'dose': dr['dose'],
+            'total_dose': dr['dose'] * number_of_fractions,
+            'BED_this_plan': bed_brachy,
+            'BED_previous_brachy': bed_previous_brachy,
+            'BED_EBRT': bed_ebrt,
+            'EQD2': eqd2,
+        })
+    # MOVED BLOCK ENDS HERE
+
     # Evaluate constraints
     constraint_evaluation = evaluate_constraints(dvh_results, point_dose_results, constraints=current_constraints, point_dose_constraints=point_dose_constraints, dose_point_mapping=dose_point_mapping)
 
@@ -326,33 +354,30 @@ def main(args, selected_point_names=None, custom_constraints=None, dose_point_ma
             else:
                 dvh_results[organ]["dose_to_meet_constraint"] = "N/A"
 
-    
-    filtered_dose_references = []
-    if selected_point_names:
-        for dr in plan_data.get('dose_references', []):
-            if dr['name'] in selected_point_names:
-                filtered_dose_references.append(dr)
-    else:
-        filtered_dose_references = plan_data.get('dose_references', []) # If no selection, include all
+    # Apply plan-type specific logic for point doses
+    if custom_constraints:
+        plan_type = custom_constraints.get("plan_type")
+        norm_rules = custom_constraints.get("normalization_point_rules")
 
-    for dr in filtered_dose_references: # Use filtered_dose_references
-        total_bed, eqd2, bed_brachy, bed_ebrt, bed_previous_brachy = calculate_point_dose_bed_eqd2(
-            dr['dose'],
-            number_of_fractions,
-            dr['name'],
-            args.ebrt_dose,
-            previous_brachy_eqd2=previous_brachy_eqd2_per_organ.get(dr['name'], 0),
-            alpha_beta_ratios=current_alpha_beta_ratios
-        )
-        point_dose_results.append({
-            'name': dr['name'],
-            'dose': dr['dose'],
-            'total_dose': dr['dose'] * number_of_fractions,
-            'BED_this_plan': bed_brachy,
-            'BED_previous_brachy': bed_previous_brachy,
-            'BED_EBRT': bed_ebrt,
-            'EQD2': eqd2,
-        })
+        # Loop through the results to apply the new evaluation
+        for point in point_dose_results:
+            point_name_lower = point['name'].lower()
+            point_dose_per_fraction = point['dose']
+
+            if plan_type == "Cylinder" and norm_rules:
+                # Check if this point is a normalization point based on the rules
+                if any(identifier in point_name_lower for identifier in norm_rules['identifiers']):
+                    prescribed_dose = plan_data.get('brachy_dose_per_fraction', 0)
+                    tolerance = norm_rules.get('tolerance', 0.0)
+
+                    if prescribed_dose > 0:
+                        lower_bound = prescribed_dose * (1 - tolerance)
+                        upper_bound = prescribed_dose * (1 + tolerance)
+
+                        if lower_bound <= point_dose_per_fraction <= upper_bound:
+                            point['Status'] = 'Pass'
+                        else:
+                            point['Status'] = 'Fail'
 
     output_data = {
         "patient_name": patient_name,
@@ -380,7 +405,7 @@ if __name__ == "__main__":
     parser.add_argument("--data_dir", type=str, required=True, help="Path to the directory containing the patient's DICOM files.")
     parser.add_argument("--ebrt_dose", type=float, default=0.0, help="The prescription dose of the external beam radiation therapy in Gray (Gy).")
     parser.add_argument("--previous_brachy_html", type=str, help="Path to a previous brachytherapy HTML report to incorporate its EQD2 values.")
-    parser.add_argument("--output_html", type=str, help="If provided, the results will be saved to this HTML file.")
+    parser.add_-argument("--output_html", type=str, help="If provided, the results will be saved to this HTML file.")
 
     args = parser.parse_args()
     main(args, dose_point_mapping=None)
