@@ -103,6 +103,22 @@ def get_plan_data(rtplan_file):
                 'dose': dr.TargetPrescriptionDose
             })
 
+    # Get Channel Mapping Data
+    plan_data['channel_mapping'] = []
+    if hasattr(ds, 'BrachyApplicationSetupSequence'):
+        for app_setup in ds.BrachyApplicationSetupSequence:
+            if hasattr(app_setup, 'SourceSequence'):
+                for source in app_setup.SourceSequence:
+                    channel_info = {
+                        'channel_number': getattr(source, 'ChannelNumber', 'N/A'),
+                        'source_applicator_id': getattr(source, 'SourceApplicatorID', 'N/A'),
+                        'source_applicator_type': getattr(source, 'SourceApplicatorType', 'N/A'),
+                        'source_position': getattr(source, 'SourcePosition', 'N/A'),
+                        'source_dwell_time': getattr(source, 'SourceDwellTime', 'N/A'),
+                        'source_dwell_position': getattr(source, 'SourceDwellPosition', 'N/A'),
+                    }
+                    plan_data['channel_mapping'].append(channel_info)
+
     return plan_data
 
 def get_dose_point_mapping(rtplan_file, point_dose_constraints):

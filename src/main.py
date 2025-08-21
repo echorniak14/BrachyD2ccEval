@@ -394,7 +394,8 @@ def main(args, selected_point_names=None, custom_constraints=None, dose_point_ma
         "constraint_evaluation": constraint_evaluation,
         "dose_references": plan_data.get('dose_references', []),
         "point_dose_results": point_dose_results,
-        "used_alpha_beta_ratios": current_alpha_beta_ratios
+        "used_alpha_beta_ratios": current_alpha_beta_ratios,
+        "channel_mapping": plan_data.get('channel_mapping', [])
     }
 
     if args.output_html:

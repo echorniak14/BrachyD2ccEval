@@ -191,6 +191,7 @@ def main():
     # Logic to handle uploaded files and extract dose references
     rtplan_file_path = None
     if uploaded_files:
+        st.header("Optional Parameters") # New header
         with st.expander("Optional Inputs", expanded=True):
             ebrt_dose = st.number_input("EBRT Dose (Gy)", value=0.0)
             previous_brachy_data_file = st.file_uploader("Upload previous brachytherapy data (optional)", type=["html", "json"])
@@ -360,11 +361,30 @@ def main():
                     with st.container():
                         st.header("Results")
 
-                        st.write(f"**Patient Name:** {results['patient_name']}")
-                        st.write(f"**Patient MRN:** {results['patient_mrn']}")
-                        st.write(f"**Plan Name:** {results['plan_name']}")
-                        st.write(f"**Brachytherapy Dose per Fraction:** {results['brachy_dose_per_fraction']:.2f} Gy")
-                        st.write(f"**Number of Fractions:** {results['number_of_fractions']}")
+                        col_summary_left, col_summary_right = st.columns([0.7, 0.3])
+
+                        with col_summary_left:
+                            st.write(f"**Patient Name:** {results['patient_name']}")
+                            st.write(f"**Patient MRN:** {results['patient_mrn']}")
+                            st.write(f"**Plan Name:** {results['plan_name']}")
+                            st.write(f"**Brachytherapy Dose per Fraction:** {results['brachy_dose_per_fraction']:.2f} Gy")
+                            st.write(f"**Number of Fractions:** {results['number_of_fractions']}")
+
+                        with col_summary_right:
+                            st.subheader("Channel Mapping")
+                            if results.get('channel_mapping'):
+                                # Group channels by SourceApplicatorID (which can act as catheter ID)
+                                catheter_channels = {}
+                                for channel in results['channel_mapping']:
+                                    catheter_id = channel.get('source_applicator_id', 'N/A')
+                                    if catheter_id not in catheter_channels:
+                                        catheter_channels[catheter_id] = []
+                                    catheter_channels[catheter_id].append(channel.get('channel_number', 'N/A'))
+                                
+                                for cath_id, channels in catheter_channels.items():
+                                    st.write(f"**Cath {cath_id}** - Chan {', '.join(map(str, sorted(channels)))}")
+                            else:
+                                st.info("No channel mapping data available.")
 
                         tab1, tab2, tab3 = st.tabs(["DVH Results", "Point Dose Results", "Report"])
 

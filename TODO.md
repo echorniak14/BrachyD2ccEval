@@ -34,7 +34,9 @@
 - [ ] fix point dose reporting and constraint evaluation (need details for point dose constraints eg bladder point, metrics and constraint values)
 - [ ] check that the planned number of fractions is correct for plan evaluation
 - [x] Display RTPlan info on streamlet plan evaluation summary page - instant second check
-- [ ] Channel Mapping display for catheters (right side of Results) have it look for channel number, channel length, and transfer tube number
+- - [ ] Channel Mapping display for catheters (right side of Results) have it look for channel number, channel length, and transfer tube number
+    - [x] Refine display format to "Cath X - Chan Y"
+
 
 ### Deployment & Integration
 - [ ] Web Application Deployment
