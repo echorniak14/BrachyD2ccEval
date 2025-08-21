@@ -146,14 +146,14 @@ def main():
     oar_constraints = {organ: const for organ, const in st.session_state.custom_constraints.items() if "D2cc" in const}
     st.sidebar.subheader("Target Volumes")
     for organ, organ_constraints in target_constraints.items():
-        st.sidebar.write(f"**{organ}:**")
+        st.sidebar.write(f"**{organ} (α/β = {st.session_state.ab_ratios.get(organ, 'N/A')})**")
         if "min" in organ_constraints and "max" in organ_constraints:
             st.sidebar.write(f"        Min: {organ_constraints['min']} Gy, Max: {organ_constraints['max']} Gy")
         elif "min" in organ_constraints:
             st.sidebar.write(f"        Min: {organ_constraints['min']} Gy")
     st.sidebar.subheader("Organs at Risk")
     for organ, organ_constraints in oar_constraints.items():
-        st.sidebar.write(f"**{organ}:**")
+        st.sidebar.write(f"**{organ} (α/β = {st.session_state.ab_ratios.get(organ, 'N/A')})**")
         if "warning" in organ_constraints["D2cc"]:
             st.sidebar.write(f"  D2cc Warning: {organ_constraints['D2cc']['warning']} Gy, Max: {organ_constraints['D2cc']['max']} Gy")
         else:
@@ -166,6 +166,9 @@ def main():
             ebrt_dose = st.number_input("EBRT Dose (Gy)", value=0.0)
             previous_brachy_data_file = st.file_uploader("Upload previous brachytherapy data (optional)", type=["html", "json"])
             wkhtmltopdf_path = st.text_input("Path to wkhtmltopdf.exe (optional)")
+
+        st.sidebar.subheader("EBRT Dose")
+        st.sidebar.write(f"{ebrt_dose} Gy")
 
         with tempfile.TemporaryDirectory() as tmpdir:
             rtdose_dir = os.path.join(tmpdir, "RTDOSE")
