@@ -153,18 +153,24 @@ def main():
     oar_constraints = {organ: const for organ, const in st.session_state.custom_constraints.items() if "D2cc" in const}
     st.sidebar.subheader("Target Volumes")
     for organ, organ_constraints in target_constraints.items():
-        st.sidebar.write(f"**{organ} (α/β = {st.session_state.ab_ratios.get(organ, 'N/A')})**")
-        if "min" in organ_constraints and "max" in organ_constraints:
-            st.sidebar.write(f"        Min: {organ_constraints['min']} Gy, Max: {organ_constraints['max']} Gy")
-        elif "min" in organ_constraints:
-            st.sidebar.write(f"        Min: {organ_constraints['min']} Gy")
+        col_left, col_right = st.sidebar.columns([0.4, 1])
+        with col_left:
+            st.sidebar.write(f"**{organ} (α/β = {st.session_state.ab_ratios.get(organ, 'N/A')})**")
+        with col_right:
+            if "min" in organ_constraints and "max" in organ_constraints:
+                st.sidebar.write(f"Min: {organ_constraints['min']} Gy, Max: {organ_constraints['max']} Gy")
+            elif "min" in organ_constraints:
+                st.sidebar.write(f"Min: {organ_constraints['min']} Gy")
     st.sidebar.subheader("Organs at Risk")
     for organ, organ_constraints in oar_constraints.items():
-        st.sidebar.write(f"**{organ} (α/β = {st.session_state.ab_ratios.get(organ, 'N/A')})**")
-        if "warning" in organ_constraints["D2cc"]:
-            st.sidebar.write(f"  D2cc Warning: {organ_constraints['D2cc']['warning']} Gy, Max: {organ_constraints['D2cc']['max']} Gy")
-        else:
-            st.sidebar.write(f"  D2cc Max: {organ_constraints['D2cc']['max']} Gy")
+        col_left, col_right = st.sidebar.columns([0.4, 1])
+        with col_left:
+            st.sidebar.write(f"**{organ} (α/β = {st.session_state.ab_ratios.get(organ, 'N/A')})**")
+        with col_right:
+            if "warning" in organ_constraints["D2cc"]:
+                st.sidebar.write(f"D2cc Warning: {organ_constraints['D2cc']['warning']} Gy, Max: {organ_constraints['D2cc']['max']} Gy")
+            else:
+                st.sidebar.write(f"D2cc Max: {organ_constraints['D2cc']['max']} Gy")
 
     # Logic to handle uploaded files and extract dose references
     rtplan_file_path = None
