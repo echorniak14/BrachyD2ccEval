@@ -99,6 +99,7 @@ def main():
     ebrt_dose = 0.0
     previous_brachy_data_file = None
     wkhtmltopdf_path = ""
+    manual_dose_point_mapping = [] # Initialize here to ensure it's always available
 
     if st.session_state.current_template_name == "Custom":
         with st.expander("Customize Template", expanded=True):
@@ -229,42 +230,73 @@ def main():
                 plan_data = get_plan_data(rtplan_file_path)
                 dose_references = [dr['name'] for dr in plan_data.get('dose_references', [])]
                 
-                # Store dose_references in session state
                 st.session_state.available_point_names = dose_references
 
-                # Get point dose constraints from the selected template
                 point_dose_constraints = templates[st.session_state.current_template_name].get("point_dose_constraints", {})
                 
-                # Get the dose point mapping
                 dose_point_mapping = get_dose_point_mapping(rtplan_file_path, point_dose_constraints)
                 
-                # Display the mapping
                 st.subheader("Dose Point to Constraint Mapping")
-                st.table(dose_point_mapping)
+
+                # --- START: New Manual Mapping Section ---
+                clinical_point_names = ["N/A"] + list(point_dose_constraints.keys())
+
+                if 'manual_mapping' not in st.session_state:
+                    st.session_state.manual_mapping = {}
+
+                for dicom_point, clinical_point in dose_point_mapping:
+                    if dicom_point not in st.session_state.manual_mapping:
+                        st.session_state.manual_mapping[dicom_point] = clinical_point
+
+                for dicom_point in st.session_state.available_point_names:
+                    col1, col2 = st.columns([1, 2])
+                    
+                    with col1:
+                        st.write(f"**{dicom_point}**")
+                        
+                    with col2:
+                        current_mapping = st.session_state.manual_mapping.get(dicom_point, "N/A")
+                        
+                        try:
+                            current_index = clinical_point_names.index(current_mapping)
+                        except ValueError:
+                            current_index = 0
+
+                        new_mapping = st.selectbox(
+                            f"Map '{dicom_point}' to:",
+                            options=clinical_point_names,
+                            index=current_index,
+                            key=f"map_{dicom_point}",
+                            label_visibility="collapsed"
+                        )
+                        
+                        st.session_state.manual_mapping[dicom_point] = new_mapping
+
+                manual_dose_point_mapping = [(k, v) for k, v in st.session_state.manual_mapping.items() if v != "N/A"]
+                # --- END: New Manual Mapping Section ---
+                
             else:
                 st.session_state.available_point_names = []
     else:
-        st.session_state.available_point_names = [] # Clear available points if no files uploaded
-        st.session_state.selected_point_names = [] # Clear selected points if no files uploaded
+        st.session_state.available_point_names = []
+        st.session_state.selected_point_names = []
 
     # Point selection UI
     if st.session_state.available_point_names:
         st.session_state.selected_point_names = st.multiselect(
             "Select Points to Display in Report",
             options=st.session_state.available_point_names,
-            default=st.session_state.available_point_names # Select all by default
+            default=st.session_state.available_point_names
         )
     else:
-        st.session_state.selected_point_names = [] # No points to select
+        st.session_state.selected_point_names = []
 
-    # Ensure ab_ratios is defined for use in args and DVH loop
     ab_ratios = st.session_state.get("ab_ratios", templates["Cervix HDR - EMBRACE II"]["alpha_beta_ratios"].copy())
 
 
     if st.button("Run Analysis"):
         if uploaded_files:
             st.write([file.name for file in uploaded_files])
-            # Re-create tmpdir and move files for analysis run
             with tempfile.TemporaryDirectory() as tmpdir_analysis:
                 rtdose_dir_analysis = os.path.join(tmpdir_analysis, "RTDOSE")
                 rtstruct_dir_analysis = os.path.join(tmpdir_analysis, "RTst")
@@ -285,13 +317,13 @@ def main():
 
                     try:
                         ds = pydicom.dcmread(file_path)
-                        if ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.481.2': # RT Dose Storage
+                        if ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.481.2':
                             rtdose_path = os.path.join(rtdose_dir_analysis, uploaded_file.name)
                             os.rename(file_path, rtdose_path)
-                        elif ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.481.3': # RT Structure Set Storage
+                        elif ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.481.3':
                             rtstruct_path = os.path.join(rtstruct_dir_analysis, uploaded_file.name)
                             os.rename(file_path, rtstruct_path)
-                        elif ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.481.5': # RT Plan Storage
+                        elif ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.481.5':
                             rtplan_path = os.path.join(rtplan_dir_analysis, uploaded_file.name)
                             os.rename(file_path, rtplan_path)
                     except Exception as e:
@@ -302,188 +334,168 @@ def main():
                     if previous_brachy_data_file:
                         file_extension = os.path.splitext(previous_brachy_data_file.name)[1].lower()
                         if file_extension == ".html":
-                            # Save the uploaded HTML file to a temporary location
                             with tempfile.NamedTemporaryFile(delete=False, suffix=".html") as tmp_html_file:
                                 tmp_html_file.write(previous_brachy_data_file.getbuffer())
                                 previous_brachy_html_path = tmp_html_file.name
-                            # Pass the path to main.py for parsing
                             previous_brachy_eqd2_data = previous_brachy_html_path
                         elif file_extension == ".json":
-                            # Read and parse the JSON content
                             json_content = json.loads(previous_brachy_data_file.read().decode("utf-8"))
-                            # Extract EQD2 values from the JSON structure
-                            # Assuming the JSON structure has "dvh_results" with "eqd2_d2cc" for each organ
                             for organ, data in json_content.get("dvh_results", {}).items():
                                 previous_brachy_eqd2_data[organ] = data.get("eqd2_d2cc", 0.0)
-                            # Also check point dose results if needed for accumulation
                             for point_data in json_content.get("point_dose_results", {}):
                                 previous_brachy_eqd2_data[point_data["name"]] = point_data.get("EQD2", 0.0)
                         
                     args = argparse.Namespace(
-                        data_dir=tmpdir_analysis, # Use the new tmpdir for analysis
+                        data_dir=tmpdir_analysis,
                         ebrt_dose=ebrt_dose,
-                        previous_brachy_data=previous_brachy_eqd2_data, # Pass parsed data or path
+                        previous_brachy_data=previous_brachy_eqd2_data,
                         output_html=os.path.join(tmpdir_analysis, "report.html"),
                         alpha_beta_ratios=ab_ratios,
-                        selected_point_names=st.session_state.selected_point_names, # Pass selected points
-                        custom_constraints=templates[st.session_state.current_template_name] # Pass the full template
+                        selected_point_names=st.session_state.selected_point_names,
+                        custom_constraints=templates[st.session_state.current_template_name]
                     )
 
-                    results = run_analysis(args, selected_point_names=st.session_state.selected_point_names, dose_point_mapping=dose_point_mapping)
+                    results = run_analysis(args, selected_point_names=st.session_state.selected_point_names, dose_point_mapping=manual_dose_point_mapping)
 
-                    st.header("Results")
+                    with st.container():
+                        st.header("Results")
 
-                    st.write(f"**Patient Name:** {results['patient_name']}")
-                    st.write(f"**Patient MRN:** {results['patient_mrn']}")
-                    st.write(f"**Plan Name:** {results['plan_name']}")
-                    st.write(f"**Brachytherapy Dose per Fraction:** {results['brachy_dose_per_fraction']:.2f} Gy")
-                    st.write(f"**Number of Fractions:** {results['number_of_fractions']}")
+                        st.write(f"**Patient Name:** {results['patient_name']}")
+                        st.write(f"**Patient MRN:** {results['patient_mrn']}")
+                        st.write(f"**Plan Name:** {results['plan_name']}")
+                        st.write(f"**Brachytherapy Dose per Fraction:** {results['brachy_dose_per_fraction']:.2f} Gy")
+                        st.write(f"**Number of Fractions:** {results['number_of_fractions']}")
 
-                    tab1, tab2, tab3 = st.tabs(["DVH Results", "Point Dose Results", "Report"])
+                        tab1, tab2, tab3 = st.tabs(["DVH Results", "Point Dose Results", "Report"])
 
-                    with tab1:
-                        st.subheader("Target Volume DVH Results")
-                        target_dvh_data = []
-                        oar_dvh_data = []
+                        with tab1:
+                            st.subheader("Target Volume DVH Results")
+                            target_dvh_data = []
+                            oar_dvh_data = []
 
-                        for organ, data in results["dvh_results"].items():
-                            alpha_beta = ab_ratios.get(organ, ab_ratios.get("Default"))
-                            is_target = alpha_beta == 10
+                            for organ, data in results["dvh_results"].items():
+                                alpha_beta = ab_ratios.get(organ, ab_ratios.get("Default"))
+                                is_target = alpha_beta == 10
 
-                            if is_target:
-                                target_dvh_data.append({
-                                    "Organ": organ,
-                                    "Volume (cc)": data["volume_cc"],
-                                    "D98 (Gy)": data["d98_gy_per_fraction"],
-                                    "D90 (Gy)": data["d90_gy_per_fraction"],
-                                    "Max Dose (Gy)": data["max_dose_gy_per_fraction"],
-                                    "Mean Dose (Gy)": data["mean_dose_gy_per_fraction"],
-                                    "Min Dose (Gy)": data["min_dose_gy_per_fraction"],
-                                })
+                                if is_target:
+                                    target_dvh_data.append({
+                                        "Organ": organ,
+                                        "Volume (cc)": data["volume_cc"],
+                                        "D98 (Gy)": data["d98_gy_per_fraction"],
+                                        "D90 (Gy)": data["d90_gy_per_fraction"],
+                                        "Max Dose (Gy)": data["max_dose_gy_per_fraction"],
+                                        "Mean Dose (Gy)": data["mean_dose_gy_per_fraction"],
+                                        "Min Dose (Gy)": data["min_dose_gy_per_fraction"],
+                                    })
+                                else:
+                                    constraint_status = "N/A"
+                                    dose_to_meet = "N/A"
+                                    if organ in results["constraint_evaluation"] and "EQD2_met" in results["constraint_evaluation"][organ]:
+                                        constraint_status = "Met" if results["constraint_evaluation"][organ]["EQD2_met"] == "True" else "NOT Met"
+                                        dose_to_meet = data.get("dose_to_meet_constraint", "N/A")
+
+                                    oar_dvh_data.append({
+                                        "Organ": organ, "Volume (cc)": data["volume_cc"], "Dose Metric": "D0.1cc",
+                                        "Dose (Gy)": data["d0_1cc_gy_per_fraction"], "BED (Gy)": data["bed_d0_1cc"],
+                                        "EQD2 (Gy)": data["eqd2_d0_1cc"], "Dose to Meet Constraint (Gy)": "",
+                                        "Constraint Status": constraint_status
+                                    })
+                                    oar_dvh_data.append({
+                                        "Organ": organ, "Volume (cc)": "", "Dose Metric": "D1cc",
+                                        "Dose (Gy)": data["d1cc_gy_per_fraction"], "BED (Gy)": data["bed_d1cc"],
+                                        "EQD2 (Gy)": data["eqd2_d1cc"], "Dose to Meet Constraint (Gy)": "",
+                                        "Constraint Status": constraint_status
+                                    })
+                                    oar_dvh_data.append({
+                                        "Organ": organ, "Volume (cc)": "", "Dose Metric": "D2cc",
+                                        "Dose (Gy)": data["d2cc_gy_per_fraction"], "BED (Gy)": data["bed_d2cc"],
+                                        "EQD2 (Gy)": data["eqd2_d2cc"], "Dose to Meet Constraint (Gy)": dose_to_meet,
+                                        "Constraint Status": constraint_status
+                                    })
+                            
+                            if target_dvh_data:
+                                st.dataframe(pd.DataFrame(target_dvh_data))
                             else:
-                                # Get constraint evaluation for OARs
-                                constraint_status = "N/A"
-                                dose_to_meet = "N/A"
-                                if organ in results["constraint_evaluation"] and "EQD2_met" in results["constraint_evaluation"][organ]:
-                                    constraint_status = "Met" if results["constraint_evaluation"][organ]["EQD2_met"] == "True" else "NOT Met"
-                                    dose_to_meet = data.get("dose_to_meet_constraint", "N/A")
+                                st.info("No target volume DVH data available.")
 
-                                # D0.1cc row
-                                oar_dvh_data.append({
-                                    "Organ": organ,
-                                    "Volume (cc)": data["volume_cc"],
-                                    "Dose Metric": "D0.1cc",
-                                    "Dose (Gy)": data["d0_1cc_gy_per_fraction"],
-                                    "BED (Gy)": data["bed_d0_1cc"],
-                                    "EQD2 (Gy)": data["eqd2_d0_1cc"],
-                                    "Dose to Meet Constraint (Gy)": "", # Only for D2cc
-                                    "Constraint Status": constraint_status # Hidden column for styling
-                                })
-                                # D1cc row
-                                oar_dvh_data.append({
-                                    "Organ": organ,
-                                    "Volume (cc)": "", # Mimic rowspan
-                                    "Dose Metric": "D1cc",
-                                    "Dose (Gy)": data["d1cc_gy_per_fraction"],
-                                    "BED (Gy)": data["bed_d1cc"],
-                                    "EQD2 (Gy)": data["eqd2_d1cc"],
-                                    "Dose to Meet Constraint (Gy)": "", # Only for D2cc
-                                    "Constraint Status": constraint_status # Hidden column for styling
-                                })
-                                # D2cc row
-                                oar_dvh_data.append({
-                                    "Organ": organ,
-                                    "Volume (cc)": "", # Mimic rowspan
-                                    "Dose Metric": "D2cc",
-                                    "Dose (Gy)": data["d2cc_gy_per_fraction"],
-                                    "BED (Gy)": data["bed_d2cc"],
-                                    "EQD2 (Gy)": data["eqd2_d2cc"],
-                                    "Dose to Meet Constraint (Gy)": dose_to_meet,
-                                    "Constraint Status": constraint_status # Hidden column for styling
-                                })
+                            st.subheader("OAR DVH Results")
+                            if oar_dvh_data:
+                                oar_df = pd.DataFrame(oar_dvh_data)
+                                
+                                def highlight_constraint_status(row):
+                                    organ = row["Organ"]
+                                    eqd2_value = row["EQD2 (Gy)"]
+                                    current_constraints = st.session_state.custom_constraints
+                                    
+                                    if row["Dose Metric"] == "D2cc" and organ in current_constraints and "D2cc" in current_constraints[organ]:
+                                        constraint_data = current_constraints[organ]["D2cc"]
+                                        max_constraint = constraint_data["max"]
+                                        warning_constraint = constraint_data.get("warning")
+
+                                        if eqd2_value > max_constraint:
+                                            return ['background-color: #dc3545; color: white'] * len(row)
+                                        elif warning_constraint is not None and eqd2_value >= warning_constraint:
+                                            return ['background-color: #ffc107; color: black'] * len(row)
+                                        return ['background-color: #28a745; color: white'] * len(row)
+                                    return ['background-color: transparent'] * len(row)
+
+                                st.dataframe(oar_df.style.apply(highlight_constraint_status, axis=1))
+                            else:
+                                st.info("No OAR DVH data available.")
+
+                        with tab2:
+                            st.subheader("Point Dose Results")
+                            point_dose_df = pd.DataFrame(results["point_dose_results"])
+
+                            def style_point_dose_rows(row):
+                                style = [''] * len(row)
+                                if 'Status' in row and row['Status'] == 'Pass':
+                                    style = ['background-color: #28a745; color: white'] * len(row)
+                                elif 'Status' in row and row['Status'] == 'Fail':
+                                    style = ['background-color: #dc3545; color: white'] * len(row)
+                                return style
+
+                            if not point_dose_df.empty:
+                                st.dataframe(point_dose_df.style.apply(style_point_dose_rows, axis=1))
+                            else:
+                                st.info("No point dose data available.")
                         
-                        if target_dvh_data:
-                            st.dataframe(pd.DataFrame(target_dvh_data))
-                        else:
-                            st.info("No target volume DVH data available.")
-
-                        st.subheader("OAR DVH Results")
-                        if oar_dvh_data:
-                            oar_df = pd.DataFrame(oar_dvh_data)
-                            
-                            def highlight_constraint_status(row):
-                                organ = row["Organ"] # Directly use row["Organ"]
-                                eqd2_value = row["EQD2 (Gy)"]
+                        with tab3:
+                            st.subheader("Report")
+                            html_report = results.get('html_report', '')
+                            if html_report:
+                                st.components.v1.html(html_report, height=600, scrolling=True)
                                 
-                                # Get the current constraints from session state
-                                current_constraints = st.session_state.custom_constraints
-                                
-                                # Apply color coding only for D2cc rows
-                                if row["Dose Metric"] == "D2cc" and organ in current_constraints and "D2cc" in current_constraints[organ]:
-                                    constraint_data = current_constraints[organ]["D2cc"]
-                                    max_constraint = constraint_data["max"]
-                                    warning_constraint = constraint_data.get("warning") # Get warning if it exists
+                                export_data = {
+                                    "dvh_results": results["dvh_results"],
+                                    "point_dose_results": results["point_dose_results"]
+                                }
+                                json_export_str = json.dumps(export_data, indent=4)
 
-                                    if eqd2_value > max_constraint:
-                                        return ['background-color: #dc3545; color: white'] * len(row) # Reddish (NOT Met)
-                                    elif warning_constraint is not None and eqd2_value >= warning_constraint and eqd2_value <= max_constraint:
-                                        return ['background-color: #ffc107; color: black'] * len(row) # Yellowish (Warning)
-                                    elif eqd2_value < warning_constraint if warning_constraint is not None else eqd2_value <= max_constraint:
-                                        return ['background-color: #28a745; color: white'] * len(row) # Greenish (Met)
-                                # If not a D2cc row or no constraint applies, return transparent background
-                                return ['background-color: transparent'] * len(row)
-
-                            st.dataframe(oar_df.style.apply(highlight_constraint_status, axis=1))
-                        else:
-                            st.info("No OAR DVH data available.")
-
-                    with tab2:
-                        st.subheader("Point Dose Results")
-                        st.table(results["point_dose_results"])
-                    
-                    with tab3:
-                        st.subheader("Report")
-                        html_report = results.get('html_report', '')
-                        if html_report:
-                            st.components.v1.html(html_report, height=600, scrolling=True)
-                            
-                            # Prepare data for JSON export
-                            export_data = {
-                                "dvh_results": results["dvh_results"],
-                                "point_dose_results": results["point_dose_results"]
-                            }
-                            json_export_str = json.dumps(export_data, indent=4)
-
-                            st.download_button(
-                                label="Download Brachy Data (JSON)",
-                                data=json_export_str,
-                                file_name="brachy_data.json",
-                                mime="application/json"
-                            )
-
-                            try:
-                                pdf_path = os.path.join(tmpdir_analysis, "report.pdf")
-                                convert_html_to_pdf(html_report, pdf_path, wkhtmltopdf_path=wkhtmltopdf_path)
-
-                                with open(pdf_path, "rb") as f:
-                                    pdf_bytes = f.read()
-                                
                                 st.download_button(
-                                    label="Download PDF",
-                                    data=pdf_bytes,
-                                    file_name="report.pdf",
-                                    mime="application/pdf"
+                                    label="Download Brachy Data (JSON)",
+                                    data=json_export_str,
+                                    file_name="brachy_data.json",
+                                    mime="application/json"
                                 )
-                            except IOError as e:
-                                st.error(
-                                    "Could not generate PDF. This is likely because the 'wkhtmltopdf' executable was not found."
-                                    "\n\n"
-                                    "Please install 'wkhtmltopdf' and ensure it is in your system's PATH."
-                                    "\n\nSee the installation guide: https://wkhtmltopdf.org/downloads.html"
-                                    f"\n\n**Error details:**\n\n{e}"
-                                )
-                        else:
-                            st.warning("Could not generate HTML report.")
+
+                                try:
+                                    pdf_path = os.path.join(tmpdir_analysis, "report.pdf")
+                                    convert_html_to_pdf(html_report, pdf_path, wkhtmltopdf_path=wkhtmltopdf_path)
+
+                                    with open(pdf_path, "rb") as f:
+                                        pdf_bytes = f.read()
+                                    
+                                    st.download_button(
+                                        label="Download PDF",
+                                        data=pdf_bytes,
+                                        file_name="report.pdf",
+                                        mime="application/pdf"
+                                    )
+                                except IOError as e:
+                                    st.error(f"Could not generate PDF. {e}")
+                            else:
+                                st.warning("Could not generate HTML report.")
 
                 else:
                     st.error("Please upload all required DICOM files (RTDOSE, RTSTRUCT, RTPLAN).")
