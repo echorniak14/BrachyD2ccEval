@@ -17,6 +17,21 @@ import tempfile
 
 def main():
     st.set_page_config(layout="wide")
+    
+    # Injected CSS to reduce space after headers in both main page and sidebar
+    st.markdown("""
+    <style>
+        /* Selects the container for columns that directly follows a header */
+        [data-testid="stHeader"] + [data-testid="stHorizontalBlock"] {
+            margin-top: -25px;
+        }
+    /* Target headers in the sidebar */
+    [data-testid="stSidebar"] [data-testid="stHeader"] + [data-testid="stHorizontalBlock"] {
+        margin-top: -25px;
+    }
+</style>
+""", unsafe_allow_html=True)
+    # Custom CSS to change header colors
     st.markdown("""
     <style>
     h1, h2, h3, h4, h5, h6 {
@@ -155,7 +170,7 @@ def main():
     for organ, organ_constraints in target_constraints.items():
         col_left, col_right = st.sidebar.columns([0.4, 1])
         with col_left:
-            st.sidebar.write(f"**{organ} (α/β = {st.session_state.ab_ratios.get(organ, 'N/A')})**")
+            st.sidebar.write(f"**{organ} (α/β = {st.session_state.ab_ratios.get(organ.split(' ')[0], 'N/A')})**")
         with col_right:
             if "min" in organ_constraints and "max" in organ_constraints:
                 st.sidebar.write(f"Min: {organ_constraints['min']} Gy, Max: {organ_constraints['max']} Gy")
@@ -165,7 +180,7 @@ def main():
     for organ, organ_constraints in oar_constraints.items():
         col_left, col_right = st.sidebar.columns([0.4, 1])
         with col_left:
-            st.sidebar.write(f"**{organ} (α/β = {st.session_state.ab_ratios.get(organ, 'N/A')})**")
+            st.sidebar.write(f"**{organ} (α/β = {st.session_state.ab_ratios.get(organ.split(' ')[0], 'N/A')})**")
         with col_right:
             if "warning" in organ_constraints["D2cc"]:
                 st.sidebar.write(f"D2cc Warning: {organ_constraints['D2cc']['warning']} Gy, Max: {organ_constraints['D2cc']['max']} Gy")
