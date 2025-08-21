@@ -61,10 +61,6 @@ templates = {
     },
     "Cylinder HDR": {
         "plan_type": "Cylinder",
-        "normalization_point_rules": {
-            "identifiers": ["norm", "rx", "prescription"],
-            "tolerance": 0.08
-        },
         "alpha_beta_ratios": {
             "Bladder": 3,
             "Rectum": 3,
@@ -82,6 +78,12 @@ templates = {
             "Rectum": {"D2cc": {"warning": 65.0, "max": 70.0, "unit": "Gy"}},
             "Sigmoid": {"D2cc": {"warning": 65.0, "max": 70.0, "unit": "Gy"}},
             "Bowel": {"D2cc": {"warning": 65.0, "max": 70.0, "unit": "Gy"}}
+        },
+        "point_dose_constraints": {
+            "Prescription Point": {
+                "check_type": "prescription_tolerance",
+                "tolerance": 0.10  # This sets the 10% tolerance
+            }
         }
     },
     "Custom": {

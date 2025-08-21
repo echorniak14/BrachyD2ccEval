@@ -354,21 +354,25 @@ def main(args, selected_point_names=None, custom_constraints=None, dose_point_ma
             else:
                 dvh_results[organ]["dose_to_meet_constraint"] = "N/A"
 
-    # Apply plan-type specific logic for point doses
-    if custom_constraints:
-        plan_type = custom_constraints.get("plan_type")
-        norm_rules = custom_constraints.get("normalization_point_rules")
+    # Apply plan-type specific logic based on the point dose constraints
+    if custom_constraints and dose_point_mapping:
+        point_dose_constraints = custom_constraints.get("point_dose_constraints", {})
+        
+        # Create a simple lookup dictionary from the mapping list for efficiency
+        mapping_dict = {item[0]: item[1] for item in dose_point_mapping}
 
-        # Loop through the results to apply the new evaluation
         for point in point_dose_results:
-            point_name_lower = point['name'].lower()
-            point_dose_per_fraction = point['dose']
-
-            if plan_type == "Cylinder" and norm_rules:
-                # Check if this point is a normalization point based on the rules
-                if any(identifier in point_name_lower for identifier in norm_rules['identifiers']):
+            # Find what clinical constraint this DICOM point is mapped to
+            mapped_constraint_name = mapping_dict.get(point['name'])
+            
+            if mapped_constraint_name and mapped_constraint_name in point_dose_constraints:
+                constraint = point_dose_constraints[mapped_constraint_name]
+                
+                # Check if this constraint uses the new tolerance check
+                if constraint.get("check_type") == "prescription_tolerance":
+                    tolerance = constraint.get("tolerance", 0.0)
                     prescribed_dose = plan_data.get('brachy_dose_per_fraction', 0)
-                    tolerance = norm_rules.get('tolerance', 0.0)
+                    point_dose_per_fraction = point['dose']
 
                     if prescribed_dose > 0:
                         lower_bound = prescribed_dose * (1 - tolerance)
@@ -405,7 +409,7 @@ if __name__ == "__main__":
     parser.add_argument("--data_dir", type=str, required=True, help="Path to the directory containing the patient's DICOM files.")
     parser.add_argument("--ebrt_dose", type=float, default=0.0, help="The prescription dose of the external beam radiation therapy in Gray (Gy).")
     parser.add_argument("--previous_brachy_html", type=str, help="Path to a previous brachytherapy HTML report to incorporate its EQD2 values.")
-    parser.add_-argument("--output_html", type=str, help="If provided, the results will be saved to this HTML file.")
+    parser.add_argument("--output_html", type=str, help="If provided, the results will be saved to this HTML file.")
 
     args = parser.parse_args()
     main(args, dose_point_mapping=None)

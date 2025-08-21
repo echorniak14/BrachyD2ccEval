@@ -40,3 +40,6 @@
 - [ ] Web Application Deployment
 - [ ] PACS Integration
 - [ ] API for Automation
+
+### Verification
+- [ ] Verify "Cylinder HDR" template in config.py: Ensure "Prescription Point" constraint has "check_type": "prescription_tolerance".

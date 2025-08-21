@@ -13,6 +13,8 @@ This project aims to automate and streamline the evaluation process for HDR brac
 - **Dose Metric Calculation (D0.1cc, D1cc, D2cc):** Calculates the minimum dose to 0.1, 1, and 2 cubic centimeters of the most irradiated volume of an organ, utilizing the `dicompyler-core` library for accurate Dose-Volume Histogram (DVH) analysis.
 - **BED/EQD2 Calculation:** Computes Biologically Effective Dose (BED) and Equivalent Dose in 2 Gy fractions (EQD2) for various organs, incorporating user-defined alpha/beta ratios and optional EBRT doses.
 - **Constraint Evaluation:** Evaluates calculated doses against EMBRACE II constraints, with visual indicators (red/green) in the GUI and reports.
+- **Plan Type-Based Constraint Management:** Dynamically manages and applies constraints based on predefined plan types, allowing for flexible and accurate evaluation across different treatment scenarios.
+
 - **Dose to Meet Constraint Calculation:** For unmet constraints, calculates the highest fractional brachytherapy dose needed to meet the constraint, providing actionable feedback.
 - **EBRT Integration:** Allows for the inclusion of external beam radiation therapy doses in the BED/EQD2 calculations.
 - **Robust File Path Handling:** Utilizes `pathlib` for reliable handling of file paths across different operating systems, including those with special characters.
@@ -28,6 +30,8 @@ This project aims to automate and streamline the evaluation process for HDR brac
 - **JSON Data Export/Import:**
     - Export current plan's DVH and point dose data to a JSON file, specifically designed for re-importing as "previous brachytherapy data" for multi-fraction dose accumulation.
     - Import previous brachytherapy data from either HTML reports or the newly defined JSON format.
+- **Interactive Dose Point Mapping:** Provides a user-friendly interface to manually map DICOM RT Plan points to clinical constraints using dropdown menus, offering greater control and flexibility over the evaluation process.
+
 
 ## Core Concepts
 
@@ -93,6 +97,8 @@ The `calculations.py` file contains the core logic for all dosimetric calculatio
 
 ### Usage
 
+### Usage
+
 To run the Streamlit GUI application (recommended):
 
 ```bash
@@ -113,7 +119,7 @@ python main.py --data_dir "/path/to/your/dicom/data" --ebrt_dose 0.0 --output_ht
 - `--ebrt_dose` (optional): The prescription dose of the external beam radiation therapy in Gray (Gy). Defaults to `0.0`.
 - `--output_html` (optional): If provided, the comprehensive HTML report will be saved to this file.
 - `--previous_brachy_data` (optional): Path to a previous brachytherapy evaluation report (HTML or JSON format) to incorporate its EQD2 values for dose accumulation. If a JSON file is provided, it should be the output from the GUI's "Download Brachy Data (JSON)" button.
-- `--custom_constraints` (optional): A JSON string representing custom EQD2 constraints. This will override the default constraints defined in `config.py`. Example: `'{"Bladder": {"EQD2": {"max": 80}}}'`
+- `--custom_constraints` (optional): A JSON string representing custom EQD2 constraints. This will override the default constraints defined in `config.py` for the selected plan type. Example: `'{"Bladder": {"EQD2": {"max": 80}}}'`
 
 **Example (Command Line):**
 
@@ -121,9 +127,11 @@ python main.py --data_dir "/path/to/your/dicom/data" --ebrt_dose 0.0 --output_ht
 python main.py --data_dir "C:\Users\echorniak\GIT\BrachyD2ccEval\sample_data\Jane Doe" --ebrt_dose 50 --output_html "MyPatientReport.html" --previous_brachy_data "C:\Users\echorniak\GIT\BrachyD2ccEval\sample_data\previous_brachy_plan.json" --custom_constraints '{"Rectum": {"EQD2": {"max": 75}}}'
 ```
 
+
 ## Configuration
 
-Alpha/beta ratios for different organs are configured in `config.py`. You can modify these values to suit your specific requirements.
+Alpha/beta ratios, plan types, and their associated point dose constraints are configured in `config.py`. You can modify these values to suit your specific requirements.
+
 
 ## Development Notes
 
