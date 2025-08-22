@@ -103,6 +103,19 @@ def get_plan_data(rtplan_file):
                 'dose': dr.TargetPrescriptionDose
             })
 
+    # Get Prescription Points for Cylinder Plans
+    plan_data['prescription_points'] = []
+    if hasattr(ds, 'BrachyApplicationSetupSequence') and len(ds.BrachyApplicationSetupSequence) > 0:
+        if getattr(ds.BrachyApplicationSetupSequence[0], 'ApplicationSetupType', '') == 'VAGINAL':
+            if hasattr(ds, 'DoseReferenceSequence'):
+                for dr in ds.DoseReferenceSequence:
+                    point_name = dr.DoseReferenceDescription.lower()
+                    if any(name in point_name for name in ['tip', 'shoulder', '3cm', '3.5cm', '2cm', '2.5cm']):
+                        plan_data['prescription_points'].append({
+                            'name': dr.DoseReferenceDescription,
+                            'coordinates': dr.DoseReferencePointCoordinates
+                        })
+
     # Get Channel Mapping Data
     plan_data['channel_mapping'] = []
     if hasattr(ds, 'BrachyApplicationSetupSequence'):
@@ -144,6 +157,19 @@ def get_dose_point_mapping(rtplan_file, point_dose_constraints):
     for dose_ref in ds.DoseReferenceSequence:
         if "DoseReferenceDescription" in dose_ref:
             dicom_point_name = dose_ref.DoseReferenceDescription.lower()
+
+            # Special handling for cylinder plan prescription points
+            cylinder_point_keywords = ['tip', 'shoulder', '3cm', '3.5cm', '2cm', '2.5cm']
+            is_cylinder_point = False
+            for keyword in cylinder_point_keywords:
+                if keyword in dicom_point_name:
+                    mapping[dose_ref.DoseReferenceDescription] = "Prescription Point"
+                    is_cylinder_point = True
+                    break
+            
+            if is_cylinder_point:
+                continue # Move to the next dose reference if it's a cylinder point
+
             # First, try to find an exact match (case-insensitive)
             exact_match_found = False
             for constraint_name in point_dose_constraints.keys():

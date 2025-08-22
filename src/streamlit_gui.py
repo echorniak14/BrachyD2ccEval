@@ -18,19 +18,26 @@ import tempfile
 def main():
     st.set_page_config(layout="wide")
     
-    # Injected CSS to reduce space after headers in both main page and sidebar
+    # Injected CSS
     st.markdown("""
     <style>
-        /* Selects the container for columns that directly follows a header */
+        /* Target headers in the main page */
         [data-testid="stHeader"] + [data-testid="stHorizontalBlock"] {
             margin-top: -25px;
         }
-    /* Target headers in the sidebar */
-    [data-testid="stSidebar"] [data-testid="stHeader"] + [data-testid="stHorizontalBlock"] {
-        margin-top: -25px;
-    }
-</style>
-""", unsafe_allow_html=True)
+        /* Target headers in the sidebar */
+        [data-testid="stSidebar"] [data-testid="stHeader"] + [data-testid="stHorizontalBlock"] {
+            margin-top: -25px;
+        }
+        /* Define the style for the results section container */
+        .results-container {
+            background-color: #e9ecef; /* A darker grey background */
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid #e6e6e6;
+        }
+    </style>
+    """, unsafe_allow_html=True)
     # Custom CSS to change header colors
     st.markdown("""
     <style>
@@ -82,6 +89,9 @@ def main():
         st.session_state.custom_constraints = templates[selected_template_name]["constraints"].copy()
         # Clear input widgets by setting a unique key for each
         st.session_state.widget_key_suffix = st.session_state.get('widget_key_suffix', 0) + 1
+        # Clear manual mapping when template changes
+        if 'manual_mapping' in st.session_state:
+            del st.session_state['manual_mapping']
 
     # Initialize ab_ratios and custom_constraints in session state if not already present
     if "ab_ratios" not in st.session_state:
@@ -191,7 +201,6 @@ def main():
     # Logic to handle uploaded files and extract dose references
     rtplan_file_path = None
     if uploaded_files:
-        st.header("Optional Parameters") # New header
         with st.expander("Optional Inputs", expanded=True):
             ebrt_dose = st.number_input("EBRT Dose (Gy)", value=0.0)
             previous_brachy_data_file = st.file_uploader("Upload previous brachytherapy data (optional)", type=["html", "json"])
@@ -201,6 +210,14 @@ def main():
         st.sidebar.write(f"{ebrt_dose} Gy")
 
         with tempfile.TemporaryDirectory() as tmpdir:
+            # Create a unique key for the temporary directory based on uploaded file names
+            # This helps ensure that when files change, we re-process them.
+            uploaded_file_key = "_".join(sorted([f.name for f in uploaded_files]))
+            if st.session_state.get("last_uploaded_files") != uploaded_file_key:
+                st.session_state.last_uploaded_files = uploaded_file_key
+                if "manual_mapping" in st.session_state:
+                    del st.session_state.manual_mapping # Clear mapping on new file upload
+
             rtdose_dir = os.path.join(tmpdir, "RTDOSE")
             rtstruct_dir = os.path.join(tmpdir, "RTst")
             rtplan_dir = os.path.join(tmpdir, "RTPLAN")
@@ -245,10 +262,13 @@ def main():
                 if 'manual_mapping' not in st.session_state:
                     st.session_state.manual_mapping = {}
 
-                for dicom_point, clinical_point in dose_point_mapping:
-                    if dicom_point not in st.session_state.manual_mapping:
-                        st.session_state.manual_mapping[dicom_point] = clinical_point
-
+                # Initialize manual_mapping with automatic mappings, but prioritize existing session state
+                # This ensures user overrides are kept during a re-run, but auto-mapping is applied once.
+                auto_mapping_dict = dose_point_mapping.copy()
+                # Merge dictionaries: manual_mapping (user choices) overwrites auto_mapping
+                merged_mapping = {**auto_mapping_dict, **st.session_state.manual_mapping}
+                st.session_state.manual_mapping = merged_mapping
+                
                 for dicom_point in st.session_state.available_point_names:
                     col1, col2 = st.columns([1, 2])
                     
@@ -263,15 +283,17 @@ def main():
                         except ValueError:
                             current_index = 0
 
-                        new_mapping = st.selectbox(
+                        # The selectbox's value is automatically managed by Streamlit via its key
+                        st.selectbox(
                             f"Map '{dicom_point}' to:",
                             options=clinical_point_names,
                             index=current_index,
-                            key=f"map_{dicom_point}",
+                            key=f"map_{dicom_point}", # The key links this widget to session state
                             label_visibility="collapsed"
                         )
                         
-                        st.session_state.manual_mapping[dicom_point] = new_mapping
+                        # Update our manual_mapping dict from the widget's state
+                        st.session_state.manual_mapping[dicom_point] = st.session_state[f"map_{dicom_point}"]
 
                 manual_dose_point_mapping = [(k, v) for k, v in st.session_state.manual_mapping.items() if v != "N/A"]
                 # --- END: New Manual Mapping Section ---
@@ -297,7 +319,9 @@ def main():
 
     if st.button("Run Analysis"):
         if uploaded_files:
-            st.write([file.name for file in uploaded_files])
+            # Add a debug statement here to check the final mapping being sent
+            st.write("DEBUG: Data being sent to analysis -> dose_point_mapping =", manual_dose_point_mapping)
+            
             with tempfile.TemporaryDirectory() as tmpdir_analysis:
                 rtdose_dir_analysis = os.path.join(tmpdir_analysis, "RTDOSE")
                 rtstruct_dir_analysis = os.path.join(tmpdir_analysis, "RTst")
@@ -416,22 +440,37 @@ def main():
                                         constraint_status = "Met" if results["constraint_evaluation"][organ]["EQD2_met"] == "True" else "NOT Met"
                                         dose_to_meet = data.get("dose_to_meet_constraint", "N/A")
 
+                                    # D0.1cc row
                                     oar_dvh_data.append({
-                                        "Organ": organ, "Volume (cc)": data["volume_cc"], "Dose Metric": "D0.1cc",
-                                        "Dose (Gy)": data["d0_1cc_gy_per_fraction"], "BED (Gy)": data["bed_d0_1cc"],
-                                        "EQD2 (Gy)": data["eqd2_d0_1cc"], "Dose to Meet Constraint (Gy)": "",
+                                        "Organ": organ,
+                                        "Volume (cc)": data["volume_cc"],
+                                        "Dose Metric": "D0.1cc",
+                                        "Dose (Gy)": data["d0_1cc_gy_per_fraction"],
+                                        "BED (Gy)": data["bed_d0_1cc"],
+                                        "EQD2 (Gy)": data["eqd2_d0_1cc"],
+                                        "Dose to Meet Constraint (Gy)": "",
                                         "Constraint Status": constraint_status
                                     })
+                                    # D1cc row
                                     oar_dvh_data.append({
-                                        "Organ": organ, "Volume (cc)": "", "Dose Metric": "D1cc",
-                                        "Dose (Gy)": data["d1cc_gy_per_fraction"], "BED (Gy)": data["bed_d1cc"],
-                                        "EQD2 (Gy)": data["eqd2_d1cc"], "Dose to Meet Constraint (Gy)": "",
+                                        "Organ": organ,
+                                        "Volume (cc)": None,
+                                        "Dose Metric": "D1cc",
+                                        "Dose (Gy)": data["d1cc_gy_per_fraction"],
+                                        "BED (Gy)": data["bed_d1cc"],
+                                        "EQD2 (Gy)": data["eqd2_d1cc"],
+                                        "Dose to Meet Constraint (Gy)": "",
                                         "Constraint Status": constraint_status
                                     })
+                                    # D2cc row
                                     oar_dvh_data.append({
-                                        "Organ": organ, "Volume (cc)": "", "Dose Metric": "D2cc",
-                                        "Dose (Gy)": data["d2cc_gy_per_fraction"], "BED (Gy)": data["bed_d2cc"],
-                                        "EQD2 (Gy)": data["eqd2_d2cc"], "Dose to Meet Constraint (Gy)": dose_to_meet,
+                                        "Organ": organ,
+                                        "Volume (cc)": None,
+                                        "Dose Metric": "D2cc",
+                                        "Dose (Gy)": data["d2cc_gy_per_fraction"],
+                                        "BED (Gy)": data["bed_d2cc"],
+                                        "EQD2 (Gy)": data["eqd2_d2cc"],
+                                        "Dose to Meet Constraint (Gy)": dose_to_meet,
                                         "Constraint Status": constraint_status
                                     })
                             
@@ -471,9 +510,9 @@ def main():
 
                             def style_point_dose_rows(row):
                                 style = [''] * len(row)
-                                if 'Status' in row and row['Status'] == 'Pass':
+                                if 'Constraint Status' in row and row['Constraint Status'] == 'Pass':
                                     style = ['background-color: #28a745; color: white'] * len(row)
-                                elif 'Status' in row and row['Status'] == 'Fail':
+                                elif 'Constraint Status' in row and row['Constraint Status'] == 'Fail':
                                     style = ['background-color: #dc3545; color: white'] * len(row)
                                 return style
 

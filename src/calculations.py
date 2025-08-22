@@ -43,6 +43,48 @@ def calculate_contour_volumes(rtstruct_file, structure_data):
         volumes[normalized_name] = total_volume_mm3 / 1000.0
     return volumes
 
+def get_dose_at_point(dose_grid, dose_scaling, image_position_patient, pixel_spacing, grid_frame_offset_vector, point_coordinates):
+    """Calculates the dose at a specific 3D point within the dose grid."""
+    if dose_grid is None or not point_coordinates:
+        return 0.0
+
+    # Extract point coordinates
+    point_x, point_y, point_z = point_coordinates
+
+    # Extract dose grid origin and spacing
+    origin_x, origin_y, origin_z = image_position_patient
+    spacing_x, spacing_y = pixel_spacing
+
+    # Determine z-spacing from GridFrameOffsetVector
+    # Assuming uniform z-spacing for simplicity, or handling non-uniform if necessary
+    if len(grid_frame_offset_vector) > 1:
+        spacing_z = grid_frame_offset_vector[1] - grid_frame_offset_vector[0]
+    else:
+        # If only one slice, assume a default z-spacing or handle as error
+        # For now, let's assume a reasonable default if only one slice is present
+        # This might need to be refined based on actual DICOM data characteristics
+        spacing_z = 1.0 # Placeholder, ideally this should be derived or provided
+
+    # Convert patient coordinates to voxel coordinates
+    voxel_x = (point_x - origin_x) / spacing_x
+    voxel_y = (point_y - origin_y) / spacing_y
+    voxel_z = (point_z - grid_frame_offset_vector[0]) / spacing_z
+
+    # Round to nearest integer for nearest-neighbor interpolation
+    idx_x = int(round(voxel_x))
+    idx_y = int(round(voxel_y))
+    idx_z = int(round(voxel_z))
+
+    # Check for out-of-bounds
+    if not (0 <= idx_x < dose_grid.shape[2] and
+            0 <= idx_y < dose_grid.shape[1] and
+            0 <= idx_z < dose_grid.shape[0]):
+        return 0.0
+
+    # Get dose value and apply scaling
+    dose_value = dose_grid[idx_z, idx_y, idx_x] * dose_scaling
+    return dose_value
+
 def calculate_d_volume(dvh, volume_cc):
     """Calculates the dose to a specific volume from a DVH object."""
     if dvh is None or dvh.volume == 0:
