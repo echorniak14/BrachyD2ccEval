@@ -14,7 +14,7 @@ This project aims to automate and streamline the evaluation process for HDR brac
 - **BED/EQD2 Calculation:** Computes Biologically Effective Dose (BED) and Equivalent Dose in 2 Gy fractions (EQD2) for various organs, incorporating user-defined alpha/beta ratios and optional EBRT doses.
 - **Constraint Evaluation:** Evaluates calculated doses against EMBRACE II constraints, with visual indicators (red/green) in the GUI and reports.
 - **Plan Type-Based Constraint Management:** Dynamically manages and applies constraints based on predefined plan types, allowing for flexible and accurate evaluation across different treatment scenarios.
-
+- **Automatic Prescription Point Mapping (Cylinder Plans):** Automatically identifies and maps specific prescription points (e.g., 'Tip', 'Shoulder', '3cm') in cylinder brachytherapy plans based on DICOM tags (`ApplicationSetupType`). These points are automatically pre-selected in the Streamlit GUI's dose point mapping section.
 - **Dose to Meet Constraint Calculation:** For unmet constraints, calculates the highest fractional brachytherapy dose needed to meet the constraint, providing actionable feedback.
 - **EBRT Integration:** Allows for the inclusion of external beam radiation therapy doses in the BED/EQD2 calculations.
 - **Robust File Path Handling:** Utilizes `pathlib` for reliable handling of file paths across different operating systems, including those with special characters.
@@ -30,7 +30,7 @@ This project aims to automate and streamline the evaluation process for HDR brac
 - **JSON Data Export/Import:**
     - Export current plan's DVH and point dose data to a JSON file, specifically designed for re-importing as "previous brachytherapy data" for multi-fraction dose accumulation.
     - Import previous brachytherapy data from either HTML reports or the newly defined JSON format.
-- **Interactive Dose Point Mapping:** Provides a user-friendly interface to manually map DICOM RT Plan points to clinical constraints using dropdown menus, offering greater control and flexibility over the evaluation process.
+- **Interactive Dose Point Mapping:** Provides a user-friendly interface to manually map DICOM RT Plan points to clinical constraints using dropdown menus, offering greater control and flexibility over the evaluation process, now enhanced with automatic pre-selection for cylinder plan prescription points.
 
 
 ## Core Concepts
@@ -67,6 +67,8 @@ The `calculations.py` file contains the core logic for all dosimetric calculatio
     *   The alpha/beta ratio for the organ is retrieved from the `config.py` file.
     *   The BED for the current brachytherapy plan, EBRT, and any previous brachytherapy fractions are calculated and summed to determine the total accumulated BED.
     *   The total BED is then used to calculate the final accumulated EQD2 value.
+*   **Dose at Specific Points:**
+    *   The `get_dose_at_point` function calculates the dose at a given 3D coordinate within the dose grid. This is used for evaluating prescription points in cylinder plans.
 *   **Constraint Evaluation:**
     *   The `evaluate_constraints` function compares the calculated EQD2 values against the constraints defined in `config.py` (or user-defined constraints from the GUI).
     *   It returns a dictionary indicating whether the constraints for each organ have been met.
@@ -130,7 +132,7 @@ python main.py --data_dir "C:\Users\echorniak\GIT\BrachyD2ccEval\sample_data\Jan
 
 ## Configuration
 
-Alpha/beta ratios, plan types, and their associated point dose constraints are configured in `config.py`. You can modify these values to suit your specific requirements.
+Alpha/beta ratios, plan types, and their associated point dose constraints are configured in `config.py`. This includes specific `point_dose_constraints` for "Prescription Point" within the "Cylinder HDR" template, which are used for automatic evaluation of cylinder plan prescription points. You can modify these values to suit your specific requirements.
 
 
 ## Development Notes

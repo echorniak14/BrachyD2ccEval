@@ -109,7 +109,6 @@ def main():
     ebrt_dose = 0.0
     previous_brachy_data_file = None
     wkhtmltopdf_path = ""
-    manual_dose_point_mapping = [] # Initialize here to ensure it's always available
 
     if st.session_state.current_template_name == "Custom":
         with st.expander("Customize Template", expanded=True):
@@ -294,9 +293,7 @@ def main():
                         
                         # Update our manual_mapping dict from the widget's state
                         st.session_state.manual_mapping[dicom_point] = st.session_state[f"map_{dicom_point}"]
-
-                manual_dose_point_mapping = [(k, v) for k, v in st.session_state.manual_mapping.items() if v != "N/A"]
-                # --- END: New Manual Mapping Section ---
+        # --- END: New Manual Mapping Section ---
                 
             else:
                 st.session_state.available_point_names = []
@@ -319,17 +316,27 @@ def main():
 
     if st.button("Run Analysis"):
         if uploaded_files:
-            # Add a debug statement here to check the final mapping being sent
-            st.write("DEBUG: Data being sent to analysis -> dose_point_mapping =", manual_dose_point_mapping)
+
+            if uploaded_files:
+                # Create the final mapping list from session state RIGHT BEFORE analysis
+                manual_dose_point_mapping = [(k, v) for k, v in st.session_state.get('manual_mapping', {}).items() if v != "N/A"]
+
+                # st.write([file.name for file in uploaded_files])
             
             with tempfile.TemporaryDirectory() as tmpdir_analysis:
+                for uploaded_file in uploaded_files:
+                    file_path = os.path.join(tmpdir_analysis, uploaded_file.name)
+                    uploaded_file.seek(0)
+                    with open(file_path, "wb") as f:
+                        f.write(uploaded_file.getbuffer())
+
                 rtdose_dir_analysis = os.path.join(tmpdir_analysis, "RTDOSE")
                 rtstruct_dir_analysis = os.path.join(tmpdir_analysis, "RTst")
                 rtplan_dir_analysis = os.path.join(tmpdir_analysis, "RTPLAN")
 
-                os.makedirs(rtdose_dir_analysis)
-                os.makedirs(rtstruct_dir_analysis)
-                os.makedirs(rtplan_dir_analysis)
+                os.makedirs(rtdose_dir_analysis, exist_ok=True)
+                os.makedirs(rtstruct_dir_analysis, exist_ok=True)
+                os.makedirs(rtplan_dir_analysis, exist_ok=True)
 
                 rtdose_path = None
                 rtstruct_path = None
@@ -481,26 +488,72 @@ def main():
 
                             st.subheader("OAR DVH Results")
                             if oar_dvh_data:
-                                oar_df = pd.DataFrame(oar_dvh_data)
+                                # Create a new list with the desired structure (spanning effect)
+                                restructured_data = []
+                                # Initial DataFrame to make grouping easier
+                                temp_oar_df = pd.DataFrame(oar_dvh_data)
                                 
-                                def highlight_constraint_status(row):
-                                    organ = row["Organ"]
-                                    eqd2_value = row["EQD2 (Gy)"]
-                                    current_constraints = st.session_state.custom_constraints
+                                for organ_name in temp_oar_df['Organ'].unique():
+                                    organ_group = temp_oar_df[temp_oar_df['Organ'] == organ_name]
                                     
-                                    if row["Dose Metric"] == "D2cc" and organ in current_constraints and "D2cc" in current_constraints[organ]:
-                                        constraint_data = current_constraints[organ]["D2cc"]
-                                        max_constraint = constraint_data["max"]
-                                        warning_constraint = constraint_data.get("warning")
+                                    # Row 1 (D0.1cc)
+                                    d0_1cc_row = organ_group[organ_group['Dose Metric'] == 'D0.1cc']
+                                    if not d0_1cc_row.empty:
+                                        restructured_data.append(d0_1cc_row.iloc[0].to_dict())
+                                    
+                                    # Row 2 (D1cc)
+                                    d1cc_row = organ_group[organ_group['Dose Metric'] == 'D1cc']
+                                    if not d1cc_row.empty:
+                                        row_data = d1cc_row.iloc[0].to_dict()
+                                        row_data['Organ'] = organ_name
+                                        row_data['Volume (cc)'] = None
+                                        restructured_data.append(row_data)
 
-                                        if eqd2_value > max_constraint:
-                                            return ['background-color: #dc3545; color: white'] * len(row)
-                                        elif warning_constraint is not None and eqd2_value >= warning_constraint:
-                                            return ['background-color: #ffc107; color: black'] * len(row)
-                                        return ['background-color: #28a745; color: white'] * len(row)
-                                    return ['background-color: transparent'] * len(row)
+                                    # Row 3 (D2cc)
+                                    d2cc_row = organ_group[organ_group['Dose Metric'] == 'D2cc']
+                                    if not d2cc_row.empty:
+                                        row_data = d2cc_row.iloc[0].to_dict()
+                                        row_data['Organ'] = organ_name
+                                        row_data['Volume (cc)'] = None
+                                        restructured_data.append(row_data)
 
-                                st.dataframe(oar_df.style.apply(highlight_constraint_status, axis=1))
+                                if restructured_data:
+                                    final_oar_df = pd.DataFrame(restructured_data)
+
+                                    # This styling function works on the whole table at once (axis=None)
+                                    def style_oar_rows(df):
+                                        styles = pd.DataFrame('', index=df.index, columns=df.columns)
+                                        organ_groups = df['Organ'].ffill()
+                                        current_constraints = st.session_state.custom_constraints
+
+                                        for organ_name in organ_groups.unique():
+                                            group_indices = df[organ_groups == organ_name].index
+                                            d2cc_row_df = df.loc[group_indices]
+                                            d2cc_row_df = d2cc_row_df[d2cc_row_df['Dose Metric'] == 'D2cc']
+                                            
+                                            if not d2cc_row_df.empty:
+                                                # Get the specific index of the D2cc row
+                                                d2cc_index = d2cc_row_df.index[0]
+                                                eqd2_value = d2cc_row_df['EQD2 (Gy)'].iloc[0]
+
+                                                if pd.notna(eqd2_value) and organ_name in current_constraints and "D2cc" in current_constraints[organ_name]:
+                                                    constraint_data = current_constraints[organ_name]['D2cc']
+                                                    max_val = constraint_data['max']
+                                                    warn_val = constraint_data.get('warning')
+                                                    
+                                                    style_str = ''
+                                                    if eqd2_value > max_val:
+                                                        style_str = 'background-color: #dc3545; color: white'
+                                                    elif warn_val is not None and eqd2_value >= warn_val:
+                                                        style_str = 'background-color: #ffc107; color: black'
+                                                    else:
+                                                        style_str = 'background-color: #28a745; color: white'
+                                                    
+                                                    # Apply the style ONLY to the D2cc row's index
+                                                    styles.loc[d2cc_index] = style_str
+                                        return styles
+
+                                    st.dataframe(final_oar_df.style.apply(style_oar_rows, axis=None))
                             else:
                                 st.info("No OAR DVH data available.")
 

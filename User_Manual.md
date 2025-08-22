@@ -11,7 +11,8 @@ The BrachyD2ccEval tool is a software application designed to streamline the eva
 *   Integration of External Beam Radiation Therapy (EBRT) and previous brachytherapy doses.
 *   Evaluation of treatment plans against predefined constraints (based on EMBRACE II).
 *   **Plan Type-Based Constraint Management:** Dynamically manages and applies constraints based on predefined plan types, allowing for flexible and accurate evaluation across different treatment scenarios.
-*   **Interactive Dose Point Mapping:** Provides a user-friendly interface to manually map DICOM RT Plan points to clinical constraints using dropdown menus, offering greater control and flexibility over the evaluation process.
+*   **Interactive Dose Point Mapping:** Provides a user-friendly interface to manually map DICOM RT Plan points to clinical constraints using dropdown menus, offering greater control and flexibility over the evaluation process, now enhanced with automatic pre-selection for cylinder plan prescription points.
+*   **Automatic Prescription Point Mapping (Cylinder Plans):** Automatically identifies and maps specific prescription points (e.g., 'Tip', 'Shoulder', '3cm') in cylinder brachytherapy plans based on DICOM tags (`ApplicationSetupType`). These points are automatically pre-selected in the Streamlit GUI's dose point mapping section.
 *   Generation of a clear and concise report in both HTML and PDF formats.
 
 
@@ -42,7 +43,7 @@ streamlit run src/streamlit_gui.py
     *   **EBRT Dose (Gy):** Enter the prescribed dose of the external beam radiation therapy in Gray (Gy).
     *   **Upload previous brachytherapy data:** Upload a previous brachytherapy evaluation report (HTML or JSON format) to incorporate its EQD2 values for dose accumulation.
     *   **Path to wkhtmltopdf.exe (optional):** Specify the path to the `wkhtmltopdf` executable if it's not in your system's PATH.
-*   **Dose Point to Constraint Mapping:** After uploading RTPLAN files, an interactive section will appear allowing you to manually map DICOM RT Plan points to specific clinical constraints using dropdown menus, providing fine-grained control over which points are used for analysis.
+*   **Dose Point to Constraint Mapping:** After uploading RTPLAN files, an interactive section will appear allowing you to manually map DICOM RT Plan points to specific clinical constraints using dropdown menus, providing fine-grained control over which points are used for analysis. For cylinder plans, certain prescription points (e.g., 'Tip', 'Shoulder', '3cm') will be automatically pre-selected to the "Prescription Point" constraint.
 *   **Run Analysis:** Once all required files are uploaded and parameters are set, click this button to start the evaluation process.
 *   **Results Tabs:** The results are displayed in three tabs: "DVH Results", "Point Dose Results", and "Report".
 
@@ -55,7 +56,7 @@ streamlit run src/streamlit_gui.py
     *   Enter the **EBRT Dose (Gy)**.
     *   Upload **previous brachytherapy data** (HTML or JSON) for dose accumulation.
     *   Optionally, provide the **Path to wkhtmltopdf.exe** if PDF generation fails.
-5.  **Map Dose Points (if RTPLAN uploaded):** If an RTPLAN file was uploaded, a "Dose Point to Constraint Mapping" section will appear. For each detected DICOM point, use the dropdown menu to assign it to a relevant clinical constraint (e.g., "Bladder D2cc", "Rectum D2cc") or "N/A" if it's not intended for analysis.
+5.  **Map Dose Points (if RTPLAN uploaded):** If an RTPLAN file was uploaded, a "Dose Point to Constraint Mapping" section will appear. For each detected DICOM point, use the dropdown menu to assign it to a relevant clinical constraint (e.g., "Bladder D2cc", "Rectum D2cc") or "N/A" if it's not intended for analysis. For cylinder plans, certain prescription points will be automatically pre-selected to the "Prescription Point" constraint.
 6.  **Run Analysis:** Click the "Run Analysis" button.
 7.  **View Results:** The results will be displayed in three tabs:
     *   **DVH Results:** Shows detailed DVH data for target volumes and OARs. OARs will have conditional styling (green/yellow/red) based on constraint adherence.

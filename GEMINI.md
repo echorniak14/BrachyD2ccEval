@@ -132,4 +132,11 @@ This file is for internal use by the Gemini CLI agent to track project progress,
     - Implemented functionality to incorporate previous brachytherapy EQD2 data from HTML reports, allowing for organ-specific dose accumulation.
 - **Dose to Meet Constraint Calculation:**
     - Implemented functionality to calculate the highest fractional dose needed to meet any unmet constraints.
+- **Automatic Prescription Point Mapping (Cylinder Plans):**
+    - Modified `src/dicom_parser.py` to identify cylinder plans based on `ApplicationSetupType` and extract specific prescription points (e.g., 'Tip', 'Shoulder', '3cm').
+    - Added `get_dose_at_point` function to `src/calculations.py` to calculate dose at these specific 3D coordinates.
+    - Integrated the calculation of doses at prescription points into `src/main.py`.
+    - Updated `src/streamlit_gui.py` to automatically pre-select "Prescription Point" in the dose point mapping section for identified cylinder plan prescription points.
+    - Debugged and resolved indentation and mapping issues in `src/streamlit_gui.py` to ensure correct automatic pre-selection.
+    - Reverted changes to the HTML report related to displaying prescription point doses as per user request.
 
