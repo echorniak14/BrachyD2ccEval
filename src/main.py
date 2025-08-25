@@ -260,6 +260,8 @@ def main(args, selected_point_names=None, custom_constraints=None, dose_point_ma
         "patient_name": str(rt_dose_dataset.PatientName),
         "patient_mrn": str(rt_dose_dataset.PatientID),
         "plan_name": plan_data.get('plan_name', 'N/A'),
+        "plan_date": plan_data.get('plan_date', 'N/A'),
+        "plan_time": plan_data.get('plan_time', 'N/A'),
         "channel_mapping": plan_data.get('channel_mapping', []),
         "brachy_dose_per_fraction": brachy_dose_per_fraction,
         "number_of_fractions": number_of_fractions,

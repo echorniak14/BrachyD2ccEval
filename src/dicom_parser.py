@@ -81,6 +81,10 @@ def get_plan_data(rtplan_file):
         plan_name = ds.SeriesDescription
     plan_data['plan_name'] = plan_name
 
+    # Get Plan Date and Time
+    plan_data['plan_date'] = getattr(ds, 'RTPlanDate', 'N/A')
+    plan_data['plan_time'] = getattr(ds, 'RTPlanTime', 'N/A')
+
     # Get Number of Fractions and Dose per Fraction
     if hasattr(ds, 'FractionGroupSequence') and len(ds.FractionGroupSequence) > 0:
         fraction_group = ds.FractionGroupSequence[0]

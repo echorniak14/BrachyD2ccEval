@@ -484,6 +484,15 @@ def main():
                             st.write(f"**Patient Name:** {results['patient_name']}")
                             st.write(f"**Patient MRN:** {results['patient_mrn']}")
                             st.write(f"**Plan Name:** {results['plan_name']}")
+                            # Reformat Plan Date (YYYYMMDD to MM-DD-YYYY)
+                            plan_date_str = results['plan_date']
+                            formatted_plan_date = f"{plan_date_str[4:6]}-{plan_date_str[6:8]}-{plan_date_str[0:4]}" if len(plan_date_str) == 8 else plan_date_str
+                            st.write(f"**Plan Date:** {formatted_plan_date}")
+
+                            # Reformat Plan Time (HHMMSS.ffffff to HH:MM:SS)
+                            plan_time_str = results['plan_time']
+                            formatted_plan_time = f"{plan_time_str[0:2]}:{plan_time_str[2:4]}:{plan_time_str[4:6]}" if len(plan_time_str) >= 6 else plan_time_str
+                            st.write(f"**Plan Time:** {formatted_plan_time}")
                             st.write(f"**Brachytherapy Dose per Fraction:** {results['brachy_dose_per_fraction']:.2f} Gy")
                             st.write(f"**Number of Fractions Used for Calculations:** {num_fractions_delivered}")
                             st.write(f"**Number of Planned Fractions:** {results['number_of_fractions']}")
@@ -670,6 +679,8 @@ def main():
                                 export_data = {
                                     "patient_name": results["patient_name"],
                                     "patient_mrn": results["patient_mrn"],
+                                    "plan_date": results["plan_date"],
+                                    "plan_time": results["plan_time"],
                                     "dvh_results": results["dvh_results"],
                                     "point_dose_results": results["point_dose_results"]
                                 }
