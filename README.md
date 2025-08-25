@@ -23,6 +23,7 @@ This project aims to automate and streamline the evaluation process for HDR brac
     - Input of EBRT dose and previous brachytherapy data (HTML or JSON).
     - Customizable alpha/beta ratios and EQD2 constraints.
     - Interactive display of DVH and Point Dose results with visual constraint indicators.
+    - **Channel Mapping Display:** Clearly shows the mapping between channel numbers and transfer tube numbers extracted from the RTPLAN file.
     - Downloadable HTML and PDF reports.
     - Export of current plan's brachytherapy data to JSON for multi-fraction dose accumulation.
 - **HTML Report Generation:** Generates a comprehensive HTML report summarizing the evaluation results, including patient information, DVH data, and constraint evaluation with visual indicators.

@@ -118,18 +118,19 @@ def get_plan_data(rtplan_file):
 
     # Get Channel Mapping Data
     plan_data['channel_mapping'] = []
-    if hasattr(ds, 'BrachyApplicationSetupSequence'):
-        for app_setup in ds.BrachyApplicationSetupSequence:
-            if hasattr(app_setup, 'SourceSequence'):
-                for source in app_setup.SourceSequence:
+    brachy_app_setup_sequence = ds.get((0x300a, 0x0230))
+    if brachy_app_setup_sequence:
+        for app_setup in brachy_app_setup_sequence:
+            if hasattr(app_setup, 'ChannelSequence'):
+                for channel_item in app_setup.ChannelSequence:
                     channel_info = {
-                        'channel_number': getattr(source, 'ChannelNumber', 'N/A'),
-                        'source_applicator_id': getattr(source, 'SourceApplicatorID', 'N/A'),
-                        'source_applicator_type': getattr(source, 'SourceApplicatorType', 'N/A'),
-                        'source_position': getattr(source, 'SourcePosition', 'N/A'),
-                        'source_dwell_time': getattr(source, 'SourceDwellTime', 'N/A'),
-                        'source_dwell_position': getattr(source, 'SourceDwellPosition', 'N/A'),
-                        'transfer_tube_number': getattr(source, 'TransferTubeNumber', 'N/A'),
+                        'channel_number': getattr(channel_item, 'ChannelNumber', 'N/A'),
+                        'source_applicator_id': getattr(channel_item, 'SourceApplicatorID', 'N/A'),
+                        'source_applicator_type': getattr(channel_item, 'SourceApplicatorType', 'N/A'),
+                        'source_position': getattr(channel_item, 'SourcePosition', 'N/A'),
+                        'source_dwell_time': getattr(channel_item, 'SourceDwellTime', 'N/A'),
+                        'source_dwell_position': getattr(channel_item, 'SourceDwellPosition', 'N/A'),
+                        'transfer_tube_number': getattr(channel_item, 'TransferTubeNumber', 'N/A'),
                     }
                     plan_data['channel_mapping'].append(channel_info)
 

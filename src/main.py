@@ -180,38 +180,59 @@ def main(args, selected_point_names=None, custom_constraints=None, dose_point_ma
 
     constraint_evaluation = evaluate_constraints(dvh_results, point_dose_results, constraints=current_constraints, point_dose_constraints=point_dose_constraints, dose_point_mapping=dose_point_mapping)
 
-    # Create lookup dictionaries for faster access
+    # --- START DEBUGGER BLOCK ---
     mapping_dict = {item[0]: item[1] for item in dose_point_mapping} if dose_point_mapping else {}
     point_dose_constraints = custom_constraints.get("point_dose_constraints", {}) if custom_constraints else {}
 
+    print("\n--- POINT DOSE DEBUGGER ---")
+    print(f"Mapping received: {mapping_dict}")
+    print(f"Point constraints available: {list(point_dose_constraints.keys())}")
+
     for pr in point_dose_results:
+        print(f"\nProcessing Point: '{pr['name']}'")
+        
         status_updated = False
         mapped_constraint_name = mapping_dict.get(pr['name'])
+        print(f" -> Mapped to: '{mapped_constraint_name}'")
 
-        # Prioritize the specific 'prescription_tolerance' check for mapped points
         if mapped_constraint_name and mapped_constraint_name in point_dose_constraints:
             constraint = point_dose_constraints[mapped_constraint_name]
+            print(f" -> Found Constraint: {constraint}")
             check_type = constraint.get("check_type")
 
             if check_type == "prescription_tolerance":
+                print(" -> Constraint type is 'prescription_tolerance'. Performing check.")
                 tolerance = constraint.get("tolerance", 0.0)
                 prescribed_dose = plan_data.get('brachy_dose_per_fraction', 0)
                 point_dose_per_fraction = pr['dose']
+                
+                print(f"    - Point Dose: {point_dose_per_fraction:.2f} Gy")
+                print(f"    - Prescribed Dose: {prescribed_dose:.2f} Gy")
+                print(f"    - Tolerance: {tolerance:.2f}")
 
                 if prescribed_dose > 0:
                     lower_bound = prescribed_dose * (1 - tolerance)
                     upper_bound = prescribed_dose * (1 + tolerance)
+                    print(f"    - Bounds: [{lower_bound:.2f}, {upper_bound:.2f}]")
                     if lower_bound <= point_dose_per_fraction <= upper_bound:
                         pr['Constraint Status'] = 'Pass'
                     else:
                         pr['Constraint Status'] = 'Fail'
                     status_updated = True
+                    print(f" -> Status updated to: '{pr['Constraint Status']}'")
+                else:
+                    print(" -> SKIPPED: Prescribed dose is 0, cannot evaluate tolerance.")
+            else:
+                print(f" -> SKIPPED: Constraint check_type is '{check_type}', not 'prescription_tolerance'.")
 
-        # If a specific check was not performed, fall back to the generic evaluation
         if not status_updated:
             point_eval_key = f"Point Dose - {pr['name']}"
             point_eval = constraint_evaluation.get(point_eval_key, {})
             pr['Constraint Status'] = point_eval.get('status', 'N/A')
+            print(f" -> No specific check performed. Falling back to generic status: '{pr['Constraint Status']}'")
+
+    print("--- END POINT DOSE DEBUGGER ---\n")
+    # --- END DEBUGGER BLOCK ---
 
 
     for organ, data in dvh_results.items():
@@ -229,6 +250,7 @@ def main(args, selected_point_names=None, custom_constraints=None, dose_point_ma
         "patient_name": str(rt_dose_dataset.PatientName),
         "patient_mrn": str(rt_dose_dataset.PatientID),
         "plan_name": plan_data.get('plan_name', 'N/A'),
+        "channel_mapping": plan_data.get('channel_mapping', []),
         "brachy_dose_per_fraction": brachy_dose_per_fraction,
         "number_of_fractions": number_of_fractions,
         "ebrt_dose": args.ebrt_dose,

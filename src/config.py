@@ -27,7 +27,7 @@ templates = {
         "point_dose_constraints": {
             "Point A": {"alpha_beta": 10, "report_only": True},
             "Bladder Point": {"alpha_beta": 3, "report_only": True},
-            "RV Point": {"alpha_beta": 3, "max_eqd2": 65.0, "unit": "Gy"}
+            "RV Point": {"alpha_beta": 3, "max_eqd2": 65.0, "unit": "Gy"},
         }
     },
     "Cervix HDR - ABS/GEC-Estro": {
@@ -56,7 +56,7 @@ templates = {
         "point_dose_constraints": {
             "Point A": {"alpha_beta": 10, "report_only": True},
             "Bladder Point": {"alpha_beta": 3, "report_only": True},
-            "RV Point": {"alpha_beta": 3, "max_eqd2": 65.0, "unit": "Gy"}
+            "RV Point": {"alpha_beta": 3, "max_eqd2": 65.0, "unit": "Gy"},
         }
     },
     "Cylinder HDR": {
@@ -104,6 +104,12 @@ templates = {
             "Rectum": {"D2cc": {"max": 70.0, "unit": "Gy"}},
             "Sigmoid": {"D2cc": {"max": 70.0, "unit": "Gy"}},
             "Bowel": {"D2cc": {"max": 65.0, "unit": "Gy"}}
+        },
+        "point_dose_constraints": {
+            "Prescription Point": {
+                "check_type": "prescription_tolerance",
+                "tolerance": 0.05  # This means +/- 5% of the prescribed dose
+            }
         }
     }
 }
