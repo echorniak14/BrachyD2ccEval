@@ -202,6 +202,22 @@ def main():
     # Logic to handle uploaded files and extract dose references
     rtplan_file_path = None
     if uploaded_files:
+        # --- Get patient info from the first DICOM file ---
+        if 'patient_info' not in st.session_state or st.session_state.get("last_uploaded_files") != "_".join(sorted([f.name for f in uploaded_files])):
+            try:
+                first_file = uploaded_files[0]
+                first_file.seek(0)
+                ds = pydicom.dcmread(first_file, stop_before_pixels=True)
+                st.session_state['patient_info'] = {
+                    "name": str(ds.PatientName),
+                    "mrn": str(ds.PatientID)
+                }
+                first_file.seek(0)
+            except Exception as e:
+                st.warning(f"Could not read patient information from DICOM files: {e}")
+                st.session_state['patient_info'] = {"name": "N/A", "mrn": "N/A"}
+        # --- End of new code ---
+
         with st.expander("Optional Inputs", expanded=True):
             # --- CORRECTED LOGIC TO FIND DEFAULT FRACTIONS ---
             default_num_fractions = 1
@@ -234,6 +250,22 @@ def main():
             ebrt_dose = st.number_input("EBRT Dose (Gy)", value=0.0)
 
             previous_brachy_data_file = st.file_uploader("Upload previous brachytherapy data (optional)", type=["html", "json"])
+            if previous_brachy_data_file is not None and previous_brachy_data_file.name.endswith('.json'):
+                try:
+                    # Make sure to be able to read the file multiple times
+                    previous_brachy_data_file.seek(0)
+                    json_content = json.loads(previous_brachy_data_file.read().decode("utf-8"))
+                    json_patient_name = json_content.get("patient_name", "N/A")
+                    json_patient_mrn = json_content.get("patient_mrn", "N/A")
+
+                    current_patient_name = st.session_state.get('patient_info', {}).get('name', 'N/A')
+                    current_patient_mrn = st.session_state.get('patient_info', {}).get('mrn', 'N/A')
+
+                    if json_patient_name != current_patient_name or json_patient_mrn != current_patient_mrn:
+                        st.warning(f"Patient mismatch! Current patient: {current_patient_name} ({current_patient_mrn}). JSON patient: {json_patient_name} ({json_patient_mrn}).")
+                    previous_brachy_data_file.seek(0)
+                except Exception as e:
+                    st.error(f"Error reading patient info from JSON file: {e}")
             wkhtmltopdf_path = st.text_input("Path to wkhtmltopdf.exe (optional)")
 
         st.sidebar.subheader("EBRT Dose")
@@ -628,6 +660,8 @@ def main():
                                 st.components.v1.html(html_report, height=600, scrolling=True)
                                 
                                 export_data = {
+                                    "patient_name": results["patient_name"],
+                                    "patient_mrn": results["patient_mrn"],
                                     "dvh_results": results["dvh_results"],
                                     "point_dose_results": results["point_dose_results"]
                                 }
