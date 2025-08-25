@@ -109,6 +109,8 @@ def main():
     ebrt_dose = 0.0
     previous_brachy_data_file = None
     wkhtmltopdf_path = ""
+    num_fractions_delivered = 1
+
 
     if st.session_state.current_template_name == "Custom":
         with st.expander("Customize Template", expanded=True):
@@ -202,6 +204,35 @@ def main():
     if uploaded_files:
         with st.expander("Optional Inputs", expanded=True):
             ebrt_dose = st.number_input("EBRT Dose (Gy)", value=0.0)
+            
+            # --- CORRECTED LOGIC TO FIND DEFAULT FRACTIONS ---
+            default_num_fractions = 1
+            for uploaded_file in uploaded_files:
+                try:
+                    # Use seek(0) to ensure we read from the beginning
+                    uploaded_file.seek(0)
+                    ds = pydicom.dcmread(uploaded_file, stop_before_pixels=True)
+
+                    if ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.481.5': # RT Plan Storage
+                        if hasattr(ds, 'FractionGroupSequence') and ds.FractionGroupSequence:
+                            default_num_fractions = ds.FractionGroupSequence[0].NumberOfFractionsPlanned
+                        break # Found the plan, no need to check other files
+                except Exception:
+                    # This file is not a readable DICOM or not the one we're looking for, continue
+                    continue
+                finally:
+                    # IMPORTANT: Reset the file pointer so it can be read again later
+                    uploaded_file.seek(0)
+            # --- END CORRECTED LOGIC ---
+
+            num_fractions_delivered = st.number_input(
+                "Number of Fractions Delivered",
+                value=default_num_fractions,
+                min_value=1,
+                step=1,
+                key="num_fractions_delivered_input"
+            )
+
             previous_brachy_data_file = st.file_uploader("Upload previous brachytherapy data (optional)", type=["html", "json"])
             wkhtmltopdf_path = st.text_input("Path to wkhtmltopdf.exe (optional)")
 
@@ -227,6 +258,7 @@ def main():
 
             for uploaded_file in uploaded_files:
                 file_path = os.path.join(tmpdir, uploaded_file.name)
+                uploaded_file.seek(0)
                 with open(file_path, "wb") as f:
                     f.write(uploaded_file.getbuffer())
 
@@ -344,6 +376,7 @@ def main():
 
                 for uploaded_file in uploaded_files:
                     file_path = os.path.join(tmpdir_analysis, uploaded_file.name)
+                    uploaded_file.seek(0)
                     with open(file_path, "wb") as f:
                         f.write(uploaded_file.getbuffer())
 
@@ -384,10 +417,10 @@ def main():
                         output_html=os.path.join(tmpdir_analysis, "report.html"),
                         alpha_beta_ratios=ab_ratios,
                         selected_point_names=st.session_state.selected_point_names,
-                        custom_constraints=templates[st.session_state.current_template_name]
+                        custom_constraints=templates[st.session_state.current_template_name],
                     )
 
-                    results = run_analysis(args, selected_point_names=st.session_state.selected_point_names, dose_point_mapping=manual_dose_point_mapping, custom_constraints=args.custom_constraints)
+                    results = run_analysis(args, selected_point_names=st.session_state.selected_point_names, dose_point_mapping=manual_dose_point_mapping, custom_constraints=args.custom_constraints, num_fractions_delivered=num_fractions_delivered)
 
                     # --- Start Channel Mapping Validation ---
                     if selected_template_name == "Cylinder HDR":

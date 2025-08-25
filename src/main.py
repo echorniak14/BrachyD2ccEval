@@ -101,7 +101,7 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
     
     return html_content
 
-def main(args, selected_point_names=None, custom_constraints=None, dose_point_mapping=None):
+def main(args, selected_point_names=None, custom_constraints=None, dose_point_mapping=None, num_fractions_delivered=None):
     data_dir = Path(args.data_dir)
 
     if hasattr(args, 'alpha_beta_ratios') and args.alpha_beta_ratios:
@@ -140,6 +140,10 @@ def main(args, selected_point_names=None, custom_constraints=None, dose_point_ma
     plan_data = get_plan_data(plan_file)
     number_of_fractions = plan_data.get('number_of_fractions', 1)
     brachy_dose_per_fraction = plan_data.get('brachy_dose_per_fraction', 0)
+    
+    # If a specific number of delivered fractions is provided, it overrides the value from the plan.
+    if num_fractions_delivered is not None:
+        number_of_fractions = num_fractions_delivered
     
     structure_data = get_structure_data(rt_struct_dataset)
 
