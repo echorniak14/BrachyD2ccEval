@@ -36,6 +36,11 @@ def main():
             border-radius: 10px;
             border: 1px solid #e6e6e6;
         }
+        /* Style for expander headers to match h2 */
+        summary > div[data-testid="stMarkdownContainer"] p {
+            font-size: 1.5rem; /* Equivalent to h2 font size */
+            font-weight: 600; /* Equivalent to h2 font weight */
+        }
     </style>
     """, unsafe_allow_html=True)
     # Custom CSS to change header colors
@@ -317,48 +322,45 @@ def main():
                 
                 dose_point_mapping = get_dose_point_mapping(rtplan_file_path, point_dose_constraints)
                 
-                st.subheader("Dose Point to Constraint Mapping")
+                with st.expander("Dose Point to Constraint Mapping"):
+                    # --- START: New Manual Mapping Section ---
+                    clinical_point_names = ["N/A"] + list(point_dose_constraints.keys())
 
-                # --- START: New Manual Mapping Section ---
-                clinical_point_names = ["N/A"] + list(point_dose_constraints.keys())
+                    if 'manual_mapping' not in st.session_state:
+                        st.session_state.manual_mapping = {}
 
-                if 'manual_mapping' not in st.session_state:
-                    st.session_state.manual_mapping = {}
-
-                # Initialize manual_mapping with automatic mappings, but prioritize existing session state
-                # This ensures user overrides are kept during a re-run, but auto-mapping is applied once.
-                auto_mapping_dict = dose_point_mapping.copy()
-                # Merge dictionaries: manual_mapping (user choices) overwrites auto_mapping
-                merged_mapping = {**auto_mapping_dict, **st.session_state.manual_mapping}
-                st.session_state.manual_mapping = merged_mapping
-                
-                for dicom_point in st.session_state.available_point_names:
-                    col1, col2 = st.columns([1, 2])
+                    # Initialize manual_mapping with automatic mappings, but prioritize existing session state
+                    # This ensures user overrides are kept during a re-run, but auto-mapping is applied once.
+                    auto_mapping_dict = dose_point_mapping.copy()
+                    # Merge dictionaries: manual_mapping (user choices) overwrites auto_mapping
+                    merged_mapping = {**auto_mapping_dict, **st.session_state.manual_mapping}
+                    st.session_state.manual_mapping = merged_mapping
                     
-                    with col1:
-                        st.write(f"**{dicom_point}**")
+                    for dicom_point in st.session_state.available_point_names:
+                        col1, col2 = st.columns([1, 2])
                         
-                    with col2:
-                        current_mapping = st.session_state.manual_mapping.get(dicom_point, "N/A")
-                        
-                        try:
-                            current_index = clinical_point_names.index(current_mapping)
-                        except ValueError:
-                            current_index = 0
+                        with col1:
+                            st.write(f"**{dicom_point}**")
+                            
+                        with col2:
+                            current_mapping = st.session_state.manual_mapping.get(dicom_point, "N/A")
+                            
+                            try:
+                                current_index = clinical_point_names.index(current_mapping)
+                            except ValueError:
+                                current_index = 0
 
-                        # The selectbox's value is automatically managed by Streamlit via its key
-                        st.selectbox(
-                            f"Map '{dicom_point}' to:",
-                            options=clinical_point_names,
-                            index=current_index,
-                            key=f"map_{dicom_point}", # The key links this widget to session state
-                            label_visibility="collapsed"
-                        )
-                        
-                        # Update our manual_mapping dict from the widget's state
-                        st.session_state.manual_mapping[dicom_point] = st.session_state[f"map_{dicom_point}"]
-        # --- END: New Manual Mapping Section ---
-                
+                            # The selectbox's value is automatically managed by Streamlit via its key
+                            st.selectbox(
+                                f"Map '{dicom_point}' to:",
+                                options=clinical_point_names,
+                                index=current_index,
+                                key=f"map_{dicom_point}", # The key links this widget to session state
+                                label_visibility="collapsed"
+                            )
+                            
+                            # Update our manual_mapping dict from the widget's state
+                            st.session_state.manual_mapping[dicom_point] = st.session_state[f"map_{dicom_point}"]
             else:
                 st.session_state.available_point_names = []
     else:
