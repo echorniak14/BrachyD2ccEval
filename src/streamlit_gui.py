@@ -41,7 +41,7 @@ def main():
     # Custom CSS to change header colors
     st.markdown("""
     <style>
-    h1, h2, h3, h4, h5, h6 {
+    h1, h2, h3, h4, h5, h6, summary {
         color: #FF5733 !important;
     }
     </style>
@@ -203,8 +203,6 @@ def main():
     rtplan_file_path = None
     if uploaded_files:
         with st.expander("Optional Inputs", expanded=True):
-            ebrt_dose = st.number_input("EBRT Dose (Gy)", value=0.0)
-            
             # --- CORRECTED LOGIC TO FIND DEFAULT FRACTIONS ---
             default_num_fractions = 1
             for uploaded_file in uploaded_files:
@@ -226,12 +224,14 @@ def main():
             # --- END CORRECTED LOGIC ---
 
             num_fractions_delivered = st.number_input(
-                "Number of Fractions Delivered",
+                "Number of Fractions to be Delivered",
                 value=default_num_fractions,
                 min_value=1,
                 step=1,
                 key="num_fractions_delivered_input"
             )
+
+            ebrt_dose = st.number_input("EBRT Dose (Gy)", value=0.0)
 
             previous_brachy_data_file = st.file_uploader("Upload previous brachytherapy data (optional)", type=["html", "json"])
             wkhtmltopdf_path = st.text_input("Path to wkhtmltopdf.exe (optional)")
@@ -445,7 +445,8 @@ def main():
                             st.write(f"**Patient MRN:** {results['patient_mrn']}")
                             st.write(f"**Plan Name:** {results['plan_name']}")
                             st.write(f"**Brachytherapy Dose per Fraction:** {results['brachy_dose_per_fraction']:.2f} Gy")
-                            st.write(f"**Number of Fractions:** {results['number_of_fractions']}")
+                            st.write(f"**Number of Fractions Used for Calculations:** {num_fractions_delivered}")
+                            st.write(f"**Number of Planned Fractions:** {results['number_of_fractions']}")
 
                         with col_summary_right:
                             st.subheader("Channel Mapping")

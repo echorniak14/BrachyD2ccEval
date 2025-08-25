@@ -21,7 +21,6 @@
 - [ ] Results section be offset color from rest of the UI
 
 ### Backend & Calculation Engine
-- [ ] Expanded DICOM Support (e.g., CT/MR images)
 - [ ] Isodose Line Visualization
 - [ ] Advanced Biological Modeling
 - [ ] Database Integration
@@ -30,19 +29,15 @@
     - [ ] Volume Metric Calculations
     - [ ] Dose Summations
     - [ ] Constraint met visualization
-    - [ ] Constraint Template Updates
+        - [x] DVH
+        - [ ] Points
+    - [x] Constraint Template Updates
 - [ ] fix point dose reporting and constraint evaluation (need details for point dose constraints eg bladder point, metrics and constraint values)
 - [ ] check that the planned number of fractions is correct for plan evaluation
 - [x] Display RTPlan info on streamlet plan evaluation summary page - instant second check
-- - [ ] Channel Mapping display for catheters (right side of Results) have it look for channel number, channel length, and transfer tube number
-    - [ ] Refine display format to "Cath X - Chan Y" (Still needs work)
-
-
+- [x] Channel Mapping display for catheters (right side of Results) have it look for channel number, channel length, and transfer tube number
 
 ### Deployment & Integration
 - [ ] Web Application Deployment
 - [ ] PACS Integration
 - [ ] API for Automation
-
-### Verification
-- [ ] Verify "Cylinder HDR" template in config.py: Ensure "Prescription Point" constraint has "check_type": "prescription_tolerance".
