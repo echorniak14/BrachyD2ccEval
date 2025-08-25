@@ -147,17 +147,23 @@ def main(args, selected_point_names=None, custom_constraints=None, dose_point_ma
     
     structure_data = get_structure_data(rt_struct_dataset)
 
-    previous_brachy_eqd2_per_organ = {}
+    previous_brachy_bed_per_organ = {}
     if hasattr(args, 'previous_brachy_data') and args.previous_brachy_data:
         if isinstance(args.previous_brachy_data, str):
+            # Assuming the HTML report contains EQD2 values that need to be converted to BED.
+            # This part might need adjustment based on the content of the HTML report.
             previous_brachy_eqd2_per_organ = parse_html_report(args.previous_brachy_data)
+            for organ, eqd2 in previous_brachy_eqd2_per_organ.items():
+                alpha_beta = current_alpha_beta_ratios.get(organ, current_alpha_beta_ratios["Default"])
+                previous_brachy_bed_per_organ[organ] = eqd2 * (1 + (2 / alpha_beta))
+
         elif isinstance(args.previous_brachy_data, dict):
-            previous_brachy_eqd2_per_organ = args.previous_brachy_data
+            previous_brachy_bed_per_organ = args.previous_brachy_data
 
     dvh_results = get_dvh(
         struct_file, dose_file, structure_data, number_of_fractions,
         ebrt_dose=args.ebrt_dose,
-        previous_brachy_eqd2_per_organ=previous_brachy_eqd2_per_organ,
+        previous_brachy_bed_per_organ=previous_brachy_bed_per_organ,
         alpha_beta_ratios=current_alpha_beta_ratios
     )
 
@@ -173,7 +179,7 @@ def main(args, selected_point_names=None, custom_constraints=None, dose_point_ma
     for dr in filtered_dose_references:
         total_bed, eqd2, bed_brachy, bed_ebrt, bed_previous_brachy = calculate_point_dose_bed_eqd2(
             dr['dose'], number_of_fractions, dr['name'], args.ebrt_dose,
-            previous_brachy_eqd2=previous_brachy_eqd2_per_organ.get(dr['name'], 0),
+            previous_brachy_bed=previous_brachy_bed_per_organ.get(dr['name'], 0),
             alpha_beta_ratios=current_alpha_beta_ratios
         )
         point_dose_results.append({
@@ -244,7 +250,7 @@ def main(args, selected_point_names=None, custom_constraints=None, dose_point_ma
             eqd2_constraint = constraint_evaluation[organ]["EQD2_max"]
             dvh_results[organ]["dose_to_meet_constraint"] = calculate_dose_to_meet_constraint(
                 eqd2_constraint, organ, number_of_fractions, args.ebrt_dose,
-                previous_brachy_eqd2=previous_brachy_eqd2_per_organ.get(organ, 0),
+                previous_brachy_bed=previous_brachy_bed_per_organ.get(organ, {}).get("d2cc", 0),
                 alpha_beta_ratios=current_alpha_beta_ratios
             )
         else:

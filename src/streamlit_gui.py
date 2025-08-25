@@ -427,25 +427,33 @@ def main():
                         st.warning(f"Could not read DICOM file {uploaded_file.name}: {e}")
 
                 if rtdose_path and rtstruct_path and rtplan_path:
-                    previous_brachy_eqd2_data = {}
+                    previous_brachy_data = {}
                     if previous_brachy_data_file:
                         file_extension = os.path.splitext(previous_brachy_data_file.name)[1].lower()
                         if file_extension == ".html":
                             with tempfile.NamedTemporaryFile(delete=False, suffix=".html") as tmp_html_file:
                                 tmp_html_file.write(previous_brachy_data_file.getbuffer())
                                 previous_brachy_html_path = tmp_html_file.name
-                            previous_brachy_eqd2_data = previous_brachy_html_path
+                            previous_brachy_data = previous_brachy_html_path
                         elif file_extension == ".json":
+                            previous_brachy_data_file.seek(0)
                             json_content = json.loads(previous_brachy_data_file.read().decode("utf-8"))
+                            previous_brachy_bed_data = {}
                             for organ, data in json_content.get("dvh_results", {}).items():
-                                previous_brachy_eqd2_data[organ] = data.get("eqd2_d2cc", 0.0)
+                                previous_brachy_bed_data[organ] = {
+                                    "d2cc": data.get("bed_d2cc", 0.0),
+                                    "d1cc": data.get("bed_d1cc", 0.0),
+                                    "d0_1cc": data.get("bed_d0_1cc", 0.0)
+                                }
                             for point_data in json_content.get("point_dose_results", {}):
-                                previous_brachy_eqd2_data[point_data["name"]] = point_data.get("EQD2", 0.0)
-                        
+                                previous_brachy_bed_data[point_data["name"]] = point_data.get("BED_this_plan", 0.0)
+                            previous_brachy_data = previous_brachy_bed_data
+                            previous_brachy_data_file.seek(0)
+
                     args = argparse.Namespace(
                         data_dir=tmpdir_analysis,
                         ebrt_dose=ebrt_dose,
-                        previous_brachy_data=previous_brachy_eqd2_data,
+                        previous_brachy_data=previous_brachy_data,
                         output_html=os.path.join(tmpdir_analysis, "report.html"),
                         alpha_beta_ratios=ab_ratios,
                         selected_point_names=st.session_state.selected_point_names,

@@ -112,7 +112,7 @@ def calculate_d_volume(dvh, volume_cc):
 
 # This file will contain the logic for dose-volume calculations.
 
-def calculate_bed_and_eqd2(total_dose, dose_per_fraction, organ_name, ebrt_dose=0, previous_brachy_eqd2=0, alpha_beta_ratios=None):
+def calculate_bed_and_eqd2(total_dose, dose_per_fraction, organ_name, ebrt_dose=0, previous_brachy_bed=0, alpha_beta_ratios=None):
     """Calculates BED and EQD2 for a given total dose and dose per fraction, with an optional EBRT dose."""
     if alpha_beta_ratios is None:
         from .config import templates
@@ -126,18 +126,15 @@ def calculate_bed_and_eqd2(total_dose, dose_per_fraction, organ_name, ebrt_dose=
     # Calculate BED for EBRT
     bed_ebrt = ebrt_dose * (1 + (2 / alpha_beta)) # Assuming 2 Gy/fraction for EBRT
 
-    # Calculate BED for previous brachytherapy
-    bed_previous_brachy = previous_brachy_eqd2 * (1 + (2 / alpha_beta))
-    
     # Total BED
-    total_bed = bed_brachy + bed_ebrt + bed_previous_brachy
+    total_bed = bed_brachy + bed_ebrt + previous_brachy_bed
     
     # Calculate total EQD2
     eqd2 = total_bed / (1 + (2 / alpha_beta))
     
-    return round(total_bed, 2), round(eqd2, 2), round(bed_brachy, 2), round(bed_ebrt, 2), round(bed_previous_brachy, 2)
+    return round(total_bed, 2), round(eqd2, 2), round(bed_brachy, 2), round(bed_ebrt, 2), round(previous_brachy_bed, 2)
 
-def calculate_dose_to_meet_constraint(eqd2_constraint, organ_name, number_of_fractions, ebrt_dose=0, previous_brachy_eqd2=0, alpha_beta_ratios=None):
+def calculate_dose_to_meet_constraint(eqd2_constraint, organ_name, number_of_fractions, ebrt_dose=0, previous_brachy_bed=0, alpha_beta_ratios=None):
     """Calculates the brachytherapy dose per fraction needed to meet a specific EQD2 constraint."""
     if alpha_beta_ratios is None:
         from .config import templates
@@ -152,8 +149,8 @@ def calculate_dose_to_meet_constraint(eqd2_constraint, organ_name, number_of_fra
     # Calculate BED from EBRT
     bed_ebrt = ebrt_dose * k_factor
 
-    # Calculate BED from previous brachytherapy
-    bed_previous_brachy = previous_brachy_eqd2 * k_factor
+    # BED from previous brachytherapy is already in BED
+    bed_previous_brachy = previous_brachy_bed
 
     # Remaining BED needed from brachytherapy
     bed_brachy_needed = total_bed_target - bed_ebrt - bed_previous_brachy
@@ -178,7 +175,7 @@ def calculate_dose_to_meet_constraint(eqd2_constraint, organ_name, number_of_fra
 
     return round(dose_per_fraction_solution, 2)
 
-def calculate_point_dose_bed_eqd2(point_dose, number_of_fractions, organ_name, ebrt_dose=0, previous_brachy_eqd2=0, alpha_beta_ratios=None):
+def calculate_point_dose_bed_eqd2(point_dose, number_of_fractions, organ_name, ebrt_dose=0, previous_brachy_bed=0, alpha_beta_ratios=None):
     """Calculates BED and EQD2 for a given point dose."""
     if alpha_beta_ratios is None:
         from .config import templates
@@ -194,8 +191,8 @@ def calculate_point_dose_bed_eqd2(point_dose, number_of_fractions, organ_name, e
     # Calculate BED for EBRT
     bed_ebrt = ebrt_dose * (1 + (1.8 / alpha_beta)) # Assuming 1.8 Gy/fraction for EBRT
 
-    # Calculate BED for previous brachytherapy
-    bed_previous_brachy = previous_brachy_eqd2 * (1 + (2 / alpha_beta))
+    # BED from previous brachytherapy is already in BED
+    bed_previous_brachy = previous_brachy_bed
     
     # Total BED
     total_bed = bed_brachy + bed_ebrt + bed_previous_brachy
@@ -205,10 +202,10 @@ def calculate_point_dose_bed_eqd2(point_dose, number_of_fractions, organ_name, e
     
     return round(total_bed, 2), round(eqd2, 2), round(bed_brachy, 2), round(bed_ebrt, 2), round(bed_previous_brachy, 2)
 
-def get_dvh(rtss_file, rtdose_file, structure_data, number_of_fractions, ebrt_dose=0, previous_brachy_eqd2_per_organ=None, alpha_beta_ratios=None):
+def get_dvh(rtss_file, rtdose_file, structure_data, number_of_fractions, ebrt_dose=0, previous_brachy_bed_per_organ=None, alpha_beta_ratios=None):
     """Calculates the Dose-Volume Histogram (DVH) for each structure."""
-    if previous_brachy_eqd2_per_organ is None:
-        previous_brachy_eqd2_per_organ = {}
+    if previous_brachy_bed_per_organ is None:
+        previous_brachy_bed_per_organ = {}
     dvh_results = {}
 
     # Calculate all volumes using our custom function once
@@ -258,14 +255,6 @@ def get_dvh(rtss_file, rtdose_file, structure_data, number_of_fractions, ebrt_do
             if hasattr(d90_gy_per_fraction, 'value'):
                 d90_gy_per_fraction = d90_gy_per_fraction.value
 
-            v20_percent = getattr(dvh, 'V20', 0.0)
-            if hasattr(v20_percent, 'value'):
-                v20_percent = v20_percent.value
-            
-            v30_percent = getattr(dvh, 'V30', 0.0)
-            if hasattr(v30_percent, 'value'):
-                v30_percent = v30_percent.value
-
         except Exception as e:
             print(f"Warning: Could not calculate DVH for {name} (ROI Number: {roi_number}). Error: {e}")
             d2cc_gy_per_fraction = 0.0
@@ -277,25 +266,23 @@ def get_dvh(rtss_file, rtdose_file, structure_data, number_of_fractions, ebrt_do
             d95_gy_per_fraction = 0.0
             d98_gy_per_fraction = 0.0
             d90_gy_per_fraction = 0.0
-            v20_percent = 0.0
-            v30_percent = 0.0
 
         # Calculations for D2cc
         total_d2cc_gy = d2cc_gy_per_fraction * number_of_fractions
         bed_d2cc, eqd2_d2cc, bed_brachy_d2cc, bed_ebrt, bed_previous_brachy = calculate_bed_and_eqd2(
-            total_d2cc_gy, d2cc_gy_per_fraction, normalized_name, ebrt_dose, previous_brachy_eqd2=previous_brachy_eqd2_per_organ.get(normalized_name, 0), alpha_beta_ratios=alpha_beta_ratios
+            total_d2cc_gy, d2cc_gy_per_fraction, normalized_name, ebrt_dose, previous_brachy_bed=previous_brachy_bed_per_organ.get(normalized_name, {}).get("d2cc", 0), alpha_beta_ratios=alpha_beta_ratios
         )
 
         # Calculations for D1cc
         total_d1cc_gy = d1cc_gy_per_fraction * number_of_fractions
         bed_d1cc, eqd2_d1cc, _, _, _ = calculate_bed_and_eqd2(
-            total_d1cc_gy, d1cc_gy_per_fraction, normalized_name, ebrt_dose, previous_brachy_eqd2=previous_brachy_eqd2_per_organ.get(normalized_name, 0), alpha_beta_ratios=alpha_beta_ratios
+            total_d1cc_gy, d1cc_gy_per_fraction, normalized_name, ebrt_dose, previous_brachy_bed=previous_brachy_bed_per_organ.get(normalized_name, {}).get("d1cc", 0), alpha_beta_ratios=alpha_beta_ratios
         )
 
         # Calculations for D0.1cc
         total_d0_1cc_gy = d0_1cc_gy_per_fraction * number_of_fractions
         bed_d0_1cc, eqd2_d0_1cc, _, _, _ = calculate_bed_and_eqd2(
-            total_d0_1cc_gy, d0_1cc_gy_per_fraction, normalized_name, ebrt_dose, previous_brachy_eqd2=previous_brachy_eqd2_per_organ.get(normalized_name, 0), alpha_beta_ratios=alpha_beta_ratios
+            total_d0_1cc_gy, d0_1cc_gy_per_fraction, normalized_name, ebrt_dose, previous_brachy_bed=previous_brachy_bed_per_organ.get(normalized_name, {}).get("d0_1cc", 0), alpha_beta_ratios=alpha_beta_ratios
         )
 
         dvh_results[normalized_name] = {
@@ -309,8 +296,6 @@ def get_dvh(rtss_file, rtdose_file, structure_data, number_of_fractions, ebrt_do
             "d95_gy_per_fraction": round(d95_gy_per_fraction, 2),
             "d98_gy_per_fraction": round(d98_gy_per_fraction, 2),
             "d90_gy_per_fraction": round(d90_gy_per_fraction, 2),
-            "v20_percent": round(v20_percent, 2),
-            "v30_percent": round(v30_percent, 2),
             "total_d2cc_gy": round(total_d2cc_gy, 2),
             "bed_d2cc": bed_d2cc,
             "eqd2_d2cc": eqd2_d2cc,
