@@ -389,6 +389,19 @@ def main():
 
                     results = run_analysis(args, selected_point_names=st.session_state.selected_point_names, dose_point_mapping=manual_dose_point_mapping)
 
+                    # --- Start Channel Mapping Validation ---
+                    if selected_template_name == "Cylinder HDR":
+                        channel_mapping_data = results.get('channel_mapping', [])
+                        is_catheter_1_mapped_to_channel_5 = False
+                        for channel in channel_mapping_data:
+                            if channel.get('channel_number') == '1' and channel.get('transfer_tube_number') == '5':
+                                is_catheter_1_mapped_to_channel_5 = True
+                                break
+                        
+                        if not is_catheter_1_mapped_to_channel_5:
+                            st.warning("Warning: For 'Cylinder HDR' template, Catheter 1 is not mapped to Channel 5. Please verify your channel mapping.")
+                    # --- End Channel Mapping Validation ---
+
                     with st.container():
                         st.header("Results")
 
