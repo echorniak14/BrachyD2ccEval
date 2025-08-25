@@ -387,7 +387,7 @@ def main():
                         custom_constraints=templates[st.session_state.current_template_name]
                     )
 
-                    results = run_analysis(args, selected_point_names=st.session_state.selected_point_names, dose_point_mapping=manual_dose_point_mapping)
+                    results = run_analysis(args, selected_point_names=st.session_state.selected_point_names, dose_point_mapping=manual_dose_point_mapping, custom_constraints=args.custom_constraints)
 
                     # --- Start Channel Mapping Validation ---
                     if selected_template_name == "Cylinder HDR":
