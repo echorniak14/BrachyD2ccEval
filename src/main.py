@@ -170,8 +170,8 @@ def main(args, selected_point_names=None, custom_constraints=None, dose_point_ma
         alpha_beta_ratios=current_alpha_beta_ratios
     )
 
-    current_constraints = custom_constraints
-    point_dose_constraints = current_constraints.get("point_dose_constraints") if current_constraints else None
+    current_constraints = custom_constraints.get("constraints")
+    point_dose_constraints = custom_constraints.get("point_dose_constraints") if custom_constraints else None
 
     filtered_dose_references = []
     if selected_point_names:
