@@ -712,6 +712,7 @@ def main():
                                     "patient_mrn": results["patient_mrn"],
                                     "plan_date": results["plan_date"],
                                     "plan_time": results["plan_time"],
+                                    "source_info": results["source_info"],
                                     "dvh_results": results["dvh_results"],
                                     "point_dose_results": results["point_dose_results"]
                                 }
