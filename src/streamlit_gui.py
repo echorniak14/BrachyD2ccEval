@@ -518,10 +518,13 @@ def main():
                             st.write(f"**Plan Date:** {results['plan_date']}")
                             st.write(f"**Plan Time:** {results['plan_time']}")
                             st.write(f"**Brachytherapy Dose per Fraction:** {results['brachy_dose_per_fraction']:.2f} Gy")
-                            # --- CORRECTED DISPLAY LOGIC ---
                             st.write(f"**Number of Fractions Used for Calculations:** {results['calculation_number_of_fractions']}")
                             st.write(f"**Number of Planned Fractions:** {results['planned_number_of_fractions']}")
-                            # --- END CORRECTION ---
+                            
+                            # --- ADDED WARNING ---
+                            if results['calculation_number_of_fractions'] != results['planned_number_of_fractions']:
+                                st.warning("Warning: The planned number of fractions and the number of fractions used for EQD2 calculations differ.")
+                            # --- END WARNING ---
 
                         with col_summary_right:
                             st.subheader("Channel Mapping")
