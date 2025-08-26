@@ -141,20 +141,25 @@ def main(args, selected_point_names=None, custom_constraints=None, dose_point_ma
         return {"error": "Could not load all DICOM files."}
     
     plan_data = get_plan_data(plan_file)
-    number_of_fractions = plan_data.get('number_of_fractions', 1)
-    brachy_dose_per_fraction = plan_data.get('brachy_dose_per_fraction', 0)
     
-    # If a specific number of delivered fractions is provided, it overrides the value from the plan.
+    # --- CORRECTED LOGIC ---
+    # Store the original planned number of fractions from the DICOM file.
+    planned_number_of_fractions = plan_data.get('number_of_fractions', 1)
+    
+    # Use a separate variable for calculations. Default to the planned value.
+    number_of_fractions_for_calc = planned_number_of_fractions
+    
+    # If a specific number of delivered fractions is provided by the user, it overrides the value for calculations.
     if num_fractions_delivered is not None:
-        number_of_fractions = num_fractions_delivered
-    
+        number_of_fractions_for_calc = num_fractions_delivered
+    # --- END CORRECTION ---
+
+    brachy_dose_per_fraction = plan_data.get('brachy_dose_per_fraction', 0)
     structure_data = get_structure_data(rt_struct_dataset)
 
     previous_brachy_bed_per_organ = {}
     if hasattr(args, 'previous_brachy_data') and args.previous_brachy_data:
         if isinstance(args.previous_brachy_data, str):
-            # Assuming the HTML report contains EQD2 values that need to be converted to BED.
-            # This part might need adjustment based on the content of the HTML report.
             previous_brachy_eqd2_per_organ = parse_html_report(args.previous_brachy_data)
             for organ, eqd2 in previous_brachy_eqd2_per_organ.items():
                 alpha_beta = current_alpha_beta_ratios.get(organ, current_alpha_beta_ratios["Default"])
@@ -164,7 +169,7 @@ def main(args, selected_point_names=None, custom_constraints=None, dose_point_ma
             previous_brachy_bed_per_organ = args.previous_brachy_data
 
     dvh_results = get_dvh(
-        struct_file, dose_file, structure_data, number_of_fractions,
+        struct_file, dose_file, structure_data, number_of_fractions_for_calc,
         ebrt_dose=args.ebrt_dose,
         previous_brachy_bed_per_organ=previous_brachy_bed_per_organ,
         alpha_beta_ratios=current_alpha_beta_ratios
@@ -181,78 +186,49 @@ def main(args, selected_point_names=None, custom_constraints=None, dose_point_ma
 
     for dr in filtered_dose_references:
         total_bed, eqd2, bed_brachy, bed_ebrt, bed_previous_brachy = calculate_point_dose_bed_eqd2(
-            dr['dose'], number_of_fractions, dr['name'], args.ebrt_dose,
+            dr['dose'], number_of_fractions_for_calc, dr['name'], args.ebrt_dose,
             previous_brachy_bed=previous_brachy_bed_per_organ.get(dr['name'], 0),
             alpha_beta_ratios=current_alpha_beta_ratios
         )
         point_dose_results.append({
-            'name': dr['name'], 'dose': dr['dose'], 'total_dose': dr['dose'] * number_of_fractions,
+            'name': dr['name'], 'dose': dr['dose'], 'total_dose': dr['dose'] * number_of_fractions_for_calc,
             'BED_this_plan': bed_brachy, 'BED_previous_brachy': bed_previous_brachy,
             'BED_EBRT': bed_ebrt, 'EQD2': eqd2,
         })
 
     constraint_evaluation = evaluate_constraints(dvh_results, point_dose_results, constraints=current_constraints, point_dose_constraints=point_dose_constraints, dose_point_mapping=dose_point_mapping)
 
-    # --- START DEBUGGER BLOCK ---
     mapping_dict = {item[0]: item[1] for item in dose_point_mapping} if dose_point_mapping else {}
     point_dose_constraints = custom_constraints.get("point_dose_constraints", {}) if custom_constraints else {}
 
-    print("\n--- POINT DOSE DEBUGGER ---")
-    print(f"Mapping received: {mapping_dict}")
-    print(f"Point constraints available: {list(point_dose_constraints.keys())}")
-
     for pr in point_dose_results:
-        print(f"\nProcessing Point: '{pr['name']}'")
-        
         status_updated = False
         mapped_constraint_name = mapping_dict.get(pr['name'])
-        print(f" -> Mapped to: '{mapped_constraint_name}'")
-
         if mapped_constraint_name and mapped_constraint_name in point_dose_constraints:
             constraint = point_dose_constraints[mapped_constraint_name]
-            print(f" -> Found Constraint: {constraint}")
             check_type = constraint.get("check_type")
-
             if check_type == "prescription_tolerance":
-                print(" -> Constraint type is 'prescription_tolerance'. Performing check.")
                 tolerance = constraint.get("tolerance", 0.0)
                 prescribed_dose = plan_data.get('brachy_dose_per_fraction', 0)
                 point_dose_per_fraction = pr['dose']
-                
-                print(f"    - Point Dose: {point_dose_per_fraction:.2f} Gy")
-                print(f"    - Prescribed Dose: {prescribed_dose:.2f} Gy")
-                print(f"    - Tolerance: {tolerance:.2f}")
-
                 if prescribed_dose > 0:
                     lower_bound = prescribed_dose * (1 - tolerance)
                     upper_bound = prescribed_dose * (1 + tolerance)
-                    print(f"    - Bounds: [{lower_bound:.2f}, {upper_bound:.2f}]")
                     if lower_bound <= point_dose_per_fraction <= upper_bound:
                         pr['Constraint Status'] = 'Pass'
                     else:
                         pr['Constraint Status'] = 'Fail'
                     status_updated = True
-                    print(f" -> Status updated to: '{pr['Constraint Status']}'")
-                else:
-                    print(" -> SKIPPED: Prescribed dose is 0, cannot evaluate tolerance.")
-            else:
-                print(f" -> SKIPPED: Constraint check_type is '{check_type}', not 'prescription_tolerance'.")
-
         if not status_updated:
             point_eval_key = f"Point Dose - {pr['name']}"
             point_eval = constraint_evaluation.get(point_eval_key, {})
             pr['Constraint Status'] = point_eval.get('status', 'N/A')
-            print(f" -> No specific check performed. Falling back to generic status: '{pr['Constraint Status']}'")
-
-    print("--- END POINT DOSE DEBUGGER ---\n")
-    # --- END DEBUGGER BLOCK ---
-
 
     for organ, data in dvh_results.items():
         if organ in constraint_evaluation and constraint_evaluation[organ].get("EQD2_met") == "False":
             eqd2_constraint = constraint_evaluation[organ]["EQD2_max"]
             dvh_results[organ]["dose_to_meet_constraint"] = calculate_dose_to_meet_constraint(
-                eqd2_constraint, organ, number_of_fractions, args.ebrt_dose,
+                eqd2_constraint, organ, number_of_fractions_for_calc, args.ebrt_dose,
                 previous_brachy_bed=previous_brachy_bed_per_organ.get(organ, {}).get("d2cc", 0),
                 alpha_beta_ratios=current_alpha_beta_ratios
             )
@@ -273,7 +249,8 @@ def main(args, selected_point_names=None, custom_constraints=None, dose_point_ma
         "source_info": plan_data.get('source_info', 'N/A'),
         "channel_mapping": plan_data.get('channel_mapping', []),
         "brachy_dose_per_fraction": brachy_dose_per_fraction,
-        "number_of_fractions": number_of_fractions,
+        "planned_number_of_fractions": planned_number_of_fractions,
+        "calculation_number_of_fractions": number_of_fractions_for_calc,
         "ebrt_dose": args.ebrt_dose,
         "dvh_results": dvh_results,
         "constraint_evaluation": constraint_evaluation,
@@ -284,7 +261,7 @@ def main(args, selected_point_names=None, custom_constraints=None, dose_point_ma
         html_content = generate_html_report(
             output_data["patient_name"], output_data["patient_mrn"], output_data["plan_name"], 
             output_data["plan_date"], output_data["plan_time"], output_data["source_info"],
-            output_data["brachy_dose_per_fraction"], output_data["number_of_fractions"], 
+            output_data["brachy_dose_per_fraction"], output_data["calculation_number_of_fractions"], 
             output_data["ebrt_dose"], output_data["dvh_results"], 
             output_data["constraint_evaluation"], plan_data.get('dose_references', []), 
             output_data["point_dose_results"], args.output_html, current_alpha_beta_ratios

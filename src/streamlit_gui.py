@@ -518,8 +518,10 @@ def main():
                             st.write(f"**Plan Date:** {results['plan_date']}")
                             st.write(f"**Plan Time:** {results['plan_time']}")
                             st.write(f"**Brachytherapy Dose per Fraction:** {results['brachy_dose_per_fraction']:.2f} Gy")
-                            st.write(f"**Number of Fractions Used for Calculations:** {num_fractions_delivered}")
-                            st.write(f"**Number of Planned Fractions:** {results['number_of_fractions']}")
+                            # --- CORRECTED DISPLAY LOGIC ---
+                            st.write(f"**Number of Fractions Used for Calculations:** {results['calculation_number_of_fractions']}")
+                            st.write(f"**Number of Planned Fractions:** {results['planned_number_of_fractions']}")
+                            # --- END CORRECTION ---
 
                         with col_summary_right:
                             st.subheader("Channel Mapping")
