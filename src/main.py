@@ -49,7 +49,7 @@ def convert_html_to_pdf(html_content, output_path, wkhtmltopdf_path=None):
             f"\n\nOriginal error: {e}"
         )
 
-def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_fraction, number_of_fractions, ebrt_dose, dvh_results, constraint_evaluation, dose_references, point_dose_results, output_path, alpha_beta_ratios):
+def generate_html_report(patient_name, patient_mrn, plan_name, plan_date, plan_time, source_info, brachy_dose_per_fraction, number_of_fractions, ebrt_dose, dvh_results, constraint_evaluation, dose_references, point_dose_results, output_path, alpha_beta_ratios):
     if not isinstance(alpha_beta_ratios, dict) or "Default" not in alpha_beta_ratios:
         from .config import templates
         alpha_beta_ratios = templates["Cervix HDR - EMBRACE II"]["alpha_beta_ratios"].copy()
@@ -84,6 +84,9 @@ def generate_html_report(patient_name, patient_mrn, plan_name, brachy_dose_per_f
     html_content = template.replace("{{ patient_name }}", patient_name)
     html_content = html_content.replace("{{ patient_mrn }}", patient_mrn)
     html_content = html_content.replace("{{ plan_name }}", plan_name)
+    html_content = html_content.replace("{{ plan_date }}", plan_date)
+    html_content = html_content.replace("{{ plan_time }}", plan_time)
+    html_content = html_content.replace("{{ source_info }}", source_info)
     html_content = html_content.replace("{{ brachy_dose_per_fraction }}", str(brachy_dose_per_fraction))
     html_content = html_content.replace("{{ number_of_fractions }}", str(number_of_fractions))
     html_content = html_content.replace("{{ ebrt_dose }}", str(ebrt_dose))
@@ -256,12 +259,18 @@ def main(args, selected_point_names=None, custom_constraints=None, dose_point_ma
         else:
             dvh_results[organ]["dose_to_meet_constraint"] = "N/A"
 
+    plan_date_str = plan_data.get('plan_date', 'N/A')
+    formatted_plan_date = f"{plan_date_str[4:6]}-{plan_date_str[6:8]}-{plan_date_str[0:4]}" if len(plan_date_str) == 8 else plan_date_str
+    plan_time_str = plan_data.get('plan_time', 'N/A')
+    formatted_plan_time = f"{plan_time_str[0:2]}:{plan_time_str[2:4]}:{plan_time_str[4:6]}" if len(plan_time_str) >= 6 else plan_time_str
+
     output_data = {
         "patient_name": str(rt_dose_dataset.PatientName),
         "patient_mrn": str(rt_dose_dataset.PatientID),
         "plan_name": plan_data.get('plan_name', 'N/A'),
-        "plan_date": plan_data.get('plan_date', 'N/A'),
-        "plan_time": plan_data.get('plan_time', 'N/A'),
+        "plan_date": formatted_plan_date,
+        "plan_time": formatted_plan_time,
+        "source_info": plan_data.get('source_info', 'N/A'),
         "channel_mapping": plan_data.get('channel_mapping', []),
         "brachy_dose_per_fraction": brachy_dose_per_fraction,
         "number_of_fractions": number_of_fractions,
@@ -274,6 +283,7 @@ def main(args, selected_point_names=None, custom_constraints=None, dose_point_ma
     if args.output_html:
         html_content = generate_html_report(
             output_data["patient_name"], output_data["patient_mrn"], output_data["plan_name"], 
+            output_data["plan_date"], output_data["plan_time"], output_data["source_info"],
             output_data["brachy_dose_per_fraction"], output_data["number_of_fractions"], 
             output_data["ebrt_dose"], output_data["dvh_results"], 
             output_data["constraint_evaluation"], plan_data.get('dose_references', []), 
