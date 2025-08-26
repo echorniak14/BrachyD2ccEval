@@ -503,7 +503,7 @@ def main():
                                 break
                         
                         if not is_catheter_1_mapped_to_channel_5:
-                            st.warning("Warning: For 'Cylinder HDR' template, Catheter 1 is not mapped to Channel 5. Please verify your channel mapping.")
+                            st.warning("Warning: For 'Cylinder HDR' template, expected channel mapping is Catheter 1 to Channel 5. Please verify your channel mapping.")
                     # --- End Channel Mapping Validation ---
 
                     with st.container():
