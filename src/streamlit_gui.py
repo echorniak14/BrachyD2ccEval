@@ -72,6 +72,35 @@ def main():
     st.header("Upload DICOM Files")
     uploaded_files = st.file_uploader("Upload RTDOSE, RTSTRUCT, and RTPLAN files", type=["dcm", "DCM"], accept_multiple_files=True)
 
+    if uploaded_files:
+        rtplan_count = 0
+        rtstruct_count = 0
+        rtdose_count = 0
+
+        for uploaded_file in uploaded_files:
+            try:
+                uploaded_file.seek(0)
+                ds = pydicom.dcmread(uploaded_file, stop_before_pixels=True)
+                sop_class_uid = ds.SOPClassUID
+                if sop_class_uid == '1.2.840.10008.5.1.4.1.1.481.5':
+                    rtplan_count += 1
+                elif sop_class_uid == '1.2.840.10008.5.1.4.1.1.481.3':
+                    rtstruct_count += 1
+                elif sop_class_uid == '1.2.840.10008.5.1.4.1.1.481.2':
+                    rtdose_count += 1
+            except Exception:
+                # Not a valid DICOM file, skip
+                pass
+            finally:
+                uploaded_file.seek(0)
+
+        if rtplan_count > 1:
+            st.warning(f"Warning: {rtplan_count} RTPLAN files were uploaded. Please upload only one.")
+        if rtstruct_count > 1:
+            st.warning(f"Warning: {rtstruct_count} RTSTRUCT files were uploaded. Please upload only one.")
+        if rtdose_count > 1:
+            st.warning(f"Warning: {rtdose_count} RTDOSE files were uploaded. Please upload only one.")
+
     st.header("Constraint Template")
     template_names = list(templates.keys())
     
