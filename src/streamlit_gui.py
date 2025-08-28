@@ -658,7 +658,14 @@ def main():
                                     })
                             
                             if target_dvh_data:
-                                st.dataframe(pd.DataFrame(target_dvh_data))
+                                st.dataframe(pd.DataFrame(target_dvh_data), column_config={
+                                    "Volume (cc)": st.column_config.NumberColumn(format="%.2f"),
+                                    "D98 (Gy)": st.column_config.NumberColumn(format="%.2f"),
+                                    "D90 (Gy)": st.column_config.NumberColumn(format="%.2f"),
+                                    "Max Dose (Gy)": st.column_config.NumberColumn(format="%.2f"),
+                                    "Mean Dose (Gy)": st.column_config.NumberColumn(format="%.2f"),
+                                    "Min Dose (Gy)": st.column_config.NumberColumn(format="%.2f"),
+                                })
                             else:
                                 st.info("No target volume DVH data available.")
 
@@ -729,7 +736,12 @@ def main():
                                                     styles.loc[d2cc_index] = style_str
                                         return styles
 
-                                    st.dataframe(final_oar_df.style.apply(style_oar_rows, axis=None))
+                                    st.dataframe(final_oar_df.style.apply(style_oar_rows, axis=None), column_config={
+                                        "Volume (cc)": st.column_config.NumberColumn(format="%.2f"),
+                                        "Dose (Gy)": st.column_config.NumberColumn(format="%.2f"),
+                                        "BED (Gy)": st.column_config.NumberColumn(format="%.2f"),
+                                        "EQD2 (Gy)": st.column_config.NumberColumn(format="%.2f"),
+                                    })
                             else:
                                 st.info("No OAR DVH data available.")
 
@@ -746,7 +758,14 @@ def main():
                                 return style
 
                             if not point_dose_df.empty:
-                                st.dataframe(point_dose_df.style.apply(style_point_dose_rows, axis=1))
+                                st.dataframe(point_dose_df.style.apply(style_point_dose_rows, axis=1), column_config={
+                                    "dose": st.column_config.NumberColumn(format="%.2f"),
+                                    "total_dose": st.column_config.NumberColumn(format="%.2f"),
+                                    "BED_this_plan": st.column_config.NumberColumn(format="%.2f"),
+                                    "BED_previous_brachy": st.column_config.NumberColumn(format="%.2f"),
+                                    "BED_EBRT": st.column_config.NumberColumn(format="%.2f"),
+                                    "EQD2": st.column_config.NumberColumn(format="%.2f"),
+                                })
                             else:
                                 st.info("No point dose data available.")
                         
