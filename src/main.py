@@ -5,7 +5,7 @@ from datetime import datetime
 from openpyxl import load_workbook
 import pydicom
 from .html_parser import parse_html_report
-from .dicom_parser import find_dicom_file, load_dicom_file, get_structure_data, get_plan_data, get_dose_data
+from .dicom_parser import find_dicom_file, load_dicom_file, get_structure_data, get_plan_data, get_dose_data, get_dwell_times_and_positions
 from .calculations import get_dvh, evaluate_constraints, calculate_dose_to_meet_constraint, calculate_point_dose_bed_eqd2, get_dose_at_point
 import argparse
 from pathlib import Path
@@ -362,10 +362,21 @@ def generate_dwell_time_sheet(mosaiq_schedule_path, rtplan_file, output_excel_pa
         
         ws['B13'] = source_activity_ci
         
+        dwell_data = get_dwell_times_and_positions(rtplan_file)
+        
+        # Create a map of Excel position to dwell time based on the user's mapping
+        excel_dwell_map = {300 - int(item['position']): item['dwell_time'] for item in dwell_data}
+
         dwell_time_start_row = 17
-        for i in range(12):
-            cell_ref = f'B{dwell_time_start_row + i}'
-            ws[cell_ref] = 0.0
+        for i in range(12): # Template has 12 rows for dwell times
+            position_cell = f'A{dwell_time_start_row + i}'
+            dwell_time_cell = f'B{dwell_time_start_row + i}'
+            
+            position = ws[position_cell].value
+            if position is not None and position in excel_dwell_map:
+                ws[dwell_time_cell] = excel_dwell_map[position]
+            else:
+                ws[dwell_time_cell] = 0.0
 
         wb.save(output_excel_path)
 

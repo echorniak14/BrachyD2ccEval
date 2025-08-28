@@ -263,3 +263,48 @@ if __name__ == "__main__":
                 print(f"Structure: {name}, Volume: {data['volume_cc']} cc, D2cc/fx: {data['d2cc_gy_per_fraction']} Gy, Total D2cc: {data['total_d2cc_gy']} Gy")
     else:
         print(f"Error: Mismatched patient IDs: {patient_ids[0]} vs {patient_ids[1]}")
+
+def get_dwell_times_and_positions(rtplan_file):
+    """
+    Calculates the dwell times and positions from a DICOM RT Plan file.
+    """
+    plan = pydicom.dcmread(rtplan_file)
+    dwell_data = []
+
+    brachy_app_setup_sequence = plan.get((0x300a, 0x0230))
+    if not brachy_app_setup_sequence or \
+       not hasattr(brachy_app_setup_sequence[0], 'ChannelSequence'):
+        print("No BrachyApplicationSetupSequence or ChannelSequence found in the RTPLAN file.")
+        return dwell_data
+
+    for i, channel in enumerate(brachy_app_setup_sequence[0].ChannelSequence):
+        print(f"--- Channel {i+1} ---")
+        channel_total_time = float(channel.ChannelTotalTime)
+        final_cumulative_time_weight = float(channel.FinalCumulativeTimeWeight)
+        
+        print(f"  ChannelTotalTime: {channel_total_time}")
+        print(f"  FinalCumulativeTimeWeight: {final_cumulative_time_weight}")
+
+        if final_cumulative_time_weight == 0:
+            print("  FinalCumulativeTimeWeight is 0, skipping channel.")
+            continue
+
+        control_points = channel.BrachyControlPointSequence
+        print(f"  Found {len(control_points)} control points.")
+        
+        for i in range(1, len(control_points)):
+            dwell_time_weight = float(control_points[i].CumulativeTimeWeight) - float(control_points[i-1].CumulativeTimeWeight)
+            print(f"  Control Point {i}: dwell_time_weight = {dwell_time_weight}")
+            
+            if dwell_time_weight > 0:
+                dwell_time = dwell_time_weight * channel_total_time / final_cumulative_time_weight
+                position = float(control_points[i].ControlPointRelativePosition)
+                
+                print(f"    Dwell time: {dwell_time}, Position: {position}")
+                
+                dwell_data.append({
+                    "position": position,
+                    "dwell_time": dwell_time
+                })
+
+    return dwell_data
