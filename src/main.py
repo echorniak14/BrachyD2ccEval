@@ -76,14 +76,28 @@ def generate_html_report(patient_name, patient_mrn, plan_name, plan_date, plan_t
     except FileNotFoundError:
         logo_data_uri = ""
 
+    fraction_headers = "".join([f"<th>Fraction {i+1} Dose (Gy)</th>" for i in range(number_of_fractions)])
+
     target_volume_rows = ""
     oar_rows = ""
     for organ, data in dvh_results.items():
         alpha_beta = alpha_beta_ratios.get(organ, alpha_beta_ratios["Default"])
         if alpha_beta == 10: # is_target
-            target_volume_rows += f"""<tr><td rowspan="5">{organ}</td><td rowspan="5">{alpha_beta}</td><td rowspan="5">{data["volume_cc"]}</td><td>D98</td><td>{data["d98_gy_per_fraction"]:.2f}</td><td>{(data["d98_gy_per_fraction"] * number_of_fractions):.2f}</td><td>{data["eqd2_d98"]:.2f}</td></tr><tr><td>D90</td><td>{data.get("d90_gy_per_fraction", 0):.2f}</td><td>{(data.get("d90_gy_per_fraction", 0) * number_of_fractions):.2f}</td><td>{data["eqd2_d90"]:.2f}</td></tr><tr><td>Max</td><td>{data["max_dose_gy_per_fraction"]:.2f}</td><td>{(data["max_dose_gy_per_fraction"] * number_of_fractions):.2f}</td><td colspan="1"></td></tr><tr><td>Mean</td><td>{data["mean_dose_gy_per_fraction"]:.2f}</td><td>{(data["mean_dose_gy_per_fraction"] * number_of_fractions):.2f}</td><td colspan="1"></td></tr><tr><td>Min</td><td>{data["min_dose_gy_per_fraction"]:.2f}</td><td>{(data["min_dose_gy_per_fraction"] * number_of_fractions):.2f}</td><td colspan="1"></td></tr>"""
+            # Generate fraction dose cells for target volumes
+            target_fraction_dose_cells_d98 = "".join([f"<td>{data['d98_gy_per_fraction']:.2f}</td>" for _ in range(number_of_fractions)])
+            target_fraction_dose_cells_d90 = "".join([f"<td>{data.get('d90_gy_per_fraction', 0):.2f}</td>" for _ in range(number_of_fractions)])
+            target_fraction_dose_cells_max = "".join([f"<td>{data['max_dose_gy_per_fraction']:.2f}</td>" for _ in range(number_of_fractions)])
+            target_fraction_dose_cells_mean = "".join([f"<td>{data['mean_dose_gy_per_fraction']:.2f}</td>" for _ in range(number_of_fractions)])
+            target_fraction_dose_cells_min = "".join([f"<td>{data['min_dose_gy_per_fraction']:.2f}</td>" for _ in range(number_of_fractions)])
+
+            target_volume_rows += f"""<tr><td rowspan="5">{organ}</td><td rowspan="5">{alpha_beta}</td><td rowspan="5">{data["volume_cc"]}</td><td>D98</td>{target_fraction_dose_cells_d98}<td>{data["eqd2_d98"]:.2f}</td></tr><tr><td>D90</td>{target_fraction_dose_cells_d90}<td>{data["eqd2_d90"]:.2f}</td></tr><tr><td>Max</td>{target_fraction_dose_cells_max}<td colspan="1"></td></tr><tr><td>Mean</td>{target_fraction_dose_cells_mean}<td colspan="1"></td></tr><tr><td>Min</td>{target_fraction_dose_cells_min}<td colspan="1"></td></tr>"""
         else: # OAR
-            oar_rows += f"""<tr><td rowspan="3">{organ}</td><td rowspan="3">{alpha_beta}</td><td rowspan="3">{data["volume_cc"]}</td><td>D0.1cc</td><td>{data["d0_1cc_gy_per_fraction"]:.2f}</td><td>{(data["d0_1cc_gy_per_fraction"] * number_of_fractions):.2f}</td><td>{data["eqd2_d0_1cc"]:.2f}</td></tr><tr><td>D1cc</td><td>{data["d1cc_gy_per_fraction"]:.2f}</td><td>{(data["d1cc_gy_per_fraction"] * number_of_fractions):.2f}</td><td>{data["eqd2_d1cc"]:.2f}</td></tr><tr><td>D2cc</td><td>{data["d2cc_gy_per_fraction"]:.2f}</td><td>{data["total_d2cc_gy"]:.2f}</td><td>{data["eqd2_d2cc"]:.2f}</td></tr>"""
+            # Generate fraction dose cells for OARs
+            oar_fraction_dose_cells_d0_1cc = "".join([f"<td>{data['d0_1cc_gy_per_fraction']:.2f}</td>" for _ in range(number_of_fractions)])
+            oar_fraction_dose_cells_d1cc = "".join([f"<td>{data['d1cc_gy_per_fraction']:.2f}</td>" for _ in range(number_of_fractions)])
+            oar_fraction_dose_cells_d2cc = "".join([f"<td>{data['d2cc_gy_per_fraction']:.2f}</td>" for _ in range(number_of_fractions)])
+
+            oar_rows += f"""<tr><td rowspan="3">{organ}</td><td rowspan="3">{alpha_beta}</td><td rowspan="3">{data["volume_cc"]}</td><td>D0.1cc</td>{oar_fraction_dose_cells_d0_1cc}<td>{data["eqd2_d0_1cc"]:.2f}</td></tr><tr><td>D1cc</td>{oar_fraction_dose_cells_d1cc}<td>{data["eqd2_d1cc"]:.2f}</td></tr><tr><td>D2cc</td>{oar_fraction_dose_cells_d2cc}<td>{data["eqd2_d2cc"]:.2f}</td></tr>"""
 
     html_content = template.replace("{{ patient_name }}", patient_name)
     html_content = html_content.replace("{{ patient_mrn }}", patient_mrn)
@@ -97,10 +111,13 @@ def generate_html_report(patient_name, patient_mrn, plan_name, plan_date, plan_t
     html_content = html_content.replace("{{ target_volume_rows }}", target_volume_rows)
     html_content = html_content.replace("{{ oar_rows }}", oar_rows)
     html_content = html_content.replace("{{ logo_base64 }}", logo_data_uri)
+    html_content = html_content.replace("{{ fraction_headers }}", fraction_headers)
 
     point_dose_rows = ""
     for pr in point_dose_results:
-        point_dose_rows += f"""<tr><td>{pr['name']}</td><td>{alpha_beta_ratios.get(pr['name'], alpha_beta_ratios["Default"])}</td><td>{pr['dose']:.2f}</td><td>{pr['total_dose']:.2f}</td><td>{pr['EQD2']:.2f}</td></tr>"""
+        # Generate fraction dose cells for point doses
+        point_fraction_dose_cells = "".join([f"<td>{pr['dose']:.2f}</td>" for _ in range(number_of_fractions)])
+        point_dose_rows += f"""<tr><td>{pr['name']}</td><td>{alpha_beta_ratios.get(pr['name'], alpha_beta_ratios["Default"])}</td>{point_fraction_dose_cells}<td>{pr['EQD2']:.2f}</td></tr>"""
     html_content = html_content.replace("{{ point_dose_rows }}", point_dose_rows)
 
     with open(output_path, "w") as f:
