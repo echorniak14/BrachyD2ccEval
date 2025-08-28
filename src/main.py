@@ -1,5 +1,9 @@
 import sys
 import base64
+import pandas as pd
+from datetime import datetime
+from openpyxl import load_workbook
+import pydicom
 from .html_parser import parse_html_report
 from .dicom_parser import find_dicom_file, load_dicom_file, get_structure_data, get_plan_data, get_dose_data
 from .calculations import get_dvh, evaluate_constraints, calculate_dose_to_meet_constraint, calculate_point_dose_bed_eqd2, get_dose_at_point
@@ -278,3 +282,94 @@ if __name__ == "__main__":
     parser.add_argument("--output_html", type=str, help="If provided, the results will be saved to this HTML file.")
     args = parser.parse_args()
     main(args)
+
+def generate_dwell_time_sheet(mosaiq_schedule_path, rtplan_file, output_excel_path):
+    """
+    Generates a dwell time decay sheet from a Mosaiq schedule and an RTPLAN file.
+    """
+    # --- Helper Function from test_schedule_parser.py ---
+    def parse_mosaiq_schedule_for_hdr_tx(file_path):
+        try:
+            df = pd.read_excel(file_path)
+            hdr_tx_schedule = df[
+                df['Activity'].str.contains('HDR', case=False, na=False) &
+                df['Description'].str.contains('tx', case=False, na=False)
+            ].copy()
+            hdr_tx_schedule = hdr_tx_schedule[~hdr_tx_schedule['Sts'].str.contains('X', na=False)]
+            hdr_tx_schedule['Date'] = pd.to_datetime(hdr_tx_schedule['Date'], errors='coerce')
+            hdr_tx_schedule['Time'] = hdr_tx_schedule['Time'].astype(str)
+            hdr_tx_schedule.dropna(subset=['Date'], inplace=True)
+            hdr_tx_schedule['datetime'] = pd.to_datetime(
+                hdr_tx_schedule['Date'].dt.strftime('%Y-%m-%d') + ' ' + hdr_tx_schedule['Time']
+            )
+            return sorted(hdr_tx_schedule['datetime'].tolist())
+        except Exception as e:
+            print(f"Error parsing Mosaiq schedule file: {e}")
+            return []
+
+    # --- Main logic from test_schedule_parser.py ---
+    template_excel_path = r'sample_data/Dwell time decay Worksheet Cylinder.xlsx' # This path needs to be relative to the project root
+
+    fraction_datetimes = parse_mosaiq_schedule_for_hdr_tx(mosaiq_schedule_path)
+    if not fraction_datetimes:
+        print("No 'HDR: tx' activities found in the schedule. Exiting.")
+        return
+
+    patient_name = "N/A"
+    patient_mrn = "N/A"
+    plan_name = "N/A"
+    plan_date_str = "N/A"
+
+    if rtplan_file:
+        rtplan_dataset = pydicom.dcmread(rtplan_file)
+        patient_name = str(rtplan_dataset.PatientName)
+        patient_mrn = str(rtplan_dataset.PatientID)
+        plan_data = get_plan_data(rtplan_file)
+        plan_name = plan_data.get('plan_name', 'N/A')
+        source_strength_ref_date = plan_data.get('source_strength_ref_date', 'N/A')
+        source_strength_ref_time = plan_data.get('source_strength_ref_time', 'N/A')
+        if source_strength_ref_date != 'N/A' and source_strength_ref_time != 'N/A':
+            plan_datetime = datetime.strptime(f"{source_strength_ref_date}{source_strength_ref_time.split('.')[0]}", "%Y%m%d%H%M%S")
+            plan_date_str = plan_datetime.strftime('%Y-%m-%d %H:%M')
+        else:
+            plan_date_str = "N/A"
+        
+        rakr = plan_data.get('rakr', 0.0)
+        source_activity_ci = rakr / 4.0367 / 1000
+    else:
+        source_activity_ci = 0.0
+
+
+    try:
+        wb = load_workbook(template_excel_path)
+        ws = wb.active
+
+        ws['B5'] = patient_name
+        ws['B6'] = patient_mrn
+        ws['B7'] = plan_name
+        ws['B11'] = plan_date_str
+
+        fraction_cells = ['C11', 'D11', 'E11', 'F11', 'G11']
+        for i, dt in enumerate(fraction_datetimes):
+            if i < len(fraction_cells):
+                ws[fraction_cells[i]] = dt.strftime('%Y-%m-%d %H:%M')
+
+        ws['B9'] = "Plan"
+        header_cells = ['C9', 'D9', 'E9', 'F9', 'G9']
+        for i in range(len(fraction_datetimes)):
+             if i < len(header_cells):
+                ws[header_cells[i]] = i + 1
+        
+        ws['B13'] = source_activity_ci
+        
+        dwell_time_start_row = 17
+        for i in range(12):
+            cell_ref = f'B{dwell_time_start_row + i}'
+            ws[cell_ref] = 0.0
+
+        wb.save(output_excel_path)
+
+    except FileNotFoundError:
+        print(f"Error: The template file was not found at '{template_excel_path}'.")
+    except Exception as e:
+        print(f"An error occurred while populating the Excel template: {e}")

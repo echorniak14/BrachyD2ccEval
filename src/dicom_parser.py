@@ -84,14 +84,20 @@ def get_plan_data(rtplan_file):
     # Get Plan Date and Time
     plan_data['plan_date'] = getattr(ds, 'RTPlanDate', 'N/A')
     plan_data['plan_time'] = getattr(ds, 'RTPlanTime', 'N/A')
-
+    
     # Get Source Information
     plan_data['source_info'] = 'N/A'
+    plan_data['rakr'] = 0.0
+    plan_data['source_strength_ref_date'] = 'N/A'
+    plan_data['source_strength_ref_time'] = 'N/A'
     if hasattr(ds, 'SourceSequence') and len(ds.SourceSequence) > 0:
         source = ds.SourceSequence[0]
         if hasattr(source, 'ReferenceAirKermaRate'):
             rakr = float(source.ReferenceAirKermaRate)
             plan_data['source_info'] = f"{rakr:.2f} cGy cm^2/hr"
+            plan_data['rakr'] = rakr
+        plan_data['source_strength_ref_date'] = getattr(source, 'SourceStrengthReferenceDate', 'N/A')
+        plan_data['source_strength_ref_time'] = getattr(source, 'SourceStrengthReferenceTime', 'N/A')
 
     # Get Number of Fractions and Dose per Fraction
     if hasattr(ds, 'FractionGroupSequence') and len(ds.FractionGroupSequence) > 0:

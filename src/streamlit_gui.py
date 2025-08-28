@@ -253,6 +253,16 @@ def main():
         # --- End of new code ---
 
         with st.expander("Optional Inputs", expanded=True):
+            st.subheader("Dwell Time Decay Sheet")
+            st.markdown("""
+            **Instructions for generating the Mosaiq schedule report:**
+
+            In Mosaiq, open the patient's chart and go to 'Schedule' > 'All'. Right-click and select 'Reports' > 'Patient Appointment Calendar'. 
+            Select all departments, the current patient, and adjust the date range. For the report format, select 'Display Appointments in LIST format'. 
+            Save the report as an .xlsx file.
+            """)
+            mosaiq_schedule_file = st.file_uploader("Upload Mosaiq schedule report (.xlsx)", type=["xlsx"])
+
             # --- CORRECTED LOGIC TO FIND DEFAULT FRACTIONS ---
             default_num_fractions = 1
             for uploaded_file in uploaded_files:
@@ -405,6 +415,44 @@ def main():
         )
     else:
         st.session_state.selected_point_names = []
+
+    if st.button("Generate Dwell Time Sheet"):
+        if 'mosaiq_schedule_file' in locals() and mosaiq_schedule_file and uploaded_files:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp_excel_file:
+                tmp_excel_file.write(mosaiq_schedule_file.getbuffer())
+                mosaiq_schedule_path = tmp_excel_file.name
+
+            with tempfile.TemporaryDirectory() as tmpdir:
+                rtplan_file_path = None
+                for uploaded_file in uploaded_files:
+                    file_path = os.path.join(tmpdir, uploaded_file.name)
+                    with open(file_path, "wb") as f:
+                        f.write(uploaded_file.getbuffer())
+                    ds = pydicom.dcmread(file_path)
+                    if ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.481.5': # RT Plan Storage
+                        rtplan_file_path = file_path
+
+
+                output_excel_path = os.path.join(tmpdir, "populated_dwell_time_sheet.xlsx")
+
+                # This function will be created in main.py
+                from src.main import generate_dwell_time_sheet
+                generate_dwell_time_sheet(
+                    mosaiq_schedule_path=mosaiq_schedule_path,
+                    rtplan_file=rtplan_file_path,
+                    output_excel_path=output_excel_path,
+                )
+
+                with open(output_excel_path, "rb") as f:
+                    st.download_button(
+                        label="Download Dwell Time Sheet",
+                        data=f,
+                        file_name="dwell_time_sheet.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    )
+        else:
+            st.warning("Please upload both the Mosaiq schedule and the DICOM files.")
+
 
     ab_ratios = st.session_state.get("ab_ratios", templates["Cervix HDR - EMBRACE II"]["alpha_beta_ratios"].copy())
 
