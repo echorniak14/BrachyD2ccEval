@@ -283,16 +283,19 @@ def main():
                     uploaded_file.seek(0)
             # --- END CORRECTED LOGIC ---
 
+            st.markdown("<h3 style='color: #fc8781;'>Number of Fractions to be Delivered</h3>", unsafe_allow_html=True)
             num_fractions_delivered = st.number_input(
-                "Number of Fractions to be Delivered",
+                " ", # Empty label as we are using markdown for the label
                 value=default_num_fractions,
                 min_value=1,
                 step=1,
                 key="num_fractions_delivered_input"
             )
 
-            ebrt_dose = st.number_input("EBRT Dose (Gy)", value=0.0)
+            st.markdown("<h3 style='color: #fc8781;'>EBRT Dose (Gy)</h3>", unsafe_allow_html=True)
+            ebrt_dose = st.number_input(" ", value=0.0)
 
+            st.markdown("<h3 style='color: #fc8781;'>Previous Brachytherapy Treatments Delivered</h3>", unsafe_allow_html=True)
             previous_brachy_data_file = st.file_uploader("Upload previous brachytherapy data (optional)", type=["html", "json"])
             if previous_brachy_data_file is not None and previous_brachy_data_file.name.endswith('.json'):
                 try:
