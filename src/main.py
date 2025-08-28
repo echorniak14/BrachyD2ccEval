@@ -239,10 +239,16 @@ def main(args, selected_point_names=None, custom_constraints=None, dose_point_ma
         else:
             dvh_results[organ]["dose_to_meet_constraint"] = "N/A"
 
-    plan_date_str = plan_data.get('plan_date', 'N/A')
-    formatted_plan_date = f"{plan_date_str[4:6]}-{plan_date_str[6:8]}-{plan_date_str[0:4]}" if len(plan_date_str) == 8 else plan_date_str
-    plan_time_str = plan_data.get('plan_time', 'N/A')
-    formatted_plan_time = f"{plan_time_str[0:2]}:{plan_time_str[2:4]}:{plan_time_str[4:6]}" if len(plan_time_str) >= 6 else plan_time_str
+    source_strength_ref_date = plan_data.get('source_strength_ref_date', 'N/A')
+    source_strength_ref_time = plan_data.get('source_strength_ref_time', 'N/A')
+
+    if source_strength_ref_date != 'N/A' and source_strength_ref_time != 'N/A':
+        plan_datetime = datetime.strptime(f"{source_strength_ref_date}{source_strength_ref_time.split('.')[0]}", "%Y%m%d%H%M%S")
+        formatted_plan_date = plan_datetime.strftime('%Y-%m-%d')
+        formatted_plan_time = plan_datetime.strftime('%H:%M:%S')
+    else:
+        formatted_plan_date = 'N/A'
+        formatted_plan_time = 'N/A'
 
     output_data = {
         "patient_name": str(rt_dose_dataset.PatientName),
