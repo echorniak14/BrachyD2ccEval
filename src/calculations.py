@@ -417,3 +417,15 @@ def evaluate_constraints(dvh_results, point_dose_results, constraints=None, poin
                         }
 
     return constraint_evaluation
+    
+def check_plan_time(plan_time):
+    """Checks if the plan time is outside of normal business hours (7am-5pm)."""
+    if plan_time == 'N/A':
+        return None
+    try:
+        hour = int(plan_time[:2])
+        if not 7 <= hour < 17:
+            return "Warning: Plan time is outside of normal business hours (7am-5pm)."
+    except (ValueError, IndexError):
+        return "Warning: Invalid plan time format."
+    return None

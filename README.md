@@ -9,6 +9,7 @@ This project aims to automate and streamline the evaluation process for HDR brac
 ## Features
 
 - **DICOM Data Parsing:** Reads and extracts relevant data from RTDOSE, RTSTRUCT, and RTPLAN files.
+- **Plan Time Warning:** Displays a warning if the planned treatment time is outside of normal business hours (7am-5pm).
 - **Patient Consistency Verification:** Ensures all input DICOM files belong to the same patient.
 - **Dose Metric Calculation (D0.1cc, D1cc, D2cc):** Calculates the minimum dose to 0.1, 1, and 2 cubic centimeters of the most irradiated volume of an organ, utilizing the `dicompyler-core` library for accurate Dose-Volume Histogram (DVH) analysis.
 - **BED/EQD2 Calculation:** Computes Biologically Effective Dose (BED) and Equivalent Dose in 2 Gy fractions (EQD2) for various organs, incorporating user-defined alpha/beta ratios and optional EBRT doses.

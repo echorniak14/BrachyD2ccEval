@@ -5,8 +5,8 @@ from datetime import datetime
 from openpyxl import load_workbook
 import pydicom
 from .html_parser import parse_html_report
-from .dicom_parser import find_dicom_file, load_dicom_file, get_structure_data, get_plan_data, get_dose_data, get_dwell_times_and_positions
-from .calculations import get_dvh, evaluate_constraints, calculate_dose_to_meet_constraint, calculate_point_dose_bed_eqd2, get_dose_at_point
+from .dicom_parser import find_dicom_file, load_dicom_file, get_structure_data, get_plan_data, get_dwell_times_and_positions
+from .calculations import get_dvh, evaluate_constraints, calculate_dose_to_meet_constraint, calculate_point_dose_bed_eqd2, get_dose_at_point, check_plan_time
 import argparse
 from pathlib import Path
 import json
@@ -162,6 +162,7 @@ def main(args, selected_point_names=None, custom_constraints=None, dose_point_ma
         return {"error": "Could not load all DICOM files."}
     
     plan_data = get_plan_data(plan_file)
+    plan_time_warning = check_plan_time(plan_data.get('plan_time'))
     
     # --- CORRECTED LOGIC ---
     # Store the original planned number of fractions from the DICOM file.
@@ -282,6 +283,7 @@ def main(args, selected_point_names=None, custom_constraints=None, dose_point_ma
         "dvh_results": dvh_results,
         "constraint_evaluation": constraint_evaluation,
         "point_dose_results": point_dose_results,
+        "plan_time_warning": plan_time_warning,
     }
 
     if args.output_html:

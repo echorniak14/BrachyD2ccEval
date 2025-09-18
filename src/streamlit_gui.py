@@ -568,6 +568,8 @@ def main():
                             st.write(f"**Plan Name:** {results['plan_name']}")
                             st.write(f"**Plan Date:** {results['plan_date']}")
                             st.write(f"**Plan Time:** {results['plan_time']}")
+                            if results.get("plan_time_warning"):
+                                st.warning(results["plan_time_warning"])
                             st.write(f"**Brachytherapy Dose per Fraction:** {results['brachy_dose_per_fraction']:.2f} Gy")
                             st.write(f"**Number of Fractions Used for Calculations:** {results['calculation_number_of_fractions']}")
                             st.write(f"**Number of Planned Fractions:** {results['planned_number_of_fractions']}")
@@ -700,6 +702,8 @@ def main():
                                         row_data['Volume (cc)'] = None
                                         restructured_data.append(row_data)
 
+                                    
+
                                 if restructured_data:
                                     final_oar_df = pd.DataFrame(restructured_data)
 
@@ -741,6 +745,7 @@ def main():
                                         "Dose (Gy)": st.column_config.NumberColumn(format="%.2f"),
                                         "BED (Gy)": st.column_config.NumberColumn(format="%.2f"),
                                         "EQD2 (Gy)": st.column_config.NumberColumn(format="%.2f"),
+                                        "Dose to Meet Constraint (Gy)": st.column_config.NumberColumn(format="%.2f"),
                                     })
                             else:
                                 st.info("No OAR DVH data available.")

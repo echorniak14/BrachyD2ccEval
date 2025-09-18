@@ -4,3 +4,6 @@ dist/
 build/
 __pycache__/
 *-p/
+# Ignore validation data files
+validation/manual_sheets/
+validation/app_json_outputs/

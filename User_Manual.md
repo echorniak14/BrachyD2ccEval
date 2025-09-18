@@ -69,7 +69,7 @@ The report provides a comprehensive summary of the plan evaluation.
 
 ### Patient Information:
 
-This section displays the patient's name, MRN, the plan name, and the prescribed doses.
+This section displays the patient's name, MRN, the plan name, and the prescribed doses. A warning will be displayed if the plan time is outside of normal business hours (7am-5pm).
 
 ### Dose Volume Histogram (DVH) Results:
 
