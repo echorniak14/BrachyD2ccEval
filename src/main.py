@@ -174,10 +174,8 @@ def main(args, selected_point_names=None, custom_constraints=None, dose_point_ma
     
     dose_grid, dose_scaling, image_position, pixel_spacing, grid_frame_offset_vector, image_orientation = get_dose_data(dose_file)
 
-    # *** FIX STARTS HERE: Check if the dose data is valid ***
     if dose_grid is None:
         return {"error": "Failed to read dose grid from RTDOSE file. The file may be empty, corrupt, or not a valid dose file."}
-    # *** FIX ENDS HERE ***
 
     plan_data = get_plan_data(plan_file)
     plan_time_warning = check_plan_time(plan_data.get('plan_time'))
@@ -190,6 +188,11 @@ def main(args, selected_point_names=None, custom_constraints=None, dose_point_ma
 
     brachy_dose_per_fraction = plan_data.get('brachy_dose_per_fraction', 0)
     structure_data = get_structure_data(rt_struct_dataset)
+
+    # *** FIX STARTS HERE: Check if the structure data is valid ***
+    if not structure_data:
+        return {"error": "Failed to read structure data from RTSTRUCT file. The file may be corrupt, invalid, or contain no structures."}
+    # *** FIX ENDS HERE ***
 
     previous_brachy_bed_per_organ = {}
     if hasattr(args, 'previous_brachy_data') and args.previous_brachy_data:

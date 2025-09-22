@@ -46,16 +46,35 @@ def sort_dicom_files(dicom_files):
     return sorted_files
 
 def get_structure_data(rtstruct_dataset):
-    """Extracts ROI names and contour data from an RTSTRUCT file."""
+    """
+    Safely extracts ROI names and contour data from an RTSTRUCT file.
+    Returns an empty dictionary if essential tags are missing or the file is invalid.
+    """
     if not rtstruct_dataset:
         return {}
-    structures = {}
-    for roi_contour, structure_set_roi in zip(rtstruct_dataset.ROIContourSequence, rtstruct_dataset.StructureSetROISequence):
-        structures[structure_set_roi.ROIName] = {
-            "ROINumber": structure_set_roi.ROINumber,
-            "ContourData": [contour.ContourData for contour in roi_contour.ContourSequence]
-        }
-    return structures
+    
+    try:
+        # Check for the presence and validity of essential sequences
+        if not hasattr(rtstruct_dataset, 'ROIContourSequence') or \
+           not hasattr(rtstruct_dataset, 'StructureSetROISequence') or \
+           len(rtstruct_dataset.ROIContourSequence) == 0:
+            print("Warning: RTSTRUCT file is missing or has empty structure sequences. Cannot process structures.")
+            return {}
+
+        structures = {}
+        for roi_contour, structure_set_roi in zip(rtstruct_dataset.ROIContourSequence, rtstruct_dataset.StructureSetROISequence):
+            # Also make the inner loop safer in case a contour is present but has no data
+            contour_data = [contour.ContourData for contour in getattr(roi_contour, 'ContourSequence', [])]
+            structures[structure_set_roi.ROIName] = {
+                "ROINumber": structure_set_roi.ROINumber,
+                "ContourData": contour_data
+            }
+        return structures
+
+    except (AttributeError, KeyError, Exception) as e:
+        print(f"Error processing RTSTRUCT file. It may be incomplete or corrupt. Error: {e}")
+        return {}
+
 
 def get_dose_data(rtdose_file):
     """
@@ -264,6 +283,3 @@ def get_dwell_times_and_positions(rtplan_file):
                 position = float(control_points[i].ControlPointRelativePosition)
                 dwell_data.append({"position": position, "dwell_time": dwell_time})
     return dwell_data
-
-# The 'if __name__ == "__main__":' block and its import have been removed as 
-# they are for direct script execution and testing, which is not needed in the final application.
