@@ -5,8 +5,8 @@ from datetime import datetime
 from openpyxl import load_workbook
 import pydicom
 from .html_parser import parse_html_report
-from .dicom_parser import find_dicom_file, load_dicom_file, get_structure_data, get_plan_data, get_dwell_times_and_positions
-from .calculations import get_dvh, evaluate_constraints, calculate_dose_to_meet_constraint, calculate_point_dose_bed_eqd2, get_dose_at_point, check_plan_time
+from .dicom_parser import find_dicom_file, load_dicom_file, get_structure_data, get_plan_data, get_dwell_times_and_positions, get_dose_data
+from .calculations import get_dvh, evaluate_constraints, calculate_dose_to_meet_constraint, calculate_point_dose_bed_eqd2, get_dose_at_point, check_plan_time, calculate_bed_and_eqd2
 import argparse
 from pathlib import Path
 import json
@@ -53,7 +53,7 @@ def convert_html_to_pdf(html_content, output_path, wkhtmltopdf_path=None):
             f"\n\nOriginal error: {e}"
         )
 
-def generate_html_report(patient_name, patient_mrn, plan_name, plan_date, plan_time, source_info, brachy_dose_per_fraction, number_of_fractions, ebrt_dose, dvh_results, constraint_evaluation, dose_references, point_dose_results, output_path, alpha_beta_ratios):
+def generate_html_report(patient_name, patient_mrn, plan_name, plan_date, plan_time, source_info, brachy_dose_per_fraction, number_of_fractions, ebrt_dose, ebrt_fractions, dvh_results, constraint_evaluation, dose_references, point_dose_results, output_path, alpha_beta_ratios):
     if not isinstance(alpha_beta_ratios, dict) or "Default" not in alpha_beta_ratios:
         from .config import templates
         alpha_beta_ratios = templates["Cervix HDR - EMBRACE II"]["alpha_beta_ratios"].copy()
@@ -78,26 +78,42 @@ def generate_html_report(patient_name, patient_mrn, plan_name, plan_date, plan_t
 
     fraction_headers = "".join([f"<th>Fraction {i+1} Dose (Gy)</th>" for i in range(number_of_fractions)])
 
+    def get_fraction_cells(data, key, num_fractions):
+        return "".join([f"<td>{data.get(key, 0):.2f}</td>" for _ in range(num_fractions)])
+
     target_volume_rows = ""
     oar_rows = ""
     for organ, data in dvh_results.items():
         alpha_beta = alpha_beta_ratios.get(organ, alpha_beta_ratios["Default"])
+        volume_cc = data.get("organ_volume_cc", "N/A") # Corrected key
+        if isinstance(volume_cc, (int, float)):
+            volume_cc = f"{volume_cc:.2f}"
+
         if alpha_beta == 10: # is_target
-            # Generate fraction dose cells for target volumes
-            target_fraction_dose_cells_d98 = "".join([f"<td>{data['d98_gy_per_fraction']:.2f}</td>" for _ in range(number_of_fractions)])
-            target_fraction_dose_cells_d90 = "".join([f"<td>{data.get('d90_gy_per_fraction', 0):.2f}</td>" for _ in range(number_of_fractions)])
-            target_fraction_dose_cells_max = "".join([f"<td>{data['max_dose_gy_per_fraction']:.2f}</td>" for _ in range(number_of_fractions)])
-            target_fraction_dose_cells_mean = "".join([f"<td>{data['mean_dose_gy_per_fraction']:.2f}</td>" for _ in range(number_of_fractions)])
-            target_fraction_dose_cells_min = "".join([f"<td>{data['min_dose_gy_per_fraction']:.2f}</td>" for _ in range(number_of_fractions)])
+            d98_cells = get_fraction_cells(data, 'd98_gy_per_fraction', number_of_fractions)
+            d90_cells = get_fraction_cells(data, 'd90_gy_per_fraction', number_of_fractions)
+            max_cells = get_fraction_cells(data, 'max_dose_gy_per_fraction', number_of_fractions)
+            mean_cells = get_fraction_cells(data, 'mean_dose_gy_per_fraction', number_of_fractions)
+            min_cells = get_fraction_cells(data, 'min_dose_gy_per_fraction', number_of_fractions)
 
-            target_volume_rows += f"""<tr><td rowspan="5">{organ}</td><td rowspan="5">{alpha_beta}</td><td rowspan="5">{data["volume_cc"]}</td><td>D98</td>{target_fraction_dose_cells_d98}<td>{data["eqd2_d98"]:.2f}</td></tr><tr><td>D90</td>{target_fraction_dose_cells_d90}<td>{data["eqd2_d90"]:.2f}</td></tr><tr><td>Max</td>{target_fraction_dose_cells_max}<td colspan="1"></td></tr><tr><td>Mean</td>{target_fraction_dose_cells_mean}<td colspan="1"></td></tr><tr><td>Min</td>{target_fraction_dose_cells_min}<td colspan="1"></td></tr>"""
+            target_volume_rows += f'''<tr><td rowspan="5">{organ}</td><td rowspan="5">{alpha_beta}</td><td rowspan="5">{volume_cc}</td><td>D98</td>{d98_cells}<td>{data.get("eqd2_d98", 0):.2f}</td></tr>
+                                 <tr><td>D90</td>{d90_cells}<td>{data.get("eqd2_d90", 0):.2f}</td></tr>
+                                 <tr><td>Max</td>{max_cells}<td colspan="1"></td></tr>
+                                 <tr><td>Mean</td>{mean_cells}<td colspan="1"></td></tr>
+                                 <tr><td>Min</td>{min_cells}<td colspan="1"></td></tr>'''
         else: # OAR
-            # Generate fraction dose cells for OARs
-            oar_fraction_dose_cells_d0_1cc = "".join([f"<td>{data['d0_1cc_gy_per_fraction']:.2f}</td>" for _ in range(number_of_fractions)])
-            oar_fraction_dose_cells_d1cc = "".join([f"<td>{data['d1cc_gy_per_fraction']:.2f}</td>" for _ in range(number_of_fractions)])
-            oar_fraction_dose_cells_d2cc = "".join([f"<td>{data['d2cc_gy_per_fraction']:.2f}</td>" for _ in range(number_of_fractions)])
+            d0_1cc_cells = get_fraction_cells(data, 'd0_1cc_gy_per_fraction', number_of_fractions)
+            d1cc_cells = get_fraction_cells(data, 'd1cc_gy_per_fraction', number_of_fractions)
+            d2cc_cells = get_fraction_cells(data, 'd2cc_gy_per_fraction', number_of_fractions)
 
-            oar_rows += f"""<tr><td rowspan="3">{organ}</td><td rowspan="3">{alpha_beta}</td><td rowspan="3">{data["volume_cc"]}</td><td>D0.1cc</td>{oar_fraction_dose_cells_d0_1cc}<td>{data["eqd2_d0_1cc"]:.2f}</td></tr><tr><td>D1cc</td>{oar_fraction_dose_cells_d1cc}<td>{data["eqd2_d1cc"]:.2f}</td></tr><tr><td>D2cc</td>{oar_fraction_dose_cells_d2cc}<td>{data["eqd2_d2cc"]:.2f}</td></tr>"""
+            oar_rows += f'''<tr><td rowspan="3">{organ}</td><td rowspan="3">{alpha_beta}</td><td rowspan="3">{volume_cc}</td><td>D0.1cc</td>{d0_1cc_cells}<td>{data.get("eqd2_d0_1cc", 0):.2f}</td></tr>
+                           <tr><td>D1cc</td>{d1cc_cells}<td>{data.get("eqd2_d1cc", 0):.2f}</td></tr>
+                           <tr><td>D2cc</td>{d2cc_cells}<td>{data.get("eqd2_d2cc", 0):.2f}</td></tr>'''
+
+    point_dose_rows = ""
+    for pr in point_dose_results:
+        point_fraction_cells = "".join([f"<td>{pr.get('dose', 0):.2f}</td>" for _ in range(number_of_fractions)])
+        point_dose_rows += f'''<tr><td>{pr.get('name', 'N/A')}</td><td>{alpha_beta_ratios.get(pr.get('name', 'Default'), alpha_beta_ratios["Default"])}</td>{point_fraction_cells}<td>{pr.get('EQD2', 0):.2f}</td></tr>'''
 
     html_content = template.replace("{{ patient_name }}", patient_name)
     html_content = html_content.replace("{{ patient_mrn }}", patient_mrn)
@@ -108,24 +124,19 @@ def generate_html_report(patient_name, patient_mrn, plan_name, plan_date, plan_t
     html_content = html_content.replace("{{ brachy_dose_per_fraction }}", str(brachy_dose_per_fraction))
     html_content = html_content.replace("{{ number_of_fractions }}", str(number_of_fractions))
     html_content = html_content.replace("{{ ebrt_dose }}", str(ebrt_dose))
+    html_content = html_content.replace("{{ ebrt_fractions }}", str(ebrt_fractions))
     html_content = html_content.replace("{{ target_volume_rows }}", target_volume_rows)
     html_content = html_content.replace("{{ oar_rows }}", oar_rows)
     html_content = html_content.replace("{{ logo_base64 }}", logo_data_uri)
     html_content = html_content.replace("{{ fraction_headers }}", fraction_headers)
-
-    point_dose_rows = ""
-    for pr in point_dose_results:
-        # Generate fraction dose cells for point doses
-        point_fraction_dose_cells = "".join([f"<td>{pr['dose']:.2f}</td>" for _ in range(number_of_fractions)])
-        point_dose_rows += f"""<tr><td>{pr['name']}</td><td>{alpha_beta_ratios.get(pr['name'], alpha_beta_ratios["Default"])}</td>{point_fraction_dose_cells}<td>{pr['EQD2']:.2f}</td></tr>"""
     html_content = html_content.replace("{{ point_dose_rows }}", point_dose_rows)
 
-    with open(output_path, "w") as f:
+    with open(output_path, "w", encoding='utf-8') as f:
         f.write(html_content)
     
     return html_content
 
-def main(args, selected_point_names=None, custom_constraints=None, dose_point_mapping=None, num_fractions_delivered=None):
+def main(args, selected_point_names=None, custom_constraints=None, dose_point_mapping=None, num_fractions_delivered=None, ebrt_fractions=None):
     data_dir = Path(args.data_dir)
 
     if hasattr(args, 'alpha_beta_ratios') and args.alpha_beta_ratios:
@@ -161,20 +172,16 @@ def main(args, selected_point_names=None, custom_constraints=None, dose_point_ma
     if not all([rt_dose_dataset, rt_struct_dataset, rt_plan_dataset]):
         return {"error": "Could not load all DICOM files."}
     
+    dose_grid, dose_scaling, image_position, pixel_spacing, grid_frame_offset_vector, image_orientation = get_dose_data(dose_file)
+
     plan_data = get_plan_data(plan_file)
     plan_time_warning = check_plan_time(plan_data.get('plan_time'))
     
-    # --- CORRECTED LOGIC ---
-    # Store the original planned number of fractions from the DICOM file.
     planned_number_of_fractions = plan_data.get('number_of_fractions', 1)
-    
-    # Use a separate variable for calculations. Default to the planned value.
     number_of_fractions_for_calc = planned_number_of_fractions
     
-    # If a specific number of delivered fractions is provided by the user, it overrides the value for calculations.
     if num_fractions_delivered is not None:
         number_of_fractions_for_calc = num_fractions_delivered
-    # --- END CORRECTION ---
 
     brachy_dose_per_fraction = plan_data.get('brachy_dose_per_fraction', 0)
     structure_data = get_structure_data(rt_struct_dataset)
@@ -193,11 +200,43 @@ def main(args, selected_point_names=None, custom_constraints=None, dose_point_ma
     dvh_results = get_dvh(
         struct_file, dose_file, structure_data, number_of_fractions_for_calc,
         ebrt_dose=args.ebrt_dose,
+        ebrt_fractions=ebrt_fractions,
         previous_brachy_bed_per_organ=previous_brachy_bed_per_organ,
         alpha_beta_ratios=current_alpha_beta_ratios
     )
 
-    current_constraints = custom_constraints.get("constraints")
+    for organ, data in dvh_results.items():
+        dose_metrics = {
+            'd2cc': 'd2cc_gy_per_fraction',
+            'd1cc': 'd1cc_gy_per_fraction',
+            'd0_1cc': 'd0_1cc_gy_per_fraction',
+            'd90': 'd90_gy_per_fraction',
+            'd98': 'd98_gy_per_fraction',
+            'd95': 'd95_gy_per_fraction',
+            'max': 'max_dose_gy_per_fraction',
+            'mean': 'mean_dose_gy_per_fraction',
+            'min': 'min_dose_gy_per_fraction',
+        }
+        for metric_key, dose_key in dose_metrics.items():
+            dose_per_fraction = data.get(dose_key, 0)
+            if dose_per_fraction > 0:
+                total_dose = dose_per_fraction * number_of_fractions_for_calc
+                
+                previous_brachy_bed = previous_brachy_bed_per_organ.get(organ, 0) if metric_key == 'd2cc' else 0
+
+                total_bed, eqd2, _, _, _ = calculate_bed_and_eqd2(
+                    total_dose,
+                    dose_per_fraction,
+                    organ,
+                    args.ebrt_dose,
+                    ebrt_fractions,
+                    previous_brachy_bed,
+                    current_alpha_beta_ratios
+                )
+                data[f'bed_{metric_key}'] = total_bed
+                data[f'eqd2_{metric_key}'] = eqd2
+
+    current_constraints = custom_constraints.get("constraints") if custom_constraints else None
     point_dose_constraints = custom_constraints.get("point_dose_constraints") if custom_constraints else None
 
     filtered_dose_references = []
@@ -208,7 +247,7 @@ def main(args, selected_point_names=None, custom_constraints=None, dose_point_ma
 
     for dr in filtered_dose_references:
         total_bed, eqd2, bed_brachy, bed_ebrt, bed_previous_brachy = calculate_point_dose_bed_eqd2(
-            dr['dose'], number_of_fractions_for_calc, dr['name'], args.ebrt_dose,
+            dr['dose'], number_of_fractions_for_calc, dr['name'], args.ebrt_dose, ebrt_fractions,
             previous_brachy_bed=previous_brachy_bed_per_organ.get(dr['name'], 0),
             alpha_beta_ratios=current_alpha_beta_ratios
         )
@@ -241,6 +280,15 @@ def main(args, selected_point_names=None, custom_constraints=None, dose_point_ma
                     else:
                         pr['Constraint Status'] = 'Fail'
                     status_updated = True
+            elif "max_eqd2" in constraint:
+                max_eqd2 = constraint["max_eqd2"]
+                current_eqd2 = pr['EQD2']
+                if current_eqd2 <= max_eqd2:
+                    pr['Constraint Status'] = 'Pass'
+                else:
+                    pr['Constraint Status'] = 'Fail'
+                status_updated = True
+
         if not status_updated:
             point_eval_key = f"Point Dose - {pr['name']}"
             point_eval = constraint_evaluation.get(point_eval_key, {})
@@ -251,7 +299,7 @@ def main(args, selected_point_names=None, custom_constraints=None, dose_point_ma
             eqd2_constraint = constraint_evaluation[organ]["EQD2_max"]
             dvh_results[organ]["dose_to_meet_constraint"] = calculate_dose_to_meet_constraint(
                 eqd2_constraint, organ, number_of_fractions_for_calc, args.ebrt_dose,
-                previous_brachy_bed=previous_brachy_bed_per_organ.get(organ, {}).get("d2cc", 0),
+                previous_brachy_bed=previous_brachy_bed_per_organ.get(organ, 0),
                 alpha_beta_ratios=current_alpha_beta_ratios
             )
         else:
@@ -291,7 +339,7 @@ def main(args, selected_point_names=None, custom_constraints=None, dose_point_ma
             output_data["patient_name"], output_data["patient_mrn"], output_data["plan_name"], 
             output_data["plan_date"], output_data["plan_time"], output_data["source_info"],
             output_data["brachy_dose_per_fraction"], output_data["calculation_number_of_fractions"], 
-            output_data["ebrt_dose"], output_data["dvh_results"], 
+            output_data["ebrt_dose"], ebrt_fractions, output_data["dvh_results"], 
             output_data["constraint_evaluation"], plan_data.get('dose_references', []), 
             output_data["point_dose_results"], args.output_html, current_alpha_beta_ratios
         )
@@ -303,10 +351,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Brachytherapy Plan Evaluator")
     parser.add_argument("--data_dir", type=str, required=True, help="Path to the directory containing the patient's DICOM files.")
     parser.add_argument("--ebrt_dose", type=float, default=0.0, help="The prescription dose of the external beam radiation therapy in Gray (Gy).")
+    parser.add_argument("--ebrt_fractions", type=int, default=1, help="The number of fractions for the external beam radiation therapy.")
     parser.add_argument("--previous_brachy_html", type=str, help="Path to a previous brachytherapy HTML report to incorporate its EQD2 values.")
     parser.add_argument("--output_html", type=str, help="If provided, the results will be saved to this HTML file.")
     args = parser.parse_args()
-    main(args)
+    main(args, ebrt_fractions=args.ebrt_fractions)
 
 def generate_dwell_time_sheet(mosaiq_schedule_path, rtplan_file, output_excel_path):
     """

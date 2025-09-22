@@ -115,9 +115,15 @@ def get_plan_data(rtplan_file):
     # Get Dose Reference Data
     plan_data['dose_references'] = []
     if hasattr(ds, 'DoseReferenceSequence'):
+        unnamed_point_counter = 1
         for dr in ds.DoseReferenceSequence:
+            point_name = getattr(dr, 'DoseReferenceDescription', '').strip()
+            if not point_name or point_name == '-':
+                point_name = f"Unnamed Point {unnamed_point_counter}"
+                unnamed_point_counter += 1
+            
             plan_data['dose_references'].append({
-                'name': dr.DoseReferenceDescription,
+                'name': point_name,
                 'dose': dr.TargetPrescriptionDose
             })
 
@@ -188,6 +194,18 @@ def get_dose_point_mapping(rtplan_file, point_dose_constraints):
             
             if is_cylinder_point:
                 continue # Move to the next dose reference if it's a cylinder point
+
+            # Special handling for RV Point
+            rv_point_keywords = ['rv', 'rv point', 'rv pt']
+            is_rv_point = False
+            for keyword in rv_point_keywords:
+                if keyword in dicom_point_name:
+                    mapping[dose_ref.DoseReferenceDescription] = "RV Point"
+                    is_rv_point = True
+                    break
+            
+            if is_rv_point:
+                continue
 
             # First, try to find an exact match (case-insensitive)
             exact_match_found = False

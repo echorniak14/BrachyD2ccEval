@@ -293,7 +293,52 @@ def main():
             )
 
             st.markdown("<h3 style='color: #fc8781;'>EBRT Dose (Gy)</h3>", unsafe_allow_html=True)
-            ebrt_dose = st.number_input(" ", value=0.0)
+
+            # Initialize session state for EBRT if it doesn't exist
+            if 'ebrt_total_dose' not in st.session_state:
+                st.session_state.ebrt_total_dose = 0.0
+            if 'ebrt_fraction_dose' not in st.session_state:
+                st.session_state.ebrt_fraction_dose = 0.0
+            if 'ebrt_num_fractions' not in st.session_state:
+                st.session_state.ebrt_num_fractions = 1
+
+            # Callback functions to update EBRT values
+            def update_total_dose():
+                st.session_state.ebrt_total_dose = st.session_state.ebrt_fraction_dose * st.session_state.ebrt_num_fractions
+
+            def update_fraction_dose():
+                if st.session_state.ebrt_num_fractions > 0:
+                    st.session_state.ebrt_fraction_dose = st.session_state.ebrt_total_dose / st.session_state.ebrt_num_fractions
+                else:
+                    st.session_state.ebrt_fraction_dose = 0
+
+            def update_num_fractions():
+                if st.session_state.ebrt_fraction_dose > 0:
+                    st.session_state.ebrt_num_fractions = round(st.session_state.ebrt_total_dose / st.session_state.ebrt_fraction_dose)
+                else:
+                    st.session_state.ebrt_num_fractions = 0
+
+            # Create columns for EBRT inputs
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                st.number_input("Total Dose (Gy)", 
+                                key='ebrt_total_dose', 
+                                on_change=update_fraction_dose)
+            with col2:
+                st.number_input("Number of Fractions", 
+                                min_value=0, 
+                                step=1, 
+                                key='ebrt_num_fractions', 
+                                on_change=update_total_dose)
+            with col3:
+                st.number_input("Dose per Fraction (Gy)", 
+                                key='ebrt_fraction_dose', 
+                                on_change=update_total_dose)
+
+            # Get the final EBRT dose from session state
+            ebrt_dose = st.session_state.ebrt_total_dose
+
 
             st.markdown("<h3 style='color: #fc8781;'>Previous Brachytherapy Treatments Delivered</h3>", unsafe_allow_html=True)
             previous_brachy_data_file = st.file_uploader("Upload previous brachytherapy data (optional)", type=["html", "json"])
@@ -315,8 +360,10 @@ def main():
                     st.error(f"Error reading patient info from JSON file: {e}")
             wkhtmltopdf_path = st.text_input("Path to wkhtmltopdf.exe (optional)")
 
-        st.sidebar.subheader("EBRT Dose")
-        st.sidebar.write(f"{ebrt_dose} Gy")
+        st.sidebar.subheader("EBRT Summary")
+        st.sidebar.write(f"Total Dose: {st.session_state.ebrt_total_dose:.2f} Gy")
+        st.sidebar.write(f"Fractions: {st.session_state.ebrt_num_fractions}")
+        st.sidebar.write(f"Dose per Fraction: {st.session_state.ebrt_fraction_dose:.2f} Gy")
 
         with tempfile.TemporaryDirectory() as tmpdir:
             # Create a unique key for the temporary directory based on uploaded file names
@@ -379,30 +426,32 @@ def main():
                     st.session_state.manual_mapping = merged_mapping
                     
                     for dicom_point in st.session_state.available_point_names:
-                        col1, col2 = st.columns([1, 2])
-                        
-                        with col1:
-                            st.write(f"**{dicom_point}**")
+                        # Ensure the point name is valid before creating a widget
+                        if dicom_point and dicom_point.strip():
+                            col1, col2 = st.columns([1, 2])
                             
-                        with col2:
-                            current_mapping = st.session_state.manual_mapping.get(dicom_point, "N/A")
-                            
-                            try:
-                                current_index = clinical_point_names.index(current_mapping)
-                            except ValueError:
-                                current_index = 0
+                            with col1:
+                                st.write(f"**{dicom_point}**")
+                                
+                            with col2:
+                                current_mapping = st.session_state.manual_mapping.get(dicom_point, "N/A")
+                                
+                                try:
+                                    current_index = clinical_point_names.index(current_mapping)
+                                except ValueError:
+                                    current_index = 0
 
-                            # The selectbox's value is automatically managed by Streamlit via its key
-                            st.selectbox(
-                                f"Map '{dicom_point}' to:",
-                                options=clinical_point_names,
-                                index=current_index,
-                                key=f"map_{dicom_point}", # The key links this widget to session state
-                                label_visibility="collapsed"
-                            )
-                            
-                            # Update our manual_mapping dict from the widget's state
-                            st.session_state.manual_mapping[dicom_point] = st.session_state[f"map_{dicom_point}"]
+                                # The selectbox's value is automatically managed by Streamlit via its key
+                                st.selectbox(
+                                    f"Map '{dicom_point}' to:",
+                                    options=clinical_point_names,
+                                    index=current_index,
+                                    key=f"map_{dicom_point}", # The key links this widget to session state
+                                    label_visibility="collapsed"
+                                )
+                                
+                                # Update our manual_mapping dict from the widget's state
+                                st.session_state.manual_mapping[dicom_point] = st.session_state[f"map_{dicom_point}"]
             else:
                 st.session_state.available_point_names = []
     else:
@@ -523,9 +572,9 @@ def main():
                             previous_brachy_bed_data = {}
                             for organ, data in json_content.get("dvh_results", {}).items():
                                 previous_brachy_bed_data[organ] = {
-                                    "d2cc": data.get("bed_d2cc", 0.0),
-                                    "d1cc": data.get("bed_d1cc", 0.0),
-                                    "d0_1cc": data.get("bed_d0_1cc", 0.0)
+                                    "d2cc": data.get("bed_brachy_d2cc", 0.0),
+                                    "d1cc": data.get("bed_brachy_d1cc", 0.0),
+                                    "d0_1cc": data.get("bed_brachy_d0_1cc", 0.0)
                                 }
                             for point_data in json_content.get("point_dose_results", {}):
                                 previous_brachy_bed_data[point_data["name"]] = point_data.get("BED_this_plan", 0.0)
@@ -534,7 +583,8 @@ def main():
 
                     args = argparse.Namespace(
                         data_dir=tmpdir_analysis,
-                        ebrt_dose=ebrt_dose,
+                        ebrt_dose=st.session_state.ebrt_total_dose,
+                        ebrt_fractions=st.session_state.ebrt_num_fractions,
                         previous_brachy_data=previous_brachy_data,
                         output_html=os.path.join(tmpdir_analysis, "report.html"),
                         alpha_beta_ratios=ab_ratios,
@@ -542,7 +592,7 @@ def main():
                         custom_constraints=templates[st.session_state.current_template_name],
                     )
 
-                    results = run_analysis(args, selected_point_names=st.session_state.selected_point_names, dose_point_mapping=manual_dose_point_mapping, custom_constraints=args.custom_constraints, num_fractions_delivered=num_fractions_delivered)
+                    results = run_analysis(args, selected_point_names=st.session_state.selected_point_names, dose_point_mapping=manual_dose_point_mapping, custom_constraints=args.custom_constraints, num_fractions_delivered=num_fractions_delivered, ebrt_fractions=args.ebrt_fractions)
 
                     # --- Start Channel Mapping Validation ---
                     if selected_template_name == "Cylinder HDR":
@@ -604,8 +654,12 @@ def main():
                             target_dvh_data = []
                             oar_dvh_data = []
 
+                            # Create a case-insensitive version of the alpha/beta ratios dictionary
+                            ab_ratios_lower = {k.lower(): v for k, v in ab_ratios.items()}
+
                             for organ, data in results["dvh_results"].items():
-                                alpha_beta = ab_ratios.get(organ, ab_ratios.get("Default"))
+                                # Use the lowercase version for lookup
+                                alpha_beta = ab_ratios_lower.get(organ.lower(), ab_ratios.get("Default"))
                                 is_target = alpha_beta == 10
 
                                 if is_target:
@@ -786,7 +840,11 @@ def main():
                                     "plan_date": results["plan_date"],
                                     "plan_time": results["plan_time"],
                                     "source_info": results["source_info"],
-                                    "dvh_results": results["dvh_results"],
+                                    "dvh_results": {k: {
+                                        'bed_brachy_d2cc': v.get('bed_brachy_d2cc', 0),
+                                        'bed_brachy_d1cc': v.get('bed_brachy_d1cc', 0),
+                                        'bed_brachy_d0_1cc': v.get('bed_brachy_d0_1cc', 0),
+                                    } for k, v in results["dvh_results"].items()},
                                     "point_dose_results": results["point_dose_results"]
                                 }
                                 json_export_str = json.dumps(export_data, indent=4)
