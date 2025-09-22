@@ -85,7 +85,7 @@ def generate_html_report(patient_name, patient_mrn, plan_name, plan_date, plan_t
     oar_rows = ""
     for organ, data in dvh_results.items():
         alpha_beta = alpha_beta_ratios.get(organ, alpha_beta_ratios["Default"])
-        volume_cc = data.get("organ_volume_cc", "N/A") # Corrected key
+        volume_cc = data.get("volume_cc", "N/A") # Changed to volume_cc
         if isinstance(volume_cc, (int, float)):
             volume_cc = f"{volume_cc:.2f}"
 
@@ -173,6 +173,11 @@ def main(args, selected_point_names=None, custom_constraints=None, dose_point_ma
         return {"error": "Could not load all DICOM files."}
     
     dose_grid, dose_scaling, image_position, pixel_spacing, grid_frame_offset_vector, image_orientation = get_dose_data(dose_file)
+
+    # *** FIX STARTS HERE: Check if the dose data is valid ***
+    if dose_grid is None:
+        return {"error": "Failed to read dose grid from RTDOSE file. The file may be empty, corrupt, or not a valid dose file."}
+    # *** FIX ENDS HERE ***
 
     plan_data = get_plan_data(plan_file)
     plan_time_warning = check_plan_time(plan_data.get('plan_time'))

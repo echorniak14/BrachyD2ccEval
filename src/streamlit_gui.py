@@ -594,285 +594,289 @@ def main():
 
                     results = run_analysis(args, selected_point_names=st.session_state.selected_point_names, dose_point_mapping=manual_dose_point_mapping, custom_constraints=args.custom_constraints, num_fractions_delivered=num_fractions_delivered, ebrt_fractions=args.ebrt_fractions)
 
-                    # --- Start Channel Mapping Validation ---
-                    if selected_template_name == "Cylinder HDR":
-                        channel_mapping_data = results.get('channel_mapping', [])
-                        is_catheter_1_mapped_to_channel_5 = False
-                        for channel in channel_mapping_data:
-                            if channel.get('channel_number') == '1' and channel.get('transfer_tube_number') == '5':
-                                is_catheter_1_mapped_to_channel_5 = True
-                                break
-                        
-                        if not is_catheter_1_mapped_to_channel_5:
-                            st.warning("Warning: For 'Cylinder HDR' template, expected channel mapping is Catheter 1 to Channel 5. Please verify your channel mapping.")
-                    # --- End Channel Mapping Validation ---
-
-                    with st.container():
-                        st.header("Results")
-
-                        col_summary_left, col_summary_right = st.columns([0.7, 0.3])
-
-                        with col_summary_left:
-                            st.write(f"**Patient Name:** {results['patient_name']}")
-                            st.write(f"**Patient MRN:** {results['patient_mrn']}")
-                            st.write(f"**Plan Name:** {results['plan_name']}")
-                            st.write(f"**Plan Date:** {results['plan_date']}")
-                            st.write(f"**Plan Time:** {results['plan_time']}")
-                            if results.get("plan_time_warning"):
-                                st.warning(results["plan_time_warning"])
-                            st.write(f"**Brachytherapy Dose per Fraction:** {results['brachy_dose_per_fraction']:.2f} Gy")
-                            st.write(f"**Number of Fractions Used for Calculations:** {results['calculation_number_of_fractions']}")
-                            st.write(f"**Number of Planned Fractions:** {results['planned_number_of_fractions']}")
+                    # *** FIX STARTS HERE: Add error handling for the GUI ***
+                    if results and 'error' in results:
+                        st.error(results['error'])
+                    else:
+                        # --- Start Channel Mapping Validation ---
+                        if selected_template_name == "Cylinder HDR":
+                            channel_mapping_data = results.get('channel_mapping', [])
+                            is_catheter_1_mapped_to_channel_5 = False
+                            for channel in channel_mapping_data:
+                                if channel.get('channel_number') == '1' and channel.get('transfer_tube_number') == '5':
+                                    is_catheter_1_mapped_to_channel_5 = True
+                                    break
                             
-                            # --- ADDED WARNING ---
-                            if results['calculation_number_of_fractions'] != results['planned_number_of_fractions']:
-                                st.warning("Warning: The planned number of fractions and the number of fractions used for EQD2 calculations differ.")
-                            # --- END WARNING ---
+                            if not is_catheter_1_mapped_to_channel_5:
+                                st.warning("Warning: For 'Cylinder HDR' template, expected channel mapping is Catheter 1 to Channel 5. Please verify your channel mapping.")
+                        # --- End Channel Mapping Validation ---
 
-                        with col_summary_right:
-                            st.subheader("Channel Mapping")
-                            if results.get('channel_mapping'):
-                                # Group channels by ChannelNumber (for Cath) and TransferTubeNumber (for Chan)
-                                channel_info_display = {}
-                                for channel in results['channel_mapping']:
-                                    cath_num = channel.get('channel_number', 'N/A')
-                                    chan_num = channel.get('transfer_tube_number', 'N/A')
-                                    
-                                    if cath_num not in channel_info_display:
-                                        channel_info_display[cath_num] = []
-                                    channel_info_display[cath_num].append(chan_num)
+                        with st.container():
+                            st.header("Results")
+
+                            col_summary_left, col_summary_right = st.columns([0.7, 0.3])
+
+                            with col_summary_left:
+                                st.write(f"**Patient Name:** {results['patient_name']}")
+                                st.write(f"**Patient MRN:** {results['patient_mrn']}")
+                                st.write(f"**Plan Name:** {results['plan_name']}")
+                                st.write(f"**Plan Date:** {results['plan_date']}")
+                                st.write(f"**Plan Time:** {results['plan_time']}")
+                                if results.get("plan_time_warning"):
+                                    st.warning(results["plan_time_warning"])
+                                st.write(f"**Brachytherapy Dose per Fraction:** {results['brachy_dose_per_fraction']:.2f} Gy")
+                                st.write(f"**Number of Fractions Used for Calculations:** {results['calculation_number_of_fractions']}")
+                                st.write(f"**Number of Planned Fractions:** {results['planned_number_of_fractions']}")
                                 
-                                for cath_num, chan_nums in channel_info_display.items():
-                                    st.write(f"**Cath {cath_num}** - Chan {', '.join(map(str, sorted(chan_nums)))}")
-                            else:
-                                st.info("No channel mapping data available.")
+                                # --- ADDED WARNING ---
+                                if results['calculation_number_of_fractions'] != results['planned_number_of_fractions']:
+                                    st.warning("Warning: The planned number of fractions and the number of fractions used for EQD2 calculations differ.")
+                                # --- END WARNING ---
 
-                        tab1, tab2, tab3 = st.tabs(["DVH Results", "Point Dose Results", "Report"])
+                            with col_summary_right:
+                                st.subheader("Channel Mapping")
+                                if results.get('channel_mapping'):
+                                    # Group channels by ChannelNumber (for Cath) and TransferTubeNumber (for Chan)
+                                    channel_info_display = {}
+                                    for channel in results['channel_mapping']:
+                                        cath_num = channel.get('channel_number', 'N/A')
+                                        chan_num = channel.get('transfer_tube_number', 'N/A')
+                                        
+                                        if cath_num not in channel_info_display:
+                                            channel_info_display[cath_num] = []
+                                        channel_info_display[cath_num].append(chan_num)
+                                    
+                                    for cath_num, chan_nums in channel_info_display.items():
+                                        st.write(f"**Cath {cath_num}** - Chan {', '.join(map(str, sorted(chan_nums)))}")
+                                else:
+                                    st.info("No channel mapping data available.")
 
-                        with tab1:
-                            st.subheader("Target Volume DVH Results")
-                            target_dvh_data = []
-                            oar_dvh_data = []
+                            tab1, tab2, tab3 = st.tabs(["DVH Results", "Point Dose Results", "Report"])
 
-                            # Create a case-insensitive version of the alpha/beta ratios dictionary
-                            ab_ratios_lower = {k.lower(): v for k, v in ab_ratios.items()}
+                            with tab1:
+                                st.subheader("Target Volume DVH Results")
+                                target_dvh_data = []
+                                oar_dvh_data = []
 
-                            for organ, data in results["dvh_results"].items():
-                                # Use the lowercase version for lookup
-                                alpha_beta = ab_ratios_lower.get(organ.lower(), ab_ratios.get("Default"))
-                                is_target = alpha_beta == 10
+                                # Create a case-insensitive version of the alpha/beta ratios dictionary
+                                ab_ratios_lower = {k.lower(): v for k, v in ab_ratios.items()}
 
-                                if is_target:
-                                    target_dvh_data.append({
-                                        "Organ": organ,
-                                        "Volume (cc)": data["volume_cc"],
-                                        "D98 (Gy)": data["d98_gy_per_fraction"],
-                                        "D90 (Gy)": data["d90_gy_per_fraction"],
-                                        "Max Dose (Gy)": data["max_dose_gy_per_fraction"],
-                                        "Mean Dose (Gy)": data["mean_dose_gy_per_fraction"],
-                                        "Min Dose (Gy)": data["min_dose_gy_per_fraction"],
+                                for organ, data in results["dvh_results"].items():
+                                    # Use the lowercase version for lookup
+                                    alpha_beta = ab_ratios_lower.get(organ.lower(), ab_ratios.get("Default"))
+                                    is_target = alpha_beta == 10
+
+                                    if is_target:
+                                        target_dvh_data.append({
+                                            "Organ": organ,
+                                            "Volume (cc)": data["volume_cc"],
+                                            "D98 (Gy)": data["d98_gy_per_fraction"],
+                                            "D90 (Gy)": data["d90_gy_per_fraction"],
+                                            "Max Dose (Gy)": data["max_dose_gy_per_fraction"],
+                                            "Mean Dose (Gy)": data["mean_dose_gy_per_fraction"],
+                                            "Min Dose (Gy)": data["min_dose_gy_per_fraction"],
+                                        })
+                                    else:
+                                        constraint_status = "N/A"
+                                        dose_to_meet = "N/A"
+                                        if organ in results["constraint_evaluation"] and "EQD2_met" in results["constraint_evaluation"][organ]:
+                                            constraint_status = "Met" if results["constraint_evaluation"][organ]["EQD2_met"] == "True" else "NOT Met"
+                                            dose_to_meet = data.get("dose_to_meet_constraint", "N/A")
+
+                                        # D0.1cc row
+                                        oar_dvh_data.append({
+                                            "Organ": organ,
+                                            "Volume (cc)": data["volume_cc"],
+                                            "Dose Metric": "D0.1cc",
+                                            "Dose (Gy)": data["d0_1cc_gy_per_fraction"],
+                                            "BED (Gy)": data["bed_d0_1cc"],
+                                            "EQD2 (Gy)": data["eqd2_d0_1cc"],
+                                            "Dose to Meet Constraint (Gy)": "",
+                                            "Constraint Status": constraint_status
+                                        })
+                                        # D1cc row
+                                        oar_dvh_data.append({
+                                            "Organ": organ,
+                                            "Volume (cc)": None,
+                                            "Dose Metric": "D1cc",
+                                            "Dose (Gy)": data["d1cc_gy_per_fraction"],
+                                            "BED (Gy)": data["bed_d1cc"],
+                                            "EQD2 (Gy)": data["eqd2_d1cc"],
+                                            "Dose to Meet Constraint (Gy)": "",
+                                            "Constraint Status": constraint_status
+                                        })
+                                        # D2cc row
+                                        oar_dvh_data.append({
+                                            "Organ": organ,
+                                            "Volume (cc)": None,
+                                            "Dose Metric": "D2cc",
+                                            "Dose (Gy)": data["d2cc_gy_per_fraction"],
+                                            "BED (Gy)": data["bed_d2cc"],
+                                            "EQD2 (Gy)": data["eqd2_d2cc"],
+                                            "Dose to Meet Constraint (Gy)": dose_to_meet,
+                                            "Constraint Status": constraint_status
+                                        })
+                                
+                                if target_dvh_data:
+                                    st.dataframe(pd.DataFrame(target_dvh_data), column_config={
+                                        "Volume (cc)": st.column_config.NumberColumn(format="%.2f"),
+                                        "D98 (Gy)": st.column_config.NumberColumn(format="%.2f"),
+                                        "D90 (Gy)": st.column_config.NumberColumn(format="%.2f"),
+                                        "Max Dose (Gy)": st.column_config.NumberColumn(format="%.2f"),
+                                        "Mean Dose (Gy)": st.column_config.NumberColumn(format="%.2f"),
+                                        "Min Dose (Gy)": st.column_config.NumberColumn(format="%.2f"),
                                     })
                                 else:
-                                    constraint_status = "N/A"
-                                    dose_to_meet = "N/A"
-                                    if organ in results["constraint_evaluation"] and "EQD2_met" in results["constraint_evaluation"][organ]:
-                                        constraint_status = "Met" if results["constraint_evaluation"][organ]["EQD2_met"] == "True" else "NOT Met"
-                                        dose_to_meet = data.get("dose_to_meet_constraint", "N/A")
+                                    st.info("No target volume DVH data available.")
 
-                                    # D0.1cc row
-                                    oar_dvh_data.append({
-                                        "Organ": organ,
-                                        "Volume (cc)": data["volume_cc"],
-                                        "Dose Metric": "D0.1cc",
-                                        "Dose (Gy)": data["d0_1cc_gy_per_fraction"],
-                                        "BED (Gy)": data["bed_d0_1cc"],
-                                        "EQD2 (Gy)": data["eqd2_d0_1cc"],
-                                        "Dose to Meet Constraint (Gy)": "",
-                                        "Constraint Status": constraint_status
+                                st.subheader("OAR DVH Results")
+                                if oar_dvh_data:
+                                    # Create a new list with the desired structure (spanning effect)
+                                    restructured_data = []
+                                    # Initial DataFrame to make grouping easier
+                                    temp_oar_df = pd.DataFrame(oar_dvh_data)
+                                    
+                                    for organ_name in temp_oar_df['Organ'].unique():
+                                        organ_group = temp_oar_df[temp_oar_df['Organ'] == organ_name]
+                                        
+                                        # Row 1 (D0.1cc)
+                                        d0_1cc_row = organ_group[organ_group['Dose Metric'] == 'D0.1cc']
+                                        if not d0_1cc_row.empty:
+                                            restructured_data.append(d0_1cc_row.iloc[0].to_dict())
+                                        
+                                        # Row 2 (D1cc)
+                                        d1cc_row = organ_group[organ_group['Dose Metric'] == 'D1cc']
+                                        if not d1cc_row.empty:
+                                            row_data = d1cc_row.iloc[0].to_dict()
+                                            row_data['Organ'] = organ_name
+                                            row_data['Volume (cc)'] = None
+                                            restructured_data.append(row_data)
+
+                                        # Row 3 (D2cc)
+                                        d2cc_row = organ_group[organ_group['Dose Metric'] == 'D2cc']
+                                        if not d2cc_row.empty:
+                                            row_data = d2cc_row.iloc[0].to_dict()
+                                            row_data['Organ'] = organ_name
+                                            row_data['Volume (cc)'] = None
+                                            restructured_data.append(row_data)
+
+                                        
+
+                                    if restructured_data:
+                                        final_oar_df = pd.DataFrame(restructured_data)
+
+                                        # This styling function works on the whole table at once (axis=None)
+                                        def style_oar_rows(df):
+                                            styles = pd.DataFrame('', index=df.index, columns=df.columns)
+                                            organ_groups = df['Organ'].ffill()
+                                            current_constraints = st.session_state.custom_constraints
+
+                                            for organ_name in organ_groups.unique():
+                                                group_indices = df[organ_groups == organ_name].index
+                                                d2cc_row_df = df.loc[group_indices]
+                                                d2cc_row_df = d2cc_row_df[d2cc_row_df['Dose Metric'] == 'D2cc']
+                                                
+                                                if not d2cc_row_df.empty:
+                                                    # Get the specific index of the D2cc row
+                                                    d2cc_index = d2cc_row_df.index[0]
+                                                    eqd2_value = d2cc_row_df['EQD2 (Gy)'].iloc[0]
+
+                                                    if pd.notna(eqd2_value) and organ_name in current_constraints and "D2cc" in current_constraints[organ_name]:
+                                                        constraint_data = current_constraints[organ_name]['D2cc']
+                                                        max_val = constraint_data['max']
+                                                        warn_val = constraint_data.get('warning')
+                                                        
+                                                        style_str = ''
+                                                        if eqd2_value > max_val:
+                                                            style_str = 'background-color: #dc3545; color: white'
+                                                        elif warn_val is not None and eqd2_value >= warn_val:
+                                                            style_str = 'background-color: #ffc107; color: black'
+                                                        else:
+                                                            style_str = 'background-color: #28a745; color: white'
+                                                        
+                                                        # Apply the style ONLY to the D2cc row's index
+                                                        styles.loc[d2cc_index] = style_str
+                                            return styles
+
+                                        st.dataframe(final_oar_df.style.apply(style_oar_rows, axis=None), column_config={
+                                            "Volume (cc)": st.column_config.NumberColumn(format="%.2f"),
+                                            "Dose (Gy)": st.column_config.NumberColumn(format="%.2f"),
+                                            "BED (Gy)": st.column_config.NumberColumn(format="%.2f"),
+                                            "EQD2 (Gy)": st.column_config.NumberColumn(format="%.2f"),
+                                            "Dose to Meet Constraint (Gy)": st.column_config.NumberColumn(format="%.2f"),
+                                        })
+                                else:
+                                    st.info("No OAR DVH data available.")
+
+                            with tab2:
+                                st.subheader("Point Dose Results")
+                                point_dose_df = pd.DataFrame(results["point_dose_results"])
+
+                                def style_point_dose_rows(row):
+                                    style = [''] * len(row)
+                                    if 'Constraint Status' in row and row['Constraint Status'] == 'Pass':
+                                        style = ['background-color: #28a745; color: white'] * len(row)
+                                    elif 'Constraint Status' in row and row['Constraint Status'] == 'Fail':
+                                        style = ['background-color: #dc3545; color: white'] * len(row)
+                                    return style
+
+                                if not point_dose_df.empty:
+                                    st.dataframe(point_dose_df.style.apply(style_point_dose_rows, axis=1), column_config={
+                                        "dose": st.column_config.NumberColumn(format="%.2f"),
+                                        "total_dose": st.column_config.NumberColumn(format="%.2f"),
+                                        "BED_this_plan": st.column_config.NumberColumn(format="%.2f"),
+                                        "BED_previous_brachy": st.column_config.NumberColumn(format="%.2f"),
+                                        "BED_EBRT": st.column_config.NumberColumn(format="%.2f"),
+                                        "EQD2": st.column_config.NumberColumn(format="%.2f"),
                                     })
-                                    # D1cc row
-                                    oar_dvh_data.append({
-                                        "Organ": organ,
-                                        "Volume (cc)": None,
-                                        "Dose Metric": "D1cc",
-                                        "Dose (Gy)": data["d1cc_gy_per_fraction"],
-                                        "BED (Gy)": data["bed_d1cc"],
-                                        "EQD2 (Gy)": data["eqd2_d1cc"],
-                                        "Dose to Meet Constraint (Gy)": "",
-                                        "Constraint Status": constraint_status
-                                    })
-                                    # D2cc row
-                                    oar_dvh_data.append({
-                                        "Organ": organ,
-                                        "Volume (cc)": None,
-                                        "Dose Metric": "D2cc",
-                                        "Dose (Gy)": data["d2cc_gy_per_fraction"],
-                                        "BED (Gy)": data["bed_d2cc"],
-                                        "EQD2 (Gy)": data["eqd2_d2cc"],
-                                        "Dose to Meet Constraint (Gy)": dose_to_meet,
-                                        "Constraint Status": constraint_status
-                                    })
+                                else:
+                                    st.info("No point dose data available.")
                             
-                            if target_dvh_data:
-                                st.dataframe(pd.DataFrame(target_dvh_data), column_config={
-                                    "Volume (cc)": st.column_config.NumberColumn(format="%.2f"),
-                                    "D98 (Gy)": st.column_config.NumberColumn(format="%.2f"),
-                                    "D90 (Gy)": st.column_config.NumberColumn(format="%.2f"),
-                                    "Max Dose (Gy)": st.column_config.NumberColumn(format="%.2f"),
-                                    "Mean Dose (Gy)": st.column_config.NumberColumn(format="%.2f"),
-                                    "Min Dose (Gy)": st.column_config.NumberColumn(format="%.2f"),
-                                })
-                            else:
-                                st.info("No target volume DVH data available.")
-
-                            st.subheader("OAR DVH Results")
-                            if oar_dvh_data:
-                                # Create a new list with the desired structure (spanning effect)
-                                restructured_data = []
-                                # Initial DataFrame to make grouping easier
-                                temp_oar_df = pd.DataFrame(oar_dvh_data)
-                                
-                                for organ_name in temp_oar_df['Organ'].unique():
-                                    organ_group = temp_oar_df[temp_oar_df['Organ'] == organ_name]
+                            with tab3:
+                                st.subheader("Report")
+                                html_report = results.get('html_report', '')
+                                if html_report:
+                                    st.components.v1.html(html_report, height=600, scrolling=True)
                                     
-                                    # Row 1 (D0.1cc)
-                                    d0_1cc_row = organ_group[organ_group['Dose Metric'] == 'D0.1cc']
-                                    if not d0_1cc_row.empty:
-                                        restructured_data.append(d0_1cc_row.iloc[0].to_dict())
-                                    
-                                    # Row 2 (D1cc)
-                                    d1cc_row = organ_group[organ_group['Dose Metric'] == 'D1cc']
-                                    if not d1cc_row.empty:
-                                        row_data = d1cc_row.iloc[0].to_dict()
-                                        row_data['Organ'] = organ_name
-                                        row_data['Volume (cc)'] = None
-                                        restructured_data.append(row_data)
+                                    export_data = {
+                                        "patient_name": results["patient_name"],
+                                        "patient_mrn": results["patient_mrn"],
+                                        "plan_date": results["plan_date"],
+                                        "plan_time": results["plan_time"],
+                                        "source_info": results["source_info"],
+                                        "dvh_results": {k: {
+                                            'bed_brachy_d2cc': v.get('bed_brachy_d2cc', 0),
+                                            'bed_brachy_d1cc': v.get('bed_brachy_d1cc', 0),
+                                            'bed_brachy_d0_1cc': v.get('bed_brachy_d0_1cc', 0),
+                                        } for k, v in results["dvh_results"].items()},
+                                        "point_dose_results": results["point_dose_results"]
+                                    }
+                                    json_export_str = json.dumps(export_data, indent=4)
 
-                                    # Row 3 (D2cc)
-                                    d2cc_row = organ_group[organ_group['Dose Metric'] == 'D2cc']
-                                    if not d2cc_row.empty:
-                                        row_data = d2cc_row.iloc[0].to_dict()
-                                        row_data['Organ'] = organ_name
-                                        row_data['Volume (cc)'] = None
-                                        restructured_data.append(row_data)
-
-                                    
-
-                                if restructured_data:
-                                    final_oar_df = pd.DataFrame(restructured_data)
-
-                                    # This styling function works on the whole table at once (axis=None)
-                                    def style_oar_rows(df):
-                                        styles = pd.DataFrame('', index=df.index, columns=df.columns)
-                                        organ_groups = df['Organ'].ffill()
-                                        current_constraints = st.session_state.custom_constraints
-
-                                        for organ_name in organ_groups.unique():
-                                            group_indices = df[organ_groups == organ_name].index
-                                            d2cc_row_df = df.loc[group_indices]
-                                            d2cc_row_df = d2cc_row_df[d2cc_row_df['Dose Metric'] == 'D2cc']
-                                            
-                                            if not d2cc_row_df.empty:
-                                                # Get the specific index of the D2cc row
-                                                d2cc_index = d2cc_row_df.index[0]
-                                                eqd2_value = d2cc_row_df['EQD2 (Gy)'].iloc[0]
-
-                                                if pd.notna(eqd2_value) and organ_name in current_constraints and "D2cc" in current_constraints[organ_name]:
-                                                    constraint_data = current_constraints[organ_name]['D2cc']
-                                                    max_val = constraint_data['max']
-                                                    warn_val = constraint_data.get('warning')
-                                                    
-                                                    style_str = ''
-                                                    if eqd2_value > max_val:
-                                                        style_str = 'background-color: #dc3545; color: white'
-                                                    elif warn_val is not None and eqd2_value >= warn_val:
-                                                        style_str = 'background-color: #ffc107; color: black'
-                                                    else:
-                                                        style_str = 'background-color: #28a745; color: white'
-                                                    
-                                                    # Apply the style ONLY to the D2cc row's index
-                                                    styles.loc[d2cc_index] = style_str
-                                        return styles
-
-                                    st.dataframe(final_oar_df.style.apply(style_oar_rows, axis=None), column_config={
-                                        "Volume (cc)": st.column_config.NumberColumn(format="%.2f"),
-                                        "Dose (Gy)": st.column_config.NumberColumn(format="%.2f"),
-                                        "BED (Gy)": st.column_config.NumberColumn(format="%.2f"),
-                                        "EQD2 (Gy)": st.column_config.NumberColumn(format="%.2f"),
-                                        "Dose to Meet Constraint (Gy)": st.column_config.NumberColumn(format="%.2f"),
-                                    })
-                            else:
-                                st.info("No OAR DVH data available.")
-
-                        with tab2:
-                            st.subheader("Point Dose Results")
-                            point_dose_df = pd.DataFrame(results["point_dose_results"])
-
-                            def style_point_dose_rows(row):
-                                style = [''] * len(row)
-                                if 'Constraint Status' in row and row['Constraint Status'] == 'Pass':
-                                    style = ['background-color: #28a745; color: white'] * len(row)
-                                elif 'Constraint Status' in row and row['Constraint Status'] == 'Fail':
-                                    style = ['background-color: #dc3545; color: white'] * len(row)
-                                return style
-
-                            if not point_dose_df.empty:
-                                st.dataframe(point_dose_df.style.apply(style_point_dose_rows, axis=1), column_config={
-                                    "dose": st.column_config.NumberColumn(format="%.2f"),
-                                    "total_dose": st.column_config.NumberColumn(format="%.2f"),
-                                    "BED_this_plan": st.column_config.NumberColumn(format="%.2f"),
-                                    "BED_previous_brachy": st.column_config.NumberColumn(format="%.2f"),
-                                    "BED_EBRT": st.column_config.NumberColumn(format="%.2f"),
-                                    "EQD2": st.column_config.NumberColumn(format="%.2f"),
-                                })
-                            else:
-                                st.info("No point dose data available.")
-                        
-                        with tab3:
-                            st.subheader("Report")
-                            html_report = results.get('html_report', '')
-                            if html_report:
-                                st.components.v1.html(html_report, height=600, scrolling=True)
-                                
-                                export_data = {
-                                    "patient_name": results["patient_name"],
-                                    "patient_mrn": results["patient_mrn"],
-                                    "plan_date": results["plan_date"],
-                                    "plan_time": results["plan_time"],
-                                    "source_info": results["source_info"],
-                                    "dvh_results": {k: {
-                                        'bed_brachy_d2cc': v.get('bed_brachy_d2cc', 0),
-                                        'bed_brachy_d1cc': v.get('bed_brachy_d1cc', 0),
-                                        'bed_brachy_d0_1cc': v.get('bed_brachy_d0_1cc', 0),
-                                    } for k, v in results["dvh_results"].items()},
-                                    "point_dose_results": results["point_dose_results"]
-                                }
-                                json_export_str = json.dumps(export_data, indent=4)
-
-                                st.download_button(
-                                    label="Download Brachy Data (JSON)",
-                                    data=json_export_str,
-                                    file_name="brachy_data.json",
-                                    mime="application/json"
-                                )
-
-                                try:
-                                    pdf_path = os.path.join(tmpdir_analysis, "report.pdf")
-                                    convert_html_to_pdf(html_report, pdf_path, wkhtmltopdf_path=wkhtmltopdf_path)
-
-                                    with open(pdf_path, "rb") as f:
-                                        pdf_bytes = f.read()
-                                    
                                     st.download_button(
-                                        label="Download PDF",
-                                        data=pdf_bytes,
-                                        file_name="report.pdf",
-                                        mime="application/pdf"
+                                        label="Download Brachy Data (JSON)",
+                                        data=json_export_str,
+                                        file_name="brachy_data.json",
+                                        mime="application/json"
                                     )
-                                except IOError as e:
-                                    st.error(f"Could not generate PDF. {e}")
-                            else:
-                                st.warning("Could not generate HTML report.")
+
+                                    try:
+                                        pdf_path = os.path.join(tmpdir_analysis, "report.pdf")
+                                        convert_html_to_pdf(html_report, pdf_path, wkhtmltopdf_path=wkhtmltopdf_path)
+
+                                        with open(pdf_path, "rb") as f:
+                                            pdf_bytes = f.read()
+                                        
+                                        st.download_button(
+                                            label="Download PDF",
+                                            data=pdf_bytes,
+                                            file_name="report.pdf",
+                                            mime="application/pdf"
+                                        )
+                                    except IOError as e:
+                                        st.error(f"Could not generate PDF. {e}")
+                                else:
+                                    st.warning("Could not generate HTML report.")
 
                 else:
                     st.error("Please upload all required DICOM files (RTDOSE, RTSTRUCT, RTPLAN).")
