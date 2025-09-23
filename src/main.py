@@ -49,7 +49,7 @@ def convert_html_to_pdf(html_content, output_path):
             f"\n\nOriginal error: {e}"
         )
 
-def generate_html_report(patient_name, patient_mrn, plan_name, plan_date, plan_time, source_info, brachy_dose_per_fraction, number_of_fractions, ebrt_dose, ebrt_fractions, dvh_results, constraint_evaluation, dose_references, point_dose_results, output_path, alpha_beta_ratios):
+def generate_html_report(patient_name, patient_mrn, plan_name, plan_date, plan_time, source_info, brachy_dose_per_fraction, number_of_fractions, ebrt_dose, ebrt_fractions, dvh_results, constraint_evaluation, dose_references, point_dose_results, output_path, alpha_beta_ratios, previous_brachy_data=None):
     if not isinstance(alpha_beta_ratios, dict) or "Default" not in alpha_beta_ratios:
         from .config import templates
         alpha_beta_ratios = templates["Cervix HDR - EMBRACE II"]["alpha_beta_ratios"].copy()
@@ -72,10 +72,22 @@ def generate_html_report(patient_name, patient_mrn, plan_name, plan_date, plan_t
     except FileNotFoundError:
         logo_data_uri = ""
 
-    fraction_headers = "".join([f"<th>Fraction {i+1} Dose (Gy)</th>" for i in range(number_of_fractions)])
+    previous_fractions = 0
+    if previous_brachy_data and isinstance(previous_brachy_data, dict):
+        # Assuming the number of fractions is the length of the dvh_results for the first organ
+        if previous_brachy_data.get("dvh_results"):
+            first_organ = list(previous_brachy_data["dvh_results"].keys())[0]
+            previous_fractions = len(previous_brachy_data["dvh_results"][first_organ].get("dose_fx", []))
 
-    def get_fraction_cells(data, key, num_fractions):
-        return "".join([f"<td>{data.get(key, 0):.2f}</td>" for _ in range(num_fractions)])
+    total_fractions = previous_fractions + number_of_fractions
+    total_fractions = 0
+    if previous_brachy_data and isinstance(previous_brachy_data, dict):
+        if previous_brachy_data.get("dvh_results"):
+            first_organ = list(previous_brachy_data["dvh_results"].keys())[0]
+            total_fractions = len(previous_brachy_data["dvh_results"][first_organ].get("dose_fx", {}).get("d2cc_gy_per_fraction", []))
+    total_fractions += number_of_fractions
+
+    fraction_headers = "".join([f"<th>Fx {i+1} Dose (Gy)</th>" for i in range(total_fractions)])
 
     target_volume_rows = ""
     oar_rows = ""
@@ -86,11 +98,26 @@ def generate_html_report(patient_name, patient_mrn, plan_name, plan_date, plan_t
             volume_cc = f"{volume_cc:.2f}"
 
         if alpha_beta == 10: # is_target
-            d98_cells = get_fraction_cells(data, 'd98_gy_per_fraction', number_of_fractions)
-            d90_cells = get_fraction_cells(data, 'd90_gy_per_fraction', number_of_fractions)
-            max_cells = get_fraction_cells(data, 'max_dose_gy_per_fraction', number_of_fractions)
-            mean_cells = get_fraction_cells(data, 'mean_dose_gy_per_fraction', number_of_fractions)
-            min_cells = get_fraction_cells(data, 'min_dose_gy_per_fraction', number_of_fractions)
+            d98_cells = ""
+            d90_cells = ""
+            max_cells = ""
+            mean_cells = ""
+            min_cells = ""
+
+            if previous_brachy_data and isinstance(previous_brachy_data, dict):
+                if organ in previous_brachy_data.get("dvh_results", {}):
+                    prev_doses = previous_brachy_data["dvh_results"][organ].get("dose_fx", {})
+                    d98_cells += "".join([f"<td>{dose:.2f}</td>" for dose in prev_doses.get("d98_gy_per_fraction", [])])
+                    d90_cells += "".join([f"<td>{dose:.2f}</td>" for dose in prev_doses.get("d90_gy_per_fraction", [])])
+                    max_cells += "".join([f"<td>{dose:.2f}</td>" for dose in prev_doses.get("max_dose_gy_per_fraction", [])])
+                    mean_cells += "".join([f"<td>{dose:.2f}</td>" for dose in prev_doses.get("mean_dose_gy_per_fraction", [])])
+                    min_cells += "".join([f"<td>{dose:.2f}</td>" for dose in prev_doses.get("min_dose_gy_per_fraction", [])])
+
+            d98_cells += f'<td>{data.get("d98_gy_per_fraction", 0):.2f}</td>' * number_of_fractions
+            d90_cells += f'<td>{data.get("d90_gy_per_fraction", 0):.2f}</td>' * number_of_fractions
+            max_cells += f'<td>{data.get("max_dose_gy_per_fraction", 0):.2f}</td>' * number_of_fractions
+            mean_cells += f'<td>{data.get("mean_dose_gy_per_fraction", 0):.2f}</td>' * number_of_fractions
+            min_cells += f'<td>{data.get("min_dose_gy_per_fraction", 0):.2f}</td>' * number_of_fractions
 
             target_volume_rows += f'''<tr><td rowspan="5">{organ}</td><td rowspan="5">{alpha_beta}</td><td rowspan="5">{volume_cc}</td><td>D98</td>{d98_cells}<td>{data.get("eqd2_d98", 0):.2f}</td></tr>
                                  <tr><td>D90</td>{d90_cells}<td>{data.get("eqd2_d90", 0):.2f}</td></tr>
@@ -98,9 +125,20 @@ def generate_html_report(patient_name, patient_mrn, plan_name, plan_date, plan_t
                                  <tr><td>Mean</td>{mean_cells}<td colspan="1"></td></tr>
                                  <tr><td>Min</td>{min_cells}<td colspan="1"></td></tr>'''
         else: # OAR
-            d0_1cc_cells = get_fraction_cells(data, 'd0_1cc_gy_per_fraction', number_of_fractions)
-            d1cc_cells = get_fraction_cells(data, 'd1cc_gy_per_fraction', number_of_fractions)
-            d2cc_cells = get_fraction_cells(data, 'd2cc_gy_per_fraction', number_of_fractions)
+            d0_1cc_cells = ""
+            d1cc_cells = ""
+            d2cc_cells = ""
+
+            if previous_brachy_data and isinstance(previous_brachy_data, dict):
+                if organ in previous_brachy_data.get("dvh_results", {}):
+                    prev_doses = previous_brachy_data["dvh_results"][organ].get("dose_fx", {})
+                    d0_1cc_cells += "".join([f"<td>{dose:.2f}</td>" for dose in prev_doses.get("d0_1cc_gy_per_fraction", [])])
+                    d1cc_cells += "".join([f"<td>{dose:.2f}</td>" for dose in prev_doses.get("d1cc_gy_per_fraction", [])])
+                    d2cc_cells += "".join([f"<td>{dose:.2f}</td>" for dose in prev_doses.get("d2cc_gy_per_fraction", [])])
+
+            d0_1cc_cells += f'<td>{data.get("d0_1cc_gy_per_fraction", 0):.2f}</td>' * number_of_fractions
+            d1cc_cells += f'<td>{data.get("d1cc_gy_per_fraction", 0):.2f}</td>' * number_of_fractions
+            d2cc_cells += f'<td>{data.get("d2cc_gy_per_fraction", 0):.2f}</td>' * number_of_fractions
 
             oar_rows += f'''<tr><td rowspan="3">{organ}</td><td rowspan="3">{alpha_beta}</td><td rowspan="3">{volume_cc}</td><td>D0.1cc</td>{d0_1cc_cells}<td>{data.get("eqd2_d0_1cc", 0):.2f}</td></tr>
                            <tr><td>D1cc</td>{d1cc_cells}<td>{data.get("eqd2_d1cc", 0):.2f}</td></tr>
@@ -108,7 +146,13 @@ def generate_html_report(patient_name, patient_mrn, plan_name, plan_date, plan_t
 
     point_dose_rows = ""
     for pr in point_dose_results:
-        point_fraction_cells = "".join([f"<td>{pr.get('dose', 0):.2f}</td>" for _ in range(number_of_fractions)])
+        point_fraction_cells = ""
+        if previous_brachy_data and isinstance(previous_brachy_data, dict):
+            if pr['name'] in previous_brachy_data.get("point_dose_results", {}):
+                prev_doses = previous_brachy_data["point_dose_results"][pr['name']].get("dose_fx", [])
+                for dose in prev_doses:
+                    point_fraction_cells += f"<td>{dose:.2f}</td>"
+        point_fraction_cells += f'<td>{pr.get("dose", 0):.2f}</td>' * number_of_fractions
         point_dose_rows += f'''<tr><td>{pr.get('name', 'N/A')}</td><td>{alpha_beta_ratios.get(pr.get('name', 'Default'), alpha_beta_ratios["Default"])}</td>{point_fraction_cells}<td>{pr.get('EQD2', 0):.2f}</td></tr>'''
 
     html_content = template.replace("{{ patient_name }}", patient_name)
@@ -365,7 +409,8 @@ def main(args, structure_data, plan_data, selected_point_names=None, custom_cons
             output_data["brachy_dose_per_fraction"], output_data["calculation_number_of_fractions"], 
             output_data["ebrt_dose"], ebrt_fractions, output_data["dvh_results"], 
             output_data["constraint_evaluation"], plan_data.get('dose_references', []), 
-            output_data["point_dose_results"], args.output_html, current_alpha_beta_ratios
+            output_data["point_dose_results"], args.output_html, current_alpha_beta_ratios,
+            previous_brachy_data=args.previous_brachy_data
         )
         output_data['html_report'] = html_content
 

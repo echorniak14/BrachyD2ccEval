@@ -919,12 +919,21 @@ def main():
                                                         styles.loc[d2cc_index] = style_str
                                             return styles
 
-                                        st.dataframe(final_oar_df.style.apply(style_oar_rows, axis=None), column_config={
+                                        # *** FIX STARTS HERE: Dynamically configure column formatting for OAR DVH table ***
+                                        oar_column_config = {
                                             "Volume (cc)": st.column_config.NumberColumn(format="%.2f"),
                                             "BED (Gy)": st.column_config.NumberColumn(format="%.2f"),
                                             "EQD2 (Gy)": st.column_config.NumberColumn(format="%.2f"),
                                             "Dose to Meet Constraint (Gy)": st.column_config.NumberColumn(format="%.2f"),
-                                        })
+                                        }
+                                        # Add formatting for all dynamically created fraction columns
+                                        for col in final_oar_df.columns:
+                                            if col.startswith("Fx ") and col.endswith(" Dose (Gy)"):
+                                                oar_column_config[col] = st.column_config.NumberColumn(format="%.2f")
+                                        
+                                        st.dataframe(final_oar_df.style.apply(style_oar_rows, axis=None), column_config=oar_column_config)
+                                        # *** FIX ENDS HERE ***
+
                                 else:
                                     st.info("No OAR DVH data available.")
 
@@ -994,13 +1003,22 @@ def main():
                                             style = ['background-color: #dc3545; color: white'] * len(row)
                                         return style
 
-                                    st.dataframe(point_dose_df.style.apply(style_point_dose_rows, axis=1), column_config={
+                                    # *** FIX STARTS HERE: Dynamically configure column formatting for Point Dose table ***
+                                    point_dose_column_config = {
                                         "total_dose": st.column_config.NumberColumn(format="%.2f"),
                                         "BED_this_plan": st.column_config.NumberColumn(format="%.2f"),
                                         "BED_previous_brachy": st.column_config.NumberColumn(format="%.2f"),
                                         "BED_EBRT": st.column_config.NumberColumn(format="%.2f"),
                                         "EQD2": st.column_config.NumberColumn(format="%.2f"),
-                                    })
+                                    }
+                                    # Add formatting for all dynamically created fraction columns
+                                    for col in point_dose_df.columns:
+                                        if col.startswith("Fx ") and col.endswith(" Dose (Gy)"):
+                                            point_dose_column_config[col] = st.column_config.NumberColumn(format="%.2f")
+
+                                    st.dataframe(point_dose_df.style.apply(style_point_dose_rows, axis=1), column_config=point_dose_column_config)
+                                    # *** FIX ENDS HERE ***
+
                                 else:
                                     st.info("No point dose data available.")
                             
