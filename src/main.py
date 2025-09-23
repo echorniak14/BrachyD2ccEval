@@ -225,7 +225,9 @@ def main(args, selected_point_names=None, custom_constraints=None, dose_point_ma
             dose_per_fraction = data.get(dose_key, 0)
             total_dose = dose_per_fraction * number_of_fractions_for_calc
             
-            previous_brachy_bed = previous_brachy_bed_per_organ.get(organ, 0) if metric_key == 'd2cc' else 0
+            previous_brachy_bed = 0
+            if organ in previous_brachy_bed_per_organ and isinstance(previous_brachy_bed_per_organ[organ], dict):
+                previous_brachy_bed = previous_brachy_bed_per_organ[organ].get(metric_key, 0)
 
             total_bed, eqd2, _, _, _ = calculate_bed_and_eqd2(
                 total_dose,

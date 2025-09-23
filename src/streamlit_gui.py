@@ -264,6 +264,31 @@ def main():
         # --- End of new code ---
 
         with st.expander("Optional Inputs", expanded=True):
+            st.markdown("<h3 style='color: #fc8781;'>Previous Brachytherapy Treatments Delivered</h3>", unsafe_allow_html=True)
+            previous_brachy_data_file = st.file_uploader("Upload previous brachytherapy data (optional)", type=["html", "json"])
+            if previous_brachy_data_file is not None and previous_brachy_data_file.name.endswith('.json'):
+                try:
+                    # Make sure to be able to read the file multiple times
+                    previous_brachy_data_file.seek(0)
+                    json_content = json.loads(previous_brachy_data_file.read().decode("utf-8"))
+                    json_patient_name = json_content.get("patient_name", "N/A")
+                    json_patient_mrn = json_content.get("patient_mrn", "N/A")
+
+                    current_patient_name = st.session_state.get('patient_info', {}).get('name', 'N/A')
+                    current_patient_mrn = st.session_state.get('patient_info', {}).get('mrn', 'N/A')
+
+                    if json_patient_name != current_patient_name or json_patient_mrn != current_patient_mrn:
+                        st.warning(f"Patient mismatch! Current patient: {current_patient_name} ({current_patient_mrn}). JSON patient: {json_patient_name} ({json_patient_mrn}).")
+                    
+                    if "ebrt_summary" in json_content:
+                        st.session_state.ebrt_total_dose = json_content["ebrt_summary"].get("total_dose", 0.0)
+                        st.session_state.ebrt_num_fractions = json_content["ebrt_summary"].get("number_of_fractions", 25)
+                        st.session_state.ebrt_fraction_dose = json_content["ebrt_summary"].get("dose_per_fraction", 0.0)
+
+                    previous_brachy_data_file.seek(0)
+                except Exception as e:
+                    st.error(f"Error reading patient info from JSON file: {e}")
+
             # Initialize session state for EBRT if it doesn't exist
             if 'ebrt_total_dose' not in st.session_state:
                 st.session_state.ebrt_total_dose = 0.0
@@ -307,29 +332,6 @@ def main():
                 st.number_input("Dose per Fraction (Gy)", 
                                 key='ebrt_fraction_dose', 
                                 on_change=update_total_dose)
-
-            # Get the final EBRT dose from session state
-            ebrt_dose = st.session_state.ebrt_total_dose
-
-
-            st.markdown("<h3 style='color: #fc8781;'>Previous Brachytherapy Treatments Delivered</h3>", unsafe_allow_html=True)
-            previous_brachy_data_file = st.file_uploader("Upload previous brachytherapy data (optional)", type=["html", "json"])
-            if previous_brachy_data_file is not None and previous_brachy_data_file.name.endswith('.json'):
-                try:
-                    # Make sure to be able to read the file multiple times
-                    previous_brachy_data_file.seek(0)
-                    json_content = json.loads(previous_brachy_data_file.read().decode("utf-8"))
-                    json_patient_name = json_content.get("patient_name", "N/A")
-                    json_patient_mrn = json_content.get("patient_mrn", "N/A")
-
-                    current_patient_name = st.session_state.get('patient_info', {}).get('name', 'N/A')
-                    current_patient_mrn = st.session_state.get('patient_info', {}).get('mrn', 'N/A')
-
-                    if json_patient_name != current_patient_name or json_patient_mrn != current_patient_mrn:
-                        st.warning(f"Patient mismatch! Current patient: {current_patient_name} ({current_patient_mrn}). JSON patient: {json_patient_name} ({json_patient_mrn}).")
-                    previous_brachy_data_file.seek(0)
-                except Exception as e:
-                    st.error(f"Error reading patient info from JSON file: {e}")
 
             # --- CORRECTED LOGIC TO FIND DEFAULT FRACTIONS ---
             default_num_fractions = 1
@@ -880,6 +882,11 @@ def main():
                                         "plan_date": results["plan_date"],
                                         "plan_time": results["plan_time"],
                                         "source_info": results["source_info"],
+                                        "ebrt_summary": {
+                                            "total_dose": st.session_state.ebrt_total_dose,
+                                            "number_of_fractions": st.session_state.ebrt_num_fractions,
+                                            "dose_per_fraction": st.session_state.ebrt_fraction_dose
+                                        },
                                         "dvh_results": {k: {
                                             'bed_brachy_d2cc': v.get('bed_brachy_d2cc', 0),
                                             'bed_brachy_d1cc': v.get('bed_brachy_d1cc', 0),
