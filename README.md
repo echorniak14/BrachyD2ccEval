@@ -17,23 +17,19 @@ This project aims to automate and streamline the evaluation process for HDR brac
 - **Point Dose Conditional Formatting:** Displays point dose results with visual indicators (green for 'Pass', red for 'Fail') based on their constraint status, providing immediate feedback on adherence to planning objectives.
 - **Plan Type-Based Constraint Management:** Dynamically manages and applies constraints based on predefined plan types, allowing for flexible and accurate evaluation across different treatment scenarios.
 - **Automatic Prescription Point Mapping (Cylinder Plans):** Automatically identifies and maps specific prescription points (e.g., 'Tip', 'Shoulder', '3cm') in cylinder brachytherapy plans based on DICOM tags (`ApplicationSetupType`). These points are automatically pre-selected in the Streamlit GUI's dose point mapping section.
-- **Channel Mapping Validation:** Provides a warning in the Streamlit GUI if the 'Cylinder HDR' constraint template is selected and Catheter 1 is not mapped to Channel 5, ensuring adherence to specific planning guidelines.
+- **Channel Mapping Validation:** Provides a warning in the Streamlit GUI if the selected template is 'Cylinder HDR', 'Cervix HDR - EMBRACE II', or 'Cervix HDR - ABS/GEC-Estro' and the channel mapping does not match the expected configuration for the plan type (Cylinder, Tandem and Ovoid, or Tandem and Ring).
 - **Dose to Meet Constraint Calculation:** For unmet constraints, calculates the highest fractional brachytherapy dose needed to meet the constraint, providing actionable feedback.
 - **EBRT Integration:** Allows for the inclusion of external beam radiation therapy doses in the BED/EQD2 calculations.
 - **Robust File Path Handling:** Utilizes `pathlib` for reliable handling of file paths across different operating systems, including those with special characters.
 - **Streamlit Graphical User Interface (GUI):** A modern web-based interface for:
     - Easy upload of DICOM files.
     - Input of EBRT dose and previous brachytherapy data (HTML or JSON).
-    - Customizable alpha/beta ratios and EQD2 constraints.
+    - Customizable alpha/beta ratios and EQD2 constraints, including target volume goals (D90 and D98 for GTV and HR-CTV).
+    - Autofill EBRT section from previous brachytherapy data.
     - Interactive display of DVH and Point Dose results with visual constraint indicators.
     - **Channel Mapping Display:** Clearly shows the mapping between channel numbers and transfer tube numbers extracted from the RTPLAN file.
     - Downloadable HTML and PDF reports.
     - Export of current plan's brachytherapy data to JSON for multi-fraction dose accumulation.
-- **HTML Report Generation:** Generates a comprehensive HTML report summarizing the evaluation results, including patient information, DVH data, and constraint evaluation with visual indicators.
-- **PDF Report Generation:** Converts the HTML report to a downloadable PDF.
-- **JSON Data Export/Import:**
-    - Export current plan's DVH and point dose data to a JSON file, specifically designed for re-importing as "previous brachytherapy data" for multi-fraction dose accumulation.
-    - Import previous brachytherapy data from either HTML reports or the newly defined JSON format.
 - **Interactive Dose Point Mapping:** Provides a user-friendly interface to manually map DICOM RT Plan points to clinical constraints using dropdown menus, offering greater control and flexibility over the evaluation process, now enhanced with automatic pre-selection for cylinder plan prescription points.
 
 
@@ -112,6 +108,8 @@ streamlit run src/streamlit_gui.py
 ```
 
 This will open the application in your web browser, providing an interactive interface for uploading DICOM files, setting parameters, and viewing results.
+
+When using the GUI, you can now upload a JSON file from a previous brachytherapy session to automatically populate the EBRT dose information. The application will also export a JSON file that includes the EBRT summary, allowing for a seamless workflow between sessions.
 
 Alternatively, to run the evaluation from the command line (for scripting or batch processing):
 
