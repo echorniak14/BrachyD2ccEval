@@ -79,7 +79,6 @@ def generate_html_report(patient_name, patient_mrn, plan_name, plan_date, plan_t
             first_organ = list(previous_brachy_data["dvh_results"].keys())[0]
             previous_fractions = len(previous_brachy_data["dvh_results"][first_organ].get("dose_fx", []))
 
-    total_fractions = previous_fractions + number_of_fractions
     total_fractions = 0
     if previous_brachy_data and isinstance(previous_brachy_data, dict):
         if previous_brachy_data.get("dvh_results"):
@@ -199,7 +198,8 @@ def pre_analysis(uploaded_files):
         structure_data = None
         if rtstruct_file_path:
             from .dicom_parser import get_structure_data
-            structure_data = get_structure_data(rtstruct_file_path)
+            rtstruct_dataset = load_dicom_file(rtstruct_file_path)
+            structure_data = get_structure_data(rtstruct_dataset)
 
         plan_data = None
         if rtplan_file_path:
@@ -232,17 +232,44 @@ def main(args, structure_data, plan_data, selected_point_names=None, custom_cons
     point_dose_results = []
 
 
-
+    # *** FIX STARTS HERE: Correctly calculate total BED from lists of fractional doses ***
     previous_brachy_bed_per_organ = {}
     if hasattr(args, 'previous_brachy_data') and args.previous_brachy_data:
-        if isinstance(args.previous_brachy_data, str):
+        if isinstance(args.previous_brachy_data, str): # HTML path
             previous_brachy_eqd2_per_organ = parse_html_report(args.previous_brachy_data)
             for organ, eqd2 in previous_brachy_eqd2_per_organ.items():
                 alpha_beta = current_alpha_beta_ratios.get(organ, current_alpha_beta_ratios["Default"])
                 previous_brachy_bed_per_organ[organ] = eqd2 * (1 + (2 / alpha_beta))
 
-        elif isinstance(args.previous_brachy_data, dict):
-            previous_brachy_bed_per_organ = args.previous_brachy_data
+        elif isinstance(args.previous_brachy_data, dict): # JSON fractional dose data
+            
+            # DVH results from previous JSON
+            for organ, dose_fx_data in args.previous_brachy_data.get('dvh_results', {}).items():
+                if organ not in previous_brachy_bed_per_organ:
+                    previous_brachy_bed_per_organ[organ] = {}
+                
+                alpha_beta = current_alpha_beta_ratios.get(organ, current_alpha_beta_ratios["Default"])
+                
+                for metric, dose_list in dose_fx_data.items():
+                    # The metric from JSON is like 'd2cc_gy_per_fraction', we want 'd2cc'
+                    simple_metric = metric.replace('_gy_per_fraction', '')
+                    total_metric_bed = 0
+                    if isinstance(dose_list, list):
+                        for dose_fx in dose_list:
+                            # BED formula: D * (1 + d/ab) where D=d for a single fraction
+                            total_metric_bed += dose_fx * (1 + dose_fx / alpha_beta)
+                    previous_brachy_bed_per_organ[organ][simple_metric] = total_metric_bed
+
+            # Point dose results from previous JSON
+            for point_name, dose_list in args.previous_brachy_data.get('point_dose_results', {}).items():
+                alpha_beta = current_alpha_beta_ratios.get(point_name, current_alpha_beta_ratios["Default"])
+                total_point_bed = 0
+                if isinstance(dose_list, list):
+                    for dose_fx in dose_list:
+                        total_point_bed += dose_fx * (1 + dose_fx / alpha_beta)
+                previous_brachy_bed_per_organ[point_name] = total_point_bed
+    # *** FIX ENDS HERE ***
+
 
     dose_dir = next((d for d in Path(args.data_dir).iterdir() if d.is_dir() and "RTDOSE" in d.name), None)
     struct_dir = next((d for d in Path(args.data_dir).iterdir() if d.is_dir() and "RTst" in d.name), None)
@@ -287,7 +314,7 @@ def main(args, structure_data, plan_data, selected_point_names=None, custom_cons
             elif organ in previous_brachy_bed_per_organ and isinstance(previous_brachy_bed_per_organ[organ], dict):
                 previous_brachy_bed = previous_brachy_bed_per_organ[organ].get(metric_key, 0)
 
-            total_bed, eqd2, _, _, _ = calculate_bed_and_eqd2(
+            total_bed, eqd2, bed_brachy, _, _ = calculate_bed_and_eqd2(
                 total_dose,
                 dose_per_fraction,
                 organ,
@@ -298,6 +325,8 @@ def main(args, structure_data, plan_data, selected_point_names=None, custom_cons
             )
             data[f'bed_{metric_key}'] = total_bed
             data[f'eqd2_{metric_key}'] = eqd2
+            data[f'bed_brachy_{metric_key}'] = bed_brachy
+
 
     current_target_constraints = custom_constraints.get("constraints", {}).get("target_constraints") if custom_constraints else None
     current_oar_constraints = custom_constraints.get("constraints", {}).get("oar_constraints") if custom_constraints else None
