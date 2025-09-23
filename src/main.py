@@ -132,7 +132,38 @@ def generate_html_report(patient_name, patient_mrn, plan_name, plan_date, plan_t
     
     return html_content
 
-def main(args, selected_point_names=None, custom_constraints=None, dose_point_mapping=None, num_fractions_delivered=None, ebrt_fractions=None):
+def pre_analysis(uploaded_files):
+    with tempfile.TemporaryDirectory() as tmpdir:
+        rtstruct_file_path = None
+        rtplan_file_path = None
+
+        for uploaded_file in uploaded_files:
+            file_path = os.path.join(tmpdir, uploaded_file.name)
+            uploaded_file.seek(0)
+            with open(file_path, "wb") as f:
+                f.write(uploaded_file.getbuffer())
+
+            try:
+                ds = pydicom.dcmread(file_path)
+                if ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.481.3': # RT Structure Set Storage
+                    rtstruct_file_path = file_path
+                elif ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.481.5': # RT Plan Storage
+                    rtplan_file_path = file_path
+            except Exception as e:
+                st.warning(f"Could not read DICOM file {uploaded_file.name}: {e}")
+
+        structure_data = None
+        if rtstruct_file_path:
+            from .dicom_parser import get_structure_data
+            structure_data = get_structure_data(rtstruct_file_path)
+
+        plan_data = None
+        if rtplan_file_path:
+            plan_data = get_plan_data(rtplan_file_path)
+
+        return structure_data, plan_data
+
+def main(args, structure_data, plan_data, selected_point_names=None, custom_constraints=None, dose_point_mapping=None, num_fractions_delivered=None, ebrt_fractions=None, structure_mapping=None):
     data_dir = Path(args.data_dir)
 
     if hasattr(args, 'alpha_beta_ratios') and args.alpha_beta_ratios:
@@ -146,49 +177,7 @@ def main(args, selected_point_names=None, custom_constraints=None, dose_point_ma
 
     point_dose_results = []
 
-    subdirectories = [d for d in data_dir.iterdir() if d.is_dir()]
-    dose_dir = next((d for d in subdirectories if "RTDOSE" in d.name), None)
-    struct_dir = next((d for d in subdirectories if "RTst" in d.name), None)
-    plan_dir = next((d for d in subdirectories if "RTPLAN" in d.name), None)
 
-    if not all([dose_dir, struct_dir, plan_dir]):
-        return {"error": "Could not find all required DICOM subdirectories (RTDOSE, RTst, RTPLAN)."}
-
-    dose_file = find_dicom_file(dose_dir)
-    struct_file = find_dicom_file(struct_dir)
-    plan_file = find_dicom_file(plan_dir)
-
-    if not all([dose_file, struct_file, plan_file]):
-        return {"error": "Could not find all DICOM files."}
-
-    rt_dose_dataset = load_dicom_file(dose_file)
-    rt_struct_dataset = load_dicom_file(struct_file)
-    rt_plan_dataset = load_dicom_file(plan_file)
-
-    if not all([rt_dose_dataset, rt_struct_dataset, rt_plan_dataset]):
-        return {"error": "Could not load all DICOM files."}
-    
-    dose_grid, dose_scaling, image_position, pixel_spacing, grid_frame_offset_vector, image_orientation = get_dose_data(dose_file)
-
-    if dose_grid is None:
-        return {"error": "Failed to read dose grid from RTDOSE file. The file may be empty, corrupt, or not a valid dose file."}
-
-    plan_data = get_plan_data(plan_file)
-    plan_time_warning = check_plan_time(plan_data.get('plan_time'))
-    
-    planned_number_of_fractions = plan_data.get('number_of_fractions', 1)
-    number_of_fractions_for_calc = planned_number_of_fractions
-    
-    if num_fractions_delivered is not None:
-        number_of_fractions_for_calc = num_fractions_delivered
-
-    brachy_dose_per_fraction = plan_data.get('brachy_dose_per_fraction', 0)
-    structure_data = get_structure_data(rt_struct_dataset)
-
-    # *** FIX STARTS HERE: Check if the structure data is valid ***
-    if not structure_data:
-        return {"error": "Failed to read structure data from RTSTRUCT file. The file may be corrupt, invalid, or contain no structures."}
-    # *** FIX ENDS HERE ***
 
     previous_brachy_bed_per_organ = {}
     if hasattr(args, 'previous_brachy_data') and args.previous_brachy_data:

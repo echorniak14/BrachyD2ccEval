@@ -244,8 +244,6 @@ def main():
             else:
                 st.sidebar.write(f"D2cc Max: {organ_constraints['D2cc']['max']} Gy")
 
-    # Logic to handle uploaded files and extract dose references
-    rtplan_file_path = None
     if uploaded_files:
         # --- Get patient info from the first DICOM file ---
         if 'patient_info' not in st.session_state or st.session_state.get("last_uploaded_files") != "_".join(sorted([f.name for f in uploaded_files])):
@@ -394,6 +392,7 @@ def main():
             os.makedirs(rtstruct_dir)
             os.makedirs(rtplan_dir)
 
+            rtstruct_file_path = None
             for uploaded_file in uploaded_files:
                 file_path = os.path.join(tmpdir, uploaded_file.name)
                 uploaded_file.seek(0)
@@ -406,6 +405,7 @@ def main():
                         os.rename(file_path, os.path.join(rtdose_dir, uploaded_file.name))
                     elif ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.481.3': # RT Structure Set Storage
                         os.rename(file_path, os.path.join(rtstruct_dir, uploaded_file.name))
+                        rtstruct_file_path = os.path.join(rtstruct_dir, uploaded_file.name)
                     elif ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.481.5': # RT Plan Storage
                         os.rename(file_path, os.path.join(rtplan_dir, uploaded_file.name))
                         rtplan_file_path = os.path.join(rtplan_dir, uploaded_file.name) # Store RTPLAN path
@@ -464,11 +464,33 @@ def main():
                                 
                                 # Update our manual_mapping dict from the widget's state
                                 st.session_state.manual_mapping[dicom_point] = st.session_state[f"map_{dicom_point}"]
+
+            if rtstruct_file_path:
+                from src.dicom_parser import get_structure_data, load_dicom_file
+                rtstruct_dataset = load_dicom_file(rtstruct_file_path)
+                structure_data = get_structure_data(rtstruct_dataset)
+                structure_names = list(structure_data.keys())
+
+                with st.expander("Structure Mapping"):
+                    if 'structure_mapping' not in st.session_state:
+                        st.session_state.structure_mapping = {}
+
+                    for structure_name in structure_names:
+                        # Auto-map based on name
+                        if structure_name.lower() in ['gtv', 'ctv', 'hr-ctv']:
+                            default_mapping = "TARGET"
+                        else:
+                            default_mapping = "OAR"
+
+                        mapping = st.selectbox(
+                            f"Map '{structure_name}' to:",
+                            options=["TARGET", "OAR", "IGNORE"],
+                            index=["TARGET", "OAR", "IGNORE"].index(st.session_state.structure_mapping.get(structure_name, default_mapping)),
+                            key=f"map_{structure_name}"
+                        )
+                        st.session_state.structure_mapping[structure_name] = mapping
             else:
                 st.session_state.available_point_names = []
-    else:
-        st.session_state.available_point_names = []
-        st.session_state.selected_point_names = []
 
     # Point selection UI
     if st.session_state.available_point_names:
@@ -604,7 +626,7 @@ def main():
                         custom_constraints=templates[st.session_state.current_template_name],
                     )
 
-                    results = run_analysis(args, selected_point_names=st.session_state.selected_point_names, dose_point_mapping=manual_dose_point_mapping, custom_constraints=args.custom_constraints, num_fractions_delivered=num_fractions_delivered, ebrt_fractions=args.ebrt_fractions)
+                    results = run_analysis(args, selected_point_names=st.session_state.selected_point_names, dose_point_mapping=manual_dose_point_mapping, custom_constraints=args.custom_constraints, num_fractions_delivered=num_fractions_delivered, ebrt_fractions=args.ebrt_fractions, structure_mapping=st.session_state.structure_mapping)
 
                     # *** FIX STARTS HERE: Add error handling for the GUI ***
                     if results and 'error' in results:
@@ -701,7 +723,12 @@ def main():
                                 for organ, data in results["dvh_results"].items():
                                     # Use the lowercase version for lookup
                                     alpha_beta = ab_ratios_lower.get(organ.lower(), ab_ratios.get("Default"))
-                                    is_target = "ctv" in organ.lower() or "gtv" in organ.lower() or alpha_beta == 10
+                                    
+                                    # Use structure_mapping if available, otherwise fall back to old logic
+                                    if 'structure_mapping' in st.session_state and organ in st.session_state.structure_mapping:
+                                        is_target = st.session_state.structure_mapping[organ] == "TARGET"
+                                    else:
+                                        is_target = "ctv" in organ.lower() or "gtv" in organ.lower() or alpha_beta == 10
 
                                     if is_target:
                                         target_dvh_data.append({
