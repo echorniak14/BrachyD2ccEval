@@ -142,7 +142,6 @@ def main():
     # These will be populated from the UI later
     ebrt_dose = 0.0
     previous_brachy_data_file = None
-    wkhtmltopdf_path = ""
     num_fractions_delivered = 1
 
 
@@ -265,54 +264,15 @@ def main():
         # --- End of new code ---
 
         with st.expander("Optional Inputs", expanded=True):
-            st.subheader("Dwell Time Decay Sheet")
-            st.markdown("""
-            **Instructions for generating the Mosaiq schedule report:**
-
-            In Mosaiq, open the patient's chart and go to 'Schedule' > 'All'. Right-click and select 'Reports' > 'Patient Appointment Calendar'. 
-            Select all departments, the current patient, and adjust the date range. For the report format, select 'Display Appointments in LIST format'. 
-            Save the report as an .xlsx file.
-            """)
-            mosaiq_schedule_file = st.file_uploader("Upload Mosaiq schedule report (.xlsx)", type=["xlsx"])
-
-            # --- CORRECTED LOGIC TO FIND DEFAULT FRACTIONS ---
-            default_num_fractions = 1
-            for uploaded_file in uploaded_files:
-                try:
-                    # Use seek(0) to ensure we read from the beginning
-                    uploaded_file.seek(0)
-                    ds = pydicom.dcmread(uploaded_file, stop_before_pixels=True)
-
-                    if ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.481.5': # RT Plan Storage
-                        if hasattr(ds, 'FractionGroupSequence') and ds.FractionGroupSequence:
-                            default_num_fractions = ds.FractionGroupSequence[0].NumberOfFractionsPlanned
-                        break # Found the plan, no need to check other files
-                except Exception:
-                    # This file is not a readable DICOM or not the one we're looking for, continue
-                    continue
-                finally:
-                    # IMPORTANT: Reset the file pointer so it can be read again later
-                    uploaded_file.seek(0)
-            # --- END CORRECTED LOGIC ---
-
-            st.markdown("<h3 style='color: #fc8781;'>Number of Fractions to be Delivered</h3>", unsafe_allow_html=True)
-            num_fractions_delivered = st.number_input(
-                " ", # Empty label as we are using markdown for the label
-                value=default_num_fractions,
-                min_value=1,
-                step=1,
-                key="num_fractions_delivered_input"
-            )
-
-            st.markdown("<h3 style='color: #fc8781;'>EBRT Dose (Gy)</h3>", unsafe_allow_html=True)
-
             # Initialize session state for EBRT if it doesn't exist
             if 'ebrt_total_dose' not in st.session_state:
                 st.session_state.ebrt_total_dose = 0.0
             if 'ebrt_fraction_dose' not in st.session_state:
                 st.session_state.ebrt_fraction_dose = 0.0
             if 'ebrt_num_fractions' not in st.session_state:
-                st.session_state.ebrt_num_fractions = 1
+                st.session_state.ebrt_num_fractions = 25
+
+            st.markdown("<h3 style='color: #fc8781;'>EBRT Dose (Gy)</h3>", unsafe_allow_html=True)
 
             # Callback functions to update EBRT values
             def update_total_dose():
@@ -370,7 +330,45 @@ def main():
                     previous_brachy_data_file.seek(0)
                 except Exception as e:
                     st.error(f"Error reading patient info from JSON file: {e}")
-            wkhtmltopdf_path = st.text_input("Path to wkhtmltopdf.exe (optional)")
+
+            # --- CORRECTED LOGIC TO FIND DEFAULT FRACTIONS ---
+            default_num_fractions = 1
+            for uploaded_file in uploaded_files:
+                try:
+                    # Use seek(0) to ensure we read from the beginning
+                    uploaded_file.seek(0)
+                    ds = pydicom.dcmread(uploaded_file, stop_before_pixels=True)
+
+                    if ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.481.5': # RT Plan Storage
+                        if hasattr(ds, 'FractionGroupSequence') and ds.FractionGroupSequence:
+                            default_num_fractions = ds.FractionGroupSequence[0].NumberOfFractionsPlanned
+                        break # Found the plan, no need to check other files
+                except Exception:
+                    # This file is not a readable DICOM or not the one we're looking for, continue
+                    continue
+                finally:
+                    # IMPORTANT: Reset the file pointer so it can be read again later
+                    uploaded_file.seek(0)
+            # --- END CORRECTED LOGIC ---
+
+            st.markdown("<h3 style='color: #fc8781;'>Number of Fractions to be Delivered</h3>", unsafe_allow_html=True)
+            num_fractions_delivered = st.number_input(
+                " ", # Empty label as we are using markdown for the label
+                value=default_num_fractions,
+                min_value=1,
+                step=1,
+                key="num_fractions_delivered_input"
+            )
+
+            st.subheader("Dwell Time Decay Sheet")
+            st.markdown("""
+            **Instructions for generating the Mosaiq schedule report:**
+
+            In Mosaiq, open the patient's chart and go to 'Schedule' > 'All'. Right-click and select 'Reports' > 'Patient Appointment Calendar'. 
+            Select all departments, the current patient, and adjust the date range. For the report format, select 'Display Appointments in LIST format'. 
+            Save the report as an .xlsx file.
+            """)
+            mosaiq_schedule_file = st.file_uploader("Upload Mosaiq schedule report (.xlsx)", type=["xlsx"])
 
         st.sidebar.subheader("EBRT Summary")
         st.sidebar.write(f"Total Dose: {st.session_state.ebrt_total_dose:.2f} Gy")
@@ -900,7 +898,7 @@ def main():
 
                                     try:
                                         pdf_path = os.path.join(tmpdir_analysis, "report.pdf")
-                                        convert_html_to_pdf(html_report, pdf_path, wkhtmltopdf_path=wkhtmltopdf_path)
+                                        convert_html_to_pdf(html_report, pdf_path)
 
                                         with open(pdf_path, "rb") as f:
                                             pdf_bytes = f.read()

@@ -34,22 +34,18 @@ def replace_css_variables(html_content):
         html_content = html_content.replace(f'var({var})', value)
     return html_content
 
-def convert_html_to_pdf(html_content, output_path, wkhtmltopdf_path=None):
+def convert_html_to_pdf(html_content, output_path):
     """
     Converts HTML content to a PDF file using pdfkit.
     """
     try:
-        config = None
-        if wkhtmltopdf_path:
-            config = pdfkit.configuration(wkhtmltopdf=wkhtmltopdf_path)
-        
         options = {'enable-local-file-access': None}
         
         pdf_html_content = replace_css_variables(html_content)
-        pdfkit.from_string(pdf_html_content, output_path, configuration=config, options=options)
+        pdfkit.from_string(pdf_html_content, output_path, options=options)
     except IOError as e:
         raise IOError(
-            "Could not locate wkhtmltopdf. Please install it and ensure it's in your system's PATH, or provide the path in the sidebar."
+            "Could not locate wkhtmltopdf. Please install it and ensure it's in your system's PATH."
             f"\n\nOriginal error: {e}"
         )
 

@@ -9,7 +9,7 @@
 - [x] fix contrast on dark mode
 - [x] check that you don't have to approve a plan before you can export it.
 - [ ] intermediate user input after real-time plan adjustments
-- [ ] Customizable Constraints
+- [x] Customizable Constraints
     - [x] OAR DVH constraints
     - [x] Target DVH constraints/goals
 - [x] Report Customization
