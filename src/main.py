@@ -163,7 +163,17 @@ def pre_analysis(uploaded_files):
 
         return structure_data, plan_data
 
-def main(args, structure_data, plan_data, selected_point_names=None, custom_constraints=None, dose_point_mapping=None, num_fractions_delivered=None, ebrt_fractions=None, structure_mapping=None):
+from fuzzywuzzy import process
+
+def get_structure_mapping(current_structures, json_structures):
+    mapping = {}
+    for current_struct in current_structures:
+        match, score = process.extractOne(current_struct, json_structures)
+        if score > 80: # Confidence threshold
+            mapping[current_struct] = match
+    return mapping
+
+def main(args, structure_data, plan_data, selected_point_names=None, custom_constraints=None, dose_point_mapping=None, num_fractions_delivered=None, ebrt_fractions=None, structure_mapping=None, confirmed_structure_mapping=None):
     data_dir = Path(args.data_dir)
 
     if hasattr(args, 'alpha_beta_ratios') and args.alpha_beta_ratios:
@@ -215,7 +225,11 @@ def main(args, structure_data, plan_data, selected_point_names=None, custom_cons
             total_dose = dose_per_fraction * number_of_fractions_for_calc
             
             previous_brachy_bed = 0
-            if organ in previous_brachy_bed_per_organ and isinstance(previous_brachy_bed_per_organ[organ], dict):
+            if confirmed_structure_mapping and organ in confirmed_structure_mapping:
+                json_organ = confirmed_structure_mapping[organ]
+                if json_organ in previous_brachy_bed_per_organ and isinstance(previous_brachy_bed_per_organ[json_organ], dict):
+                    previous_brachy_bed = previous_brachy_bed_per_organ[json_organ].get(metric_key, 0)
+            elif organ in previous_brachy_bed_per_organ and isinstance(previous_brachy_bed_per_organ[organ], dict):
                 previous_brachy_bed = previous_brachy_bed_per_organ[organ].get(metric_key, 0)
 
             total_bed, eqd2, _, _, _ = calculate_bed_and_eqd2(

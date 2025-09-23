@@ -283,6 +283,24 @@ def main():
                         st.session_state.ebrt_num_fractions = json_content["ebrt_summary"].get("number_of_fractions", 25)
                         st.session_state.ebrt_fraction_dose = json_content["ebrt_summary"].get("dose_per_fraction", 0.0)
 
+                    from src.main import get_structure_mapping
+                    structure_names = list(st.session_state.structure_mapping.keys())
+                    json_structure_names = list(json_content.get("dvh_results", {}).keys())
+                    proposed_mapping = get_structure_mapping(structure_names, json_structure_names)
+
+                    with st.expander("Confirm Structure Mapping"):
+                        if 'confirmed_structure_mapping' not in st.session_state:
+                            st.session_state.confirmed_structure_mapping = {}
+
+                        for current_struct, json_struct in proposed_mapping.items():
+                            mapping = st.selectbox(
+                                f"Map '{current_struct}' to:",
+                                options=json_structure_names,
+                                index=json_structure_names.index(json_struct),
+                                key=f"confirm_map_{current_struct}"
+                            )
+                            st.session_state.confirmed_structure_mapping[current_struct] = mapping
+
                     previous_brachy_data_file.seek(0)
                 except Exception as e:
                     st.error(f"Error reading patient info from JSON file: {e}")
@@ -626,7 +644,7 @@ def main():
                         custom_constraints=templates[st.session_state.current_template_name],
                     )
 
-                    results = run_analysis(args, selected_point_names=st.session_state.selected_point_names, dose_point_mapping=manual_dose_point_mapping, custom_constraints=args.custom_constraints, num_fractions_delivered=num_fractions_delivered, ebrt_fractions=args.ebrt_fractions, structure_mapping=st.session_state.structure_mapping)
+                    results = run_analysis(args, selected_point_names=st.session_state.selected_point_names, dose_point_mapping=manual_dose_point_mapping, custom_constraints=args.custom_constraints, num_fractions_delivered=num_fractions_delivered, ebrt_fractions=args.ebrt_fractions, structure_mapping=st.session_state.structure_mapping, confirmed_structure_mapping=st.session_state.confirmed_structure_mapping)
 
                     # *** FIX STARTS HERE: Add error handling for the GUI ***
                     if results and 'error' in results:
