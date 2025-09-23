@@ -16,13 +16,17 @@ templates = {
             "Default": 3
         },
         "constraints": {
-            "Hrctv D90": {"min": 85.0, "max": 90.0, "unit": "Gy"},
-            "Hrctv D98": {"min": 75.0, "unit": "Gy"},
-            "Gtv D98": {"min": 95.0, "unit": "Gy"},
-            "Bladder": {"D2cc": {"max": 80.0, "unit": "Gy"}},
-            "Rectum": {"D2cc": {"warning": 65.0, "max": 70.0, "unit": "Gy"}},
-            "Sigmoid": {"D2cc": {"warning": 65.0, "max": 70.0, "unit": "Gy"}},
-            "Bowel": {"D2cc": {"warning": 65.0, "max": 70.0, "unit": "Gy"}}
+            "target_constraints": {
+                "Hrctv D90": {"min": 85.0, "max": 90.0, "unit": "Gy"},
+                "Hrctv D98": {"min": 75.0, "unit": "Gy"},
+                "Gtv D98": {"min": 95.0, "unit": "Gy"}
+            },
+            "oar_constraints": {
+                "Bladder": {"D2cc": {"max": 80.0, "unit": "Gy"}},
+                "Rectum": {"D2cc": {"warning": 65.0, "max": 70.0, "unit": "Gy"}},
+                "Sigmoid": {"D2cc": {"warning": 65.0, "max": 70.0, "unit": "Gy"}},
+                "Bowel": {"D2cc": {"warning": 65.0, "max": 70.0, "unit": "Gy"}}
+            }
         },
         "point_dose_constraints": {
             "Point A": {"alpha_beta": 10, "report_only": True},
@@ -45,13 +49,17 @@ templates = {
             "Default": 3
         },
         "constraints": {
-            "Hrctv D90": {"min": 85.0, "max": 90.0, "unit": "Gy"}, # Same as EMBRACE II
-            "Hrctv D98": {"min": 75.0, "unit": "Gy"}, # Same as EMBRACE II
-            "Gtv D98": {"min": 95.0, "unit": "Gy"}, # Same as EMBRACE II
-            "Bladder": {"D2cc": {"warning": 80.0, "max": 90.0, "unit": "Gy"}},
-            "Rectum": {"D2cc": {"warning": 70.0, "max": 75.0, "unit": "Gy"}},
-            "Sigmoid": {"D2cc": {"warning": 70.0, "max": 75.0, "unit": "Gy"}},
-            "Bowel": {"D2cc": {"warning": 70.0, "max": 75.0, "unit": "Gy"}}
+            "target_constraints": {
+                "Hrctv D90": {"min": 85.0, "max": 90.0, "unit": "Gy"}, # Same as EMBRACE II
+                "Hrctv D98": {"min": 75.0, "unit": "Gy"}, # Same as EMBRACE II
+                "Gtv D98": {"min": 95.0, "unit": "Gy"} # Same as EMBRACE II
+            },
+            "oar_constraints": {
+                "Bladder": {"D2cc": {"warning": 80.0, "max": 90.0, "unit": "Gy"}},
+                "Rectum": {"D2cc": {"warning": 70.0, "max": 75.0, "unit": "Gy"}},
+                "Sigmoid": {"D2cc": {"warning": 70.0, "max": 75.0, "unit": "Gy"}},
+                "Bowel": {"D2cc": {"warning": 70.0, "max": 75.0, "unit": "Gy"}}
+            }
         },
         "point_dose_constraints": {
             "Point A": {"alpha_beta": 10, "report_only": True},
@@ -74,10 +82,13 @@ templates = {
             "Default": 3
         },
         "constraints": {
-            "Bladder": {"D2cc": {"max": 80.0, "unit": "Gy"}},
-            "Rectum": {"D2cc": {"warning": 65.0, "max": 70.0, "unit": "Gy"}},
-            "Sigmoid": {"D2cc": {"warning": 65.0, "max": 70.0, "unit": "Gy"}},
-            "Bowel": {"D2cc": {"warning": 65.0, "max": 70.0, "unit": "Gy"}}
+            "target_constraints": {},
+            "oar_constraints": {
+                "Bladder": {"D2cc": {"max": 80.0, "unit": "Gy"}},
+                "Rectum": {"D2cc": {"warning": 65.0, "max": 70.0, "unit": "Gy"}},
+                "Sigmoid": {"D2cc": {"warning": 65.0, "max": 70.0, "unit": "Gy"}},
+                "Bowel": {"D2cc": {"warning": 65.0, "max": 70.0, "unit": "Gy"}}
+            }
         },
         "point_dose_constraints": {
             "Prescription Point": {
@@ -100,10 +111,13 @@ templates = {
             "Default": 3
         },
         "constraints": {
-            "Bladder": {"D2cc": {"max": 80.0, "unit": "Gy"}},
-            "Rectum": {"D2cc": {"max": 70.0, "unit": "Gy"}},
-            "Sigmoid": {"D2cc": {"max": 70.0, "unit": "Gy"}},
-            "Bowel": {"D2cc": {"max": 65.0, "unit": "Gy"}}
+            "target_constraints": {},
+            "oar_constraints": {
+                "Bladder": {"D2cc": {"max": 80.0, "unit": "Gy"}},
+                "Rectum": {"D2cc": {"max": 70.0, "unit": "Gy"}},
+                "Sigmoid": {"D2cc": {"max": 70.0, "unit": "Gy"}},
+                "Bowel": {"D2cc": {"max": 65.0, "unit": "Gy"}}
+            }
         },
         "point_dose_constraints": {
             "Prescription Point": {

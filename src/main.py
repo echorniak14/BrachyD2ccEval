@@ -227,24 +227,24 @@ def main(args, selected_point_names=None, custom_constraints=None, dose_point_ma
         }
         for metric_key, dose_key in dose_metrics.items():
             dose_per_fraction = data.get(dose_key, 0)
-            if dose_per_fraction > 0:
-                total_dose = dose_per_fraction * number_of_fractions_for_calc
-                
-                previous_brachy_bed = previous_brachy_bed_per_organ.get(organ, 0) if metric_key == 'd2cc' else 0
+            total_dose = dose_per_fraction * number_of_fractions_for_calc
+            
+            previous_brachy_bed = previous_brachy_bed_per_organ.get(organ, 0) if metric_key == 'd2cc' else 0
 
-                total_bed, eqd2, _, _, _ = calculate_bed_and_eqd2(
-                    total_dose,
-                    dose_per_fraction,
-                    organ,
-                    args.ebrt_dose,
-                    ebrt_fractions,
-                    previous_brachy_bed,
-                    current_alpha_beta_ratios
-                )
-                data[f'bed_{metric_key}'] = total_bed
-                data[f'eqd2_{metric_key}'] = eqd2
+            total_bed, eqd2, _, _, _ = calculate_bed_and_eqd2(
+                total_dose,
+                dose_per_fraction,
+                organ,
+                args.ebrt_dose,
+                ebrt_fractions,
+                previous_brachy_bed,
+                current_alpha_beta_ratios
+            )
+            data[f'bed_{metric_key}'] = total_bed
+            data[f'eqd2_{metric_key}'] = eqd2
 
-    current_constraints = custom_constraints.get("constraints") if custom_constraints else None
+    current_target_constraints = custom_constraints.get("constraints", {}).get("target_constraints") if custom_constraints else None
+    current_oar_constraints = custom_constraints.get("constraints", {}).get("oar_constraints") if custom_constraints else None
     point_dose_constraints = custom_constraints.get("point_dose_constraints") if custom_constraints else None
 
     filtered_dose_references = []
@@ -265,7 +265,7 @@ def main(args, selected_point_names=None, custom_constraints=None, dose_point_ma
             'BED_EBRT': bed_ebrt, 'EQD2': eqd2,
         })
 
-    constraint_evaluation = evaluate_constraints(dvh_results, point_dose_results, constraints=current_constraints, point_dose_constraints=point_dose_constraints, dose_point_mapping=dose_point_mapping)
+    constraint_evaluation = evaluate_constraints(dvh_results, point_dose_results, target_constraints=current_target_constraints, oar_constraints=current_oar_constraints, point_dose_constraints=point_dose_constraints, dose_point_mapping=dose_point_mapping)
 
     mapping_dict = {item[0]: item[1] for item in dose_point_mapping} if dose_point_mapping else {}
     point_dose_constraints = custom_constraints.get("point_dose_constraints", {}) if custom_constraints else {}

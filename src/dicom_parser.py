@@ -225,6 +225,12 @@ def get_dose_point_mapping(rtplan_file, point_dose_constraints):
                 mapping[dose_ref.DoseReferenceDescription] = "RV Point"
                 continue
 
+            # Check for Point A variations
+            point_a_keywords = ['a_rt', 'a_lt']
+            if any(keyword in dicom_point_name for keyword in point_a_keywords):
+                mapping[dose_ref.DoseReferenceDescription] = "Point A"
+                continue
+
             exact_match_found = False
             for constraint_name in point_dose_constraints.keys():
                 if dicom_point_name == constraint_name.lower():

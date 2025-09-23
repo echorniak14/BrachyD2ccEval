@@ -171,8 +171,8 @@ def main():
                 st.session_state.widget_key_suffix = st.session_state.get('widget_key_suffix', 0) + 1 # Force re-render
 
             # Separate constraints into target and OAR
-            target_constraints = {organ: const for organ, const in st.session_state.custom_constraints.items() if "D2cc" not in const}
-            oar_constraints = {organ: const for organ, const in st.session_state.custom_constraints.items() if "D2cc" in const}
+            target_constraints = st.session_state.custom_constraints.get("target_constraints", {})
+            oar_constraints = st.session_state.custom_constraints.get("oar_constraints", {})
 
             # Display and update constraints for Custom template
             col1, col2 = st.columns(2)
@@ -180,17 +180,17 @@ def main():
                 st.subheader("Target Volumes")
                 for organ, organ_constraints in target_constraints.items():
                     st.write(f"**{organ}**")
-                    if "D90" in organ_constraints:
-                        st.session_state.custom_constraints[organ]["D90"] = st.number_input(
-                            f"D90 (Gy)",
-                            value=float(organ_constraints["D90"]),
-                            key=f"constraint_{organ}_D90_{st.session_state.widget_key_suffix}"
+                    if "min" in organ_constraints:
+                        st.session_state.custom_constraints["target_constraints"][organ]["min"] = st.number_input(
+                            f"Min (Gy)",
+                            value=float(organ_constraints["min"]),
+                            key=f"constraint_{organ}_min_{st.session_state.widget_key_suffix}"
                         )
-                    if "D98" in organ_constraints:
-                        st.session_state.custom_constraints[organ]["D98"] = st.number_input(
-                            f"D98 (Gy)",
-                            value=float(organ_constraints["D98"]),
-                            key=f"constraint_{organ}_D98_{st.session_state.widget_key_suffix}"
+                    if "max" in organ_constraints:
+                        st.session_state.custom_constraints["target_constraints"][organ]["max"] = st.number_input(
+                            f"Max (Gy)",
+                            value=float(organ_constraints["max"]),
+                            key=f"constraint_{organ}_max_{st.session_state.widget_key_suffix}"
                         )
 
             with col2:
@@ -198,20 +198,20 @@ def main():
                 for organ, organ_constraints in oar_constraints.items():
                     st.write(f"**{organ}**")
                     if "warning" in organ_constraints["D2cc"]:
-                        st.session_state.custom_constraints[organ]["D2cc"]["warning"] = st.number_input(
+                        st.session_state.custom_constraints["oar_constraints"][organ]["D2cc"]["warning"] = st.number_input(
                             f"D2cc Warning (Gy)",
                             value=float(organ_constraints["D2cc"]["warning"]),
                             key=f"constraint_{organ}_D2cc_warning_{st.session_state.widget_key_suffix}"
                         )
-                    st.session_state.custom_constraints[organ]["D2cc"]["max"] = st.number_input(
+                    st.session_state.custom_constraints["oar_constraints"][organ]["D2cc"]["max"] = st.number_input(
                         f"D2cc Max (Gy)",
                         value=float(organ_constraints["D2cc"]["max"]),
                         key=f"constraint_{organ}_D2cc_max_{st.session_state.widget_key_suffix}"
                     )
     
     st.sidebar.header("Loaded EQD2 Constraints")
-    target_constraints = {organ: const for organ, const in st.session_state.custom_constraints.items() if "D2cc" not in const}
-    oar_constraints = {organ: const for organ, const in st.session_state.custom_constraints.items() if "D2cc" in const}
+    target_constraints = st.session_state.custom_constraints.get("target_constraints", {})
+    oar_constraints = st.session_state.custom_constraints.get("oar_constraints", {})
     st.sidebar.subheader("Target Volumes")
     for organ, organ_constraints in target_constraints.items():
         col_left, col_right = st.sidebar.columns([0.4, 1])
@@ -598,8 +598,33 @@ def main():
                     if results and 'error' in results:
                         st.error(results['error'])
                     else:
+                        print(f"Selected template: {selected_template_name}")
                         # --- Start Channel Mapping Validation ---
-                        if selected_template_name == "Cylinder HDR":
+                        if selected_template_name in ["Cervix HDR - EMBRACE II", "Cervix HDR - ABS/GEC-Estro"]:
+                            channel_mapping_data = results.get('channel_mapping', [])
+                            num_channels = len(channel_mapping_data)
+
+                            if num_channels == 3: # Tandem and Ovoid
+                                expected_mapping = { '1': '1', '2': '3', '3': '5' }
+                                all_mappings_correct = True
+                                for ch_num, tt_num in expected_mapping.items():
+                                    if not any(channel.get('channel_number') == ch_num and channel.get('transfer_tube_number') == tt_num for channel in channel_mapping_data):
+                                        all_mappings_correct = False
+                                        break
+                                if not all_mappings_correct:
+                                    st.warning("Warning: Incorrect channel mapping for Tandem and Ovoid plan. Expected: Channel 1 to Transfer Tube 1, Channel 2 to Transfer Tube 3, Channel 3 to Transfer Tube 5.")
+
+                            elif num_channels == 2: # Tandem and Ring
+                                expected_mapping = { '1': '1', '2': '5' }
+                                all_mappings_correct = True
+                                for ch_num, tt_num in expected_mapping.items():
+                                    if not any(channel.get('channel_number') == ch_num and channel.get('transfer_tube_number') == tt_num for channel in channel_mapping_data):
+                                        all_mappings_correct = False
+                                        break
+                                if not all_mappings_correct:
+                                    st.warning("Warning: Incorrect channel mapping for Tandem and Ring plan. Expected: Channel 1 to Transfer Tube 1, Channel 2 to Transfer Tube 5.")
+
+                        elif selected_template_name == "Cylinder HDR":
                             channel_mapping_data = results.get('channel_mapping', [])
                             is_catheter_1_mapped_to_channel_5 = False
                             for channel in channel_mapping_data:
@@ -664,7 +689,7 @@ def main():
                                 for organ, data in results["dvh_results"].items():
                                     # Use the lowercase version for lookup
                                     alpha_beta = ab_ratios_lower.get(organ.lower(), ab_ratios.get("Default"))
-                                    is_target = alpha_beta == 10
+                                    is_target = "ctv" in organ.lower() or "gtv" in organ.lower() or alpha_beta == 10
 
                                     if is_target:
                                         target_dvh_data.append({
@@ -781,8 +806,9 @@ def main():
                                                     d2cc_index = d2cc_row_df.index[0]
                                                     eqd2_value = d2cc_row_df['EQD2 (Gy)'].iloc[0]
 
-                                                    if pd.notna(eqd2_value) and organ_name in current_constraints and "D2cc" in current_constraints[organ_name]:
-                                                        constraint_data = current_constraints[organ_name]['D2cc']
+                                                    oar_constraints = current_constraints.get('oar_constraints', {})
+                                                    if pd.notna(eqd2_value) and organ_name in oar_constraints and "D2cc" in oar_constraints[organ_name]:
+                                                        constraint_data = oar_constraints[organ_name]['D2cc']
                                                         max_val = constraint_data['max']
                                                         warn_val = constraint_data.get('warning')
                                                         

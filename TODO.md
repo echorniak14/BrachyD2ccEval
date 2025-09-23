@@ -3,7 +3,7 @@
 ### User Interface & Experience
 - [x] Visual Constraint Indicators
     - [x] Get MD feedback on dose summary
-- [ ] Conditional Formatting for Point Dose Results
+- [x] Conditional Formatting for Point Dose Results
 - [x] Fix the total planned dose column in the report.
 - [x] Remove BED in report
 - [x] fix contrast on dark mode
@@ -11,7 +11,7 @@
 - [ ] intermediate user input after real-time plan adjustments
 - [ ] Customizable Constraints
     - [x] OAR DVH constraints
-    - [ ] Target DVH constraints/goals
+    - [x] Target DVH constraints/goals
 - [x] Report Customization
     - [x] fix alpha/beta symbol on report
     - [x] Remove two extra columns on OAR DVH results table from previous constraint status removal
@@ -38,18 +38,18 @@
 - [x] Channel Mapping display for catheters (right side of Results) have it look for channel number, channel length, and transfer tube number
 - [ ] Dwell time decay dwell position flexibility -> dwell position = index length - 1000.
 - [ ] Auto save excel file and pdf and pull up print option
-- [ ] Flag user if the planned time is outside normal buisness hours
+- [x] Flag user if the planned time is outside normal buisness hours
 - [ ] Correctly round the dose to meet constraint display in results
-- [ ] EBRT Dose and number of fractions
+- [x] EBRT Dose and number of fractions
 - [ ] Use provided previous brachy dose to give optimzation goals to user to achieve ALARA
 
 ### Deployment & Integration
 ## Phase 1: Preparation and Data Gathering
-- [ ] Gather Data
-    - [ ] Cylinder Case (3-5)
-    - [ ] Tandem and Ovoid Case (3-5)
+- [x] Gather Data
+    - [x] Cylinder Case (3-5)
+    - [x] Tandem and Ovoid Case (3-5)
     - [ ] Tandem and Ring Case (3-5)
-    - [ ] Multichannel Cylinder Case
+    - [x] Multichannel Cylinder Case
     - [ ] Interstitial Case
 - [ ] Document the manual process
 - [ ] Create the Data collection Spreadsheet

@@ -200,11 +200,14 @@ def get_dvh(rtss_file, rtdose_file, structure_data, number_of_fractions, ebrt_do
         
     return dvh_results
 
-def evaluate_constraints(dvh_results, point_dose_results, constraints=None, point_dose_constraints=None, dose_point_mapping=None):
+def evaluate_constraints(dvh_results, point_dose_results, target_constraints=None, oar_constraints=None, point_dose_constraints=None, dose_point_mapping=None):
     """Evaluates calculated DVH and point dose results against predefined constraints."""
-    if constraints is None:
+    if target_constraints is None:
         from .config import templates
-        constraints = templates["Cervix HDR - EMBRACE II"]["constraints"]
+        target_constraints = templates["Cervix HDR - EMBRACE II"]["constraints"]["target_constraints"]
+    if oar_constraints is None:
+        from .config import templates
+        oar_constraints = templates["Cervix HDR - EMBRACE II"]["constraints"]["oar_constraints"]
     if point_dose_constraints is None:
         from .config import templates
         point_dose_constraints = templates["Cervix HDR - EMBRACE II"]["point_dose_constraints"]
@@ -216,8 +219,8 @@ def evaluate_constraints(dvh_results, point_dose_results, constraints=None, poin
         evaluation = {}
         normalized_organ = normalize_structure_name(organ)
 
-        if normalized_organ in constraints and "D2cc" in constraints[normalized_organ]:
-            constraint_data = constraints[normalized_organ]["D2cc"]
+        if normalized_organ in oar_constraints and "D2cc" in oar_constraints[normalized_organ]:
+            constraint_data = oar_constraints[normalized_organ]["D2cc"]
             max_eqd2 = constraint_data["max"]
             warning_eqd2 = constraint_data.get("warning")
             current_eqd2 = data["eqd2_d2cc"]
@@ -228,8 +231,8 @@ def evaluate_constraints(dvh_results, point_dose_results, constraints=None, poin
                 evaluation["EQD2_met"], evaluation["EQD2_status"] = ("False", "NOT Met")
             constraint_evaluation[normalized_organ] = evaluation
 
-        if "Hrctv D90" in constraints and normalized_organ == "Hrctv":
-            constraint_data = constraints["Hrctv D90"]
+        if "Hrctv D90" in target_constraints and normalized_organ == "Hrctv":
+            constraint_data = target_constraints["Hrctv D90"]
             min_eqd2, max_eqd2 = constraint_data["min"], constraint_data.get("max")
             current_eqd2 = data["eqd2_d90"]
             evaluation.update({"EQD2_value_D90": current_eqd2, "EQD2_min_D90": min_eqd2, "EQD2_max_D90": max_eqd2})
@@ -237,8 +240,8 @@ def evaluate_constraints(dvh_results, point_dose_results, constraints=None, poin
             evaluation.update({"EQD2_met_D90": str(is_met), "EQD2_status_D90": "Met" if is_met else "NOT Met"})
             constraint_evaluation["Hrctv D90"] = evaluation
 
-        if "Hrctv D98" in constraints and normalized_organ == "Hrctv":
-            constraint_data = constraints["Hrctv D98"]
+        if "Hrctv D98" in target_constraints and normalized_organ == "Hrctv":
+            constraint_data = target_constraints["Hrctv D98"]
             min_eqd2 = constraint_data["min"]
             current_eqd2 = data["eqd2_d98"]
             evaluation.update({"EQD2_value_D98": current_eqd2, "EQD2_min_D98": min_eqd2})
@@ -246,8 +249,8 @@ def evaluate_constraints(dvh_results, point_dose_results, constraints=None, poin
             evaluation.update({"EQD2_met_D98": str(is_met), "EQD2_status_D98": "Met" if is_met else "NOT Met"})
             constraint_evaluation["Hrctv D98"] = evaluation
 
-        if "Gtv D98" in constraints and normalized_organ == "Gtv":
-            constraint_data = constraints["Gtv D98"]
+        if "Gtv D98" in target_constraints and normalized_organ == "Gtv":
+            constraint_data = target_constraints["Gtv D98"]
             min_eqd2 = constraint_data["min"]
             current_eqd2 = data["eqd2_d98"]
             evaluation.update({"EQD2_value_D98": current_eqd2, "EQD2_min_D98": min_eqd2})
