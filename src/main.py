@@ -193,7 +193,7 @@ def pre_analysis(uploaded_files):
                 elif ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.481.5': # RT Plan Storage
                     rtplan_file_path = file_path
             except Exception as e:
-                st.warning(f"Could not read DICOM file {uploaded_file.name}: {e}")
+                print(f"Warning: Could not read DICOM file {uploaded_file.name}: {e}")
 
         structure_data = None
         if rtstruct_file_path:
@@ -232,7 +232,6 @@ def main(args, structure_data, plan_data, selected_point_names=None, custom_cons
     point_dose_results = []
 
 
-    # *** FIX STARTS HERE: Correctly calculate total BED from lists of fractional doses ***
     previous_brachy_bed_per_organ = {}
     if hasattr(args, 'previous_brachy_data') and args.previous_brachy_data:
         if isinstance(args.previous_brachy_data, str): # HTML path
@@ -268,7 +267,6 @@ def main(args, structure_data, plan_data, selected_point_names=None, custom_cons
                     for dose_fx in dose_list:
                         total_point_bed += dose_fx * (1 + dose_fx / alpha_beta)
                 previous_brachy_bed_per_organ[point_name] = total_point_bed
-    # *** FIX ENDS HERE ***
 
 
     dose_dir = next((d for d in Path(args.data_dir).iterdir() if d.is_dir() and "RTDOSE" in d.name), None)
@@ -390,11 +388,17 @@ def main(args, structure_data, plan_data, selected_point_names=None, custom_cons
     for organ, data in dvh_results.items():
         if organ in constraint_evaluation and constraint_evaluation[organ].get("EQD2_met") == "False":
             eqd2_constraint = constraint_evaluation[organ]["EQD2_max"]
+            # *** FIX STARTS HERE: Correctly get the previous BED for the D2cc metric ***
+            prev_bed_dict = previous_brachy_bed_per_organ.get(organ, {})
+            # Ensure we handle both dicts (for OARs) and floats (for points, though unlikely here)
+            prev_d2cc_bed = prev_bed_dict.get('d2cc', 0) if isinstance(prev_bed_dict, dict) else 0
+            
             dvh_results[organ]["dose_to_meet_constraint"] = calculate_dose_to_meet_constraint(
                 eqd2_constraint, organ, number_of_fractions_for_calc, args.ebrt_dose,
-                previous_brachy_bed=previous_brachy_bed_per_organ.get(organ, 0),
+                previous_brachy_bed=prev_d2cc_bed,
                 alpha_beta_ratios=current_alpha_beta_ratios
             )
+            # *** FIX ENDS HERE ***
         else:
             dvh_results[organ]["dose_to_meet_constraint"] = "N/A"
 
