@@ -200,6 +200,17 @@ def main(args, structure_data, plan_data, selected_point_names=None, custom_cons
         elif isinstance(args.previous_brachy_data, dict):
             previous_brachy_bed_per_organ = args.previous_brachy_data
 
+    dose_dir = next((d for d in Path(args.data_dir).iterdir() if d.is_dir() and "RTDOSE" in d.name), None)
+    struct_dir = next((d for d in Path(args.data_dir).iterdir() if d.is_dir() and "RTst" in d.name), None)
+    dose_file = find_dicom_file(dose_dir)
+    struct_file = find_dicom_file(struct_dir)
+
+    planned_number_of_fractions = plan_data.get('number_of_fractions', 1)
+    number_of_fractions_for_calc = planned_number_of_fractions
+    
+    if num_fractions_delivered is not None:
+        number_of_fractions_for_calc = num_fractions_delivered
+
     dvh_results = get_dvh(
         struct_file, dose_file, structure_data, number_of_fractions_for_calc,
         ebrt_dose=args.ebrt_dose,
@@ -325,6 +336,10 @@ def main(args, structure_data, plan_data, selected_point_names=None, custom_cons
         formatted_plan_date = 'N/A'
         formatted_plan_time = 'N/A'
 
+    plan_time_warning = check_plan_time(plan_data.get('plan_time'))
+
+    rt_dose_dataset = load_dicom_file(dose_file)
+
     output_data = {
         "patient_name": str(rt_dose_dataset.PatientName),
         "patient_mrn": str(rt_dose_dataset.PatientID),
@@ -333,7 +348,7 @@ def main(args, structure_data, plan_data, selected_point_names=None, custom_cons
         "plan_time": formatted_plan_time,
         "source_info": plan_data.get('source_info', 'N/A'),
         "channel_mapping": plan_data.get('channel_mapping', []),
-        "brachy_dose_per_fraction": brachy_dose_per_fraction,
+        "brachy_dose_per_fraction": plan_data.get('brachy_dose_per_fraction', 0),
         "planned_number_of_fractions": planned_number_of_fractions,
         "calculation_number_of_fractions": number_of_fractions_for_calc,
         "ebrt_dose": args.ebrt_dose,
@@ -355,16 +370,6 @@ def main(args, structure_data, plan_data, selected_point_names=None, custom_cons
         output_data['html_report'] = html_content
 
     return output_data
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Brachytherapy Plan Evaluator")
-    parser.add_argument("--data_dir", type=str, required=True, help="Path to the directory containing the patient's DICOM files.")
-    parser.add_argument("--ebrt_dose", type=float, default=0.0, help="The prescription dose of the external beam radiation therapy in Gray (Gy).")
-    parser.add_argument("--ebrt_fractions", type=int, default=1, help="The number of fractions for the external beam radiation therapy.")
-    parser.add_argument("--previous_brachy_html", type=str, help="Path to a previous brachytherapy HTML report to incorporate its EQD2 values.")
-    parser.add_argument("--output_html", type=str, help="If provided, the results will be saved to this HTML file.")
-    args = parser.parse_args()
-    main(args, ebrt_fractions=args.ebrt_fractions)
 
 def generate_dwell_time_sheet(mosaiq_schedule_path, rtplan_file, output_excel_path):
     """

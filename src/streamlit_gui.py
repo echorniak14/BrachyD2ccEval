@@ -644,7 +644,7 @@ def main():
                         custom_constraints=templates[st.session_state.current_template_name],
                     )
 
-                    results = run_analysis(args, selected_point_names=st.session_state.selected_point_names, dose_point_mapping=manual_dose_point_mapping, custom_constraints=args.custom_constraints, num_fractions_delivered=num_fractions_delivered, ebrt_fractions=args.ebrt_fractions, structure_mapping=st.session_state.structure_mapping, confirmed_structure_mapping=st.session_state.confirmed_structure_mapping)
+                    results = run_analysis(args, structure_data, plan_data, selected_point_names=st.session_state.selected_point_names, dose_point_mapping=manual_dose_point_mapping, custom_constraints=args.custom_constraints, num_fractions_delivered=num_fractions_delivered, ebrt_fractions=args.ebrt_fractions, structure_mapping=st.session_state.structure_mapping, confirmed_structure_mapping=st.session_state.confirmed_structure_mapping)
 
                     # *** FIX STARTS HERE: Add error handling for the GUI ***
                     if results and 'error' in results:
