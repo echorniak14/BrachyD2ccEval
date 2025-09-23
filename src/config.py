@@ -111,7 +111,12 @@ templates = {
             "Default": 3
         },
         "constraints": {
-            "target_constraints": {},
+            "target_constraints": {
+                "Gtv D90": {"min": 95.0, "unit": "Gy"},
+                "Gtv D98": {"min": 98.0, "unit": "Gy"},
+                "Hrctv D90": {"min": 90.0, "unit": "Gy"},
+                "Hrctv D98": {"min": 95.0, "unit": "Gy"}
+            },
             "oar_constraints": {
                 "Bladder": {"D2cc": {"max": 80.0, "unit": "Gy"}},
                 "Rectum": {"D2cc": {"max": 70.0, "unit": "Gy"}},

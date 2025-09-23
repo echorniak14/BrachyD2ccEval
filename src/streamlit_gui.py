@@ -192,6 +192,18 @@ def main():
                             value=float(organ_constraints["max"]),
                             key=f"constraint_{organ}_max_{st.session_state.widget_key_suffix}"
                         )
+                    if "D90" in organ_constraints:
+                        st.session_state.custom_constraints["target_constraints"][organ]["D90"] = st.number_input(
+                            f"D90 (Gy)",
+                            value=float(organ_constraints["D90"]),
+                            key=f"constraint_{organ}_D90_{st.session_state.widget_key_suffix}"
+                        )
+                    if "D98" in organ_constraints:
+                        st.session_state.custom_constraints["target_constraints"][organ]["D98"] = st.number_input(
+                            f"D98 (Gy)",
+                            value=float(organ_constraints["D98"]),
+                            key=f"constraint_{organ}_D98_{st.session_state.widget_key_suffix}"
+                        )
 
             with col2:
                 st.subheader("Organs at Risk")
