@@ -487,7 +487,8 @@ def generate_dwell_time_sheet(mosaiq_schedule_path, rtplan_file, output_excel_pa
             hdr_tx_schedule['Time'] = hdr_tx_schedule['Time'].astype(str)
             hdr_tx_schedule.dropna(subset=['Date'], inplace=True)
             hdr_tx_schedule['datetime'] = pd.to_datetime(
-                hdr_tx_schedule['Date'].dt.strftime('%Y-%m-%d') + ' ' + hdr_tx_schedule['Time']
+                hdr_tx_schedule['Date'].dt.strftime('%Y-%m-%d') + ' ' + hdr_tx_schedule['Time'],
+                format='mixed'
             )
             return sorted(hdr_tx_schedule['datetime'].tolist())
         except Exception as e:
@@ -495,7 +496,11 @@ def generate_dwell_time_sheet(mosaiq_schedule_path, rtplan_file, output_excel_pa
             return []
 
     # --- Main logic from test_schedule_parser.py ---
-    template_excel_path = r'sample_data/Dwell time decay Worksheet Cylinder.xlsx' # This path needs to be relative to the project root
+    if getattr(sys, 'frozen', False):
+        base_path = Path(sys._MEIPASS)
+    else:
+        base_path = Path(__file__).parent.parent
+    template_excel_path = base_path / 'sample_data' / 'Dwell time decay Worksheet Cylinder.xlsx'
 
     fraction_datetimes = parse_mosaiq_schedule_for_hdr_tx(mosaiq_schedule_path)
     if not fraction_datetimes:

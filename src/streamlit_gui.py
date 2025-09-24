@@ -553,11 +553,11 @@ def main():
 
     if st.button("Generate Dwell Time Sheet"):
         if 'mosaiq_schedule_file' in locals() and mosaiq_schedule_file and uploaded_files:
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp_excel_file:
-                tmp_excel_file.write(mosaiq_schedule_file.getbuffer())
-                mosaiq_schedule_path = tmp_excel_file.name
-
             with tempfile.TemporaryDirectory() as tmpdir:
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp_excel_file:
+                    tmp_excel_file.write(mosaiq_schedule_file.getbuffer())
+                    mosaiq_schedule_path = tmp_excel_file.name
+
                 rtplan_file_path = None
                 for uploaded_file in uploaded_files:
                     file_path = os.path.join(tmpdir, uploaded_file.name)
