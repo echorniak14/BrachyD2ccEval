@@ -283,3 +283,47 @@ def check_plan_time(plan_time):
     except (ValueError, IndexError):
         return "Warning: Invalid plan time format."
     return None
+
+def calculate_optimization_goal(total_eqd2_constraint, alpha_beta, ebrt_dose, ebrt_fractions, previous_brachy_bed, num_new_brachy_fractions=1):
+    """
+    Calculates the maximum allowed physical dose per fraction for a new brachytherapy plan
+    to stay within the total EQD2 constraint.
+
+    Returns:
+        The maximum physical dose (e.g., D2cc) per fraction, or 0.0 if the constraint is
+        already met or exceeded.
+    """
+    # 1. Calculate the BED contribution from EBRT
+    bed_ebrt = 0
+    if ebrt_dose > 0 and ebrt_fractions > 0:
+        ebrt_dose_per_fraction = ebrt_dose / ebrt_fractions
+        bed_ebrt = ebrt_dose * (1 + ebrt_dose_per_fraction / alpha_beta)
+
+    # 2. Calculate the total BED from all previously delivered radiation
+    delivered_bed = bed_ebrt + previous_brachy_bed
+
+    # 3. Convert the organ's total EQD2 constraint into a total BED constraint
+    total_bed_constraint = total_eqd2_constraint * (1 + 2 / alpha_beta)
+
+    # 4. Find the remaining BED budget for the new brachytherapy plan
+    remaining_bed_budget = total_bed_constraint - delivered_bed
+
+    if remaining_bed_budget <= 0:
+        return 0.0 # Constraint is already exceeded
+
+    # 5. Determine the allowed BED for each new fraction being planned
+    bed_per_new_fraction = remaining_bed_budget / num_new_brachy_fractions
+
+    # 6. Solve the quadratic equation BED = d*(1 + d/αβ) for the physical dose 'd'
+    a = 1
+    b = alpha_beta
+    c = -alpha_beta * bed_per_new_fraction
+
+    # We use the quadratic formula and take the positive root for the dose
+    discriminant = (b**2) - (4 * a * c)
+    if discriminant < 0:
+        return 0.0
+
+    physical_dose_per_fraction = (-b + np.sqrt(discriminant)) / (2 * a)
+
+    return physical_dose_per_fraction
