@@ -835,7 +835,6 @@ def main():
                             if "ctv" in organ.lower() or "gtv" in organ.lower() or alpha_beta == 10:
                                 is_target = True
                         
-                        # --- MODIFICATION START: Reformat Target Volume Data ---
                         if is_target:
                             # D98 row
                             target_dvh_data.append({
@@ -843,7 +842,6 @@ def main():
                                 "Volume (cc)": data.get("volume_cc"),
                                 "Dose Metric": "D98",
                                 "Dose (Gy)": data.get("d98_gy_per_fraction"),
-                                "BED (Gy)": data.get("bed_d98"),
                                 "EQD2 (Gy)": data.get("eqd2_d98")
                             })
                             # D90 row
@@ -852,10 +850,8 @@ def main():
                                 "Volume (cc)": None,
                                 "Dose Metric": "D90",
                                 "Dose (Gy)": data.get("d90_gy_per_fraction"),
-                                "BED (Gy)": data.get("bed_d90"),
                                 "EQD2 (Gy)": data.get("eqd2_d90")
                             })
-                        # --- MODIFICATION END ---
                         else:
                             constraint_status = "N/A"
                             dose_to_meet = "N/A"
@@ -869,7 +865,6 @@ def main():
                                 "Volume (cc)": data["volume_cc"],
                                 "Dose Metric": "D0.1cc",
                                 "Dose (Gy)": data["d0_1cc_gy_per_fraction"],
-                                "BED (Gy)": data["bed_d0_1cc"],
                                 "EQD2 (Gy)": data["eqd2_d0_1cc"],
                                 "Dose to Meet Constraint (Gy)": "",
                                 "Constraint Status": constraint_status
@@ -880,7 +875,6 @@ def main():
                                 "Volume (cc)": None,
                                 "Dose Metric": "D1cc",
                                 "Dose (Gy)": data["d1cc_gy_per_fraction"],
-                                "BED (Gy)": data["bed_d1cc"],
                                 "EQD2 (Gy)": data["eqd2_d1cc"],
                                 "Dose to Meet Constraint (Gy)": "",
                                 "Constraint Status": constraint_status
@@ -891,13 +885,12 @@ def main():
                                 "Volume (cc)": None,
                                 "Dose Metric": "D2cc",
                                 "Dose (Gy)": data["d2cc_gy_per_fraction"],
-                                "BED (Gy)": data["bed_d2cc"],
                                 "EQD2 (Gy)": data["eqd2_d2cc"],
                                 "Dose to Meet Constraint (Gy)": dose_to_meet,
                                 "Constraint Status": constraint_status
                             })
                     
-                    # --- MODIFICATION START: Calculate fraction counts once for both tables ---
+                    # Calculate fraction counts once for both tables
                     previous_brachy_json = st.session_state.get('previous_brachy_json', {})
                     num_json_fractions = 0
                     if previous_brachy_json:
@@ -922,16 +915,15 @@ def main():
                                 max_len = max(max_len, 1)
                         num_json_fractions = max_len
                     num_current_fractions = results.get('calculation_number_of_fractions', 1)
-                    # --- MODIFICATION END ---
 
-                    # --- MODIFICATION START: New Target Table Display Logic ---
+                    # --- New Target Table Display Logic ---
                     if target_dvh_data:
                         temp_target_df = pd.DataFrame(target_dvh_data)
                         
                         target_all_columns = ["Organ", "Volume (cc)", "Dose Metric"]
                         for i in range(num_json_fractions + num_current_fractions):
                             target_all_columns.append(f"Fx {i+1} Dose (Gy)")
-                        target_all_columns.extend(["BED (Gy)", "EQD2 (Gy)"])
+                        target_all_columns.extend(["EQD2 (Gy)"])
 
                         target_restructured_data = []
                         for organ_name in temp_target_df['Organ'].unique():
@@ -946,7 +938,6 @@ def main():
                                         "Organ": organ_name,
                                         "Volume (cc)": row_data["Volume (cc)"] if dose_metric == 'D98' else None,
                                         "Dose Metric": dose_metric,
-                                        "BED (Gy)": row_data["BED (Gy)"],
                                         "EQD2 (Gy)": row_data["EQD2 (Gy)"],
                                     }
 
@@ -975,7 +966,6 @@ def main():
                             
                             target_column_config = {
                                 "Volume (cc)": st.column_config.NumberColumn(format="%.2f"),
-                                "BED (Gy)": st.column_config.NumberColumn(format="%.2f"),
                                 "EQD2 (Gy)": st.column_config.NumberColumn(format="%.2f"),
                             }
                             for col in final_target_df.columns:
@@ -987,7 +977,6 @@ def main():
                             st.info("No target volume DVH data available to display.")
                     else:
                         st.info("No target volume DVH data available.")
-                    # --- MODIFICATION END ---
                     
                     st.subheader("OAR DVH Results")
                     if oar_dvh_data:
@@ -996,7 +985,7 @@ def main():
                         all_columns = ["Organ", "Volume (cc)", "Dose Metric"]
                         for i in range(num_json_fractions + num_current_fractions):
                             all_columns.append(f"Fx {i+1} Dose (Gy)")
-                        all_columns.extend(["BED (Gy)", "EQD2 (Gy)", "Dose to Meet Constraint (Gy)", "Constraint Status"])
+                        all_columns.extend(["EQD2 (Gy)", "Dose to Meet Constraint (Gy)", "Constraint Status"])
 
                         restructured_data = []
                         for organ_name in temp_oar_df['Organ'].unique():
@@ -1011,7 +1000,6 @@ def main():
                                         "Organ": organ_name,
                                         "Volume (cc)": row_data["Volume (cc)"] if dose_metric == 'D0.1cc' else None,
                                         "Dose Metric": dose_metric,
-                                        "BED (Gy)": row_data["BED (Gy)"],
                                         "EQD2 (Gy)": row_data["EQD2 (Gy)"],
                                         "Dose to Meet Constraint (Gy)": row_data["Dose to Meet Constraint (Gy)"] if dose_metric == 'D2cc' else "",
                                         "Constraint Status": row_data["Constraint Status"]
@@ -1073,7 +1061,6 @@ def main():
 
                             oar_column_config = {
                                 "Volume (cc)": st.column_config.NumberColumn(format="%.2f"),
-                                "BED (Gy)": st.column_config.NumberColumn(format="%.2f"),
                                 "EQD2 (Gy)": st.column_config.NumberColumn(format="%.2f"),
                                 "Dose to Meet Constraint (Gy)": st.column_config.NumberColumn(format="%.2f"),
                             }
