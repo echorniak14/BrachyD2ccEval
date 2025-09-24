@@ -42,7 +42,9 @@ streamlit run src/streamlit_gui.py
 *   **Optional Inputs:**
     *   **EBRT Dose (Gy):** Enter the prescribed dose of the external beam radiation therapy in Gray (Gy).
     *   **Upload previous brachytherapy data:** Upload a previous brachytherapy evaluation report (HTML or JSON format) to incorporate its EQD2 values for dose accumulation.
-    *   **Path to wkhtmltopdf.exe (optional):** Specify the path to the `wkhtmltopdf` executable if it's not in your system's PATH.
+*   **Generate Dwell Time Sheet:**
+    *   **Upload Mosaiq schedule report (.xlsx):** Upload the Mosaiq schedule report in .xlsx format.
+    *   Click the "Generate Dwell Time Sheet" button to generate and download the dwell time decay sheet.
 *   **Dose Point to Constraint Mapping:** After uploading RTPLAN files, an interactive section will appear allowing you to manually map DICOM RT Plan points to specific clinical constraints using dropdown menus, providing fine-grained control over which points are used for analysis. For cylinder plans, certain prescription points (e.g., 'Tip', 'Shoulder', '3cm') will be automatically pre-selected to the "Prescription Point" constraint.
 *   **Run Analysis:** Once all required files are uploaded and parameters are set, click this button to start the evaluation process.
 *   **Results Tabs:** The results are displayed in three tabs: "DVH Results", "Point Dose Results", and "Report".

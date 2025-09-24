@@ -24,6 +24,7 @@ This project aims to automate and streamline the evaluation process for HDR brac
 - **Streamlit Graphical User Interface (GUI):** A modern web-based interface for:
     - Easy upload of DICOM files.
     - Input of EBRT dose and previous brachytherapy data (HTML or JSON).
+    - Generation of a dwell time decay sheet from a Mosaiq schedule report.
     - Customizable alpha/beta ratios and EQD2 constraints, including target volume goals (D90 and D98 for GTV and HR-CTV).
     - Autofill EBRT section from previous brachytherapy data.
     - Interactive display of DVH and Point Dose results with visual constraint indicators.

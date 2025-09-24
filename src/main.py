@@ -71,17 +71,15 @@ def convert_html_to_pdf(html_content, output_path):
         raise e
 
 def generate_html_report(patient_name, patient_mrn, plan_name, plan_date, plan_time, source_info, brachy_dose_per_fraction, number_of_fractions, ebrt_dose, ebrt_fractions, dvh_results, constraint_evaluation, dose_references, point_dose_results, output_path, alpha_beta_ratios, previous_brachy_data=None):
-    if not isinstance(alpha_beta_ratios, dict) or "Default" not in alpha_beta_ratios:
-        from .config import templates
-        alpha_beta_ratios = templates["Cervix HDR - EMBRACE II"]["alpha_beta_ratios"].copy()
-    
     if getattr(sys, 'frozen', False):
-        base_path = sys._MEIPASS
+        # In bundled app, assets are at the top level
+        base_path = Path(sys._MEIPASS)
     else:
+        # In development, assets are relative to this file's location
         base_path = Path(__file__).parent
 
-    template_path = Path(base_path) / "templates" / "report_template.html"
-    logo_path = Path(base_path) / "assets" / "2020-flame-red-02.PNG"
+    template_path = base_path / "templates" / "report_template.html"
+    logo_path = base_path / "assets" / "2020-flame-red-02.PNG"
 
     with open(template_path, "r") as f:
         template = f.read()
@@ -196,37 +194,7 @@ def generate_html_report(patient_name, patient_mrn, plan_name, plan_date, plan_t
     
     return html_content
 
-def pre_analysis(uploaded_files):
-    with tempfile.TemporaryDirectory() as tmpdir:
-        rtstruct_file_path = None
-        rtplan_file_path = None
 
-        for uploaded_file in uploaded_files:
-            file_path = os.path.join(tmpdir, uploaded_file.name)
-            uploaded_file.seek(0)
-            with open(file_path, "wb") as f:
-                f.write(uploaded_file.getbuffer())
-
-            try:
-                ds = pydicom.dcmread(file_path)
-                if ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.481.3': # RT Structure Set Storage
-                    rtstruct_file_path = file_path
-                elif ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.481.5': # RT Plan Storage
-                    rtplan_file_path = file_path
-            except Exception as e:
-                print(f"Warning: Could not read DICOM file {uploaded_file.name}: {e}")
-
-        structure_data = None
-        if rtstruct_file_path:
-            from .dicom_parser import get_structure_data
-            rtstruct_dataset = load_dicom_file(rtstruct_file_path)
-            structure_data = get_structure_data(rtstruct_dataset)
-
-        plan_data = None
-        if rtplan_file_path:
-            plan_data = get_plan_data(rtplan_file_path)
-
-        return structure_data, plan_data
 
 from fuzzywuzzy import process
 
