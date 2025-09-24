@@ -545,11 +545,10 @@ def main():
                         else:
                             default_mapping = "OAR"
                         
-                        # --- MODIFICATION START ---
                         # Get the current mapping, defaulting if not present
                         current_mapping = st.session_state.structure_mapping.get(structure_name, default_mapping)
                         
-                        # Define the valid options without 'IGNORE'
+                        # Define the valid options
                         valid_options = ["TARGET", "OAR"]
                         
                         # If the current mapping is not valid (e.g., 'IGNORE' from a previous session), fall back to the default
@@ -564,7 +563,6 @@ def main():
                             on_change=clear_results
                         )
                         st.session_state.structure_mapping[structure_name] = mapping
-                        # --- MODIFICATION END ---
             else:
                 st.session_state.available_point_names = []
 
@@ -828,21 +826,36 @@ def main():
                         alpha_beta = ab_ratios_lower.get(organ.lower(), ab_ratios.get("Default"))
                         
                         # Use structure_mapping if available, otherwise fall back to old logic
+                        is_target = False
                         if 'structure_mapping' in st.session_state and organ in st.session_state.structure_mapping:
-                            is_target = st.session_state.structure_mapping[organ] == "TARGET"
+                            if st.session_state.structure_mapping[organ] == "TARGET":
+                                is_target = True
                         else:
-                            is_target = "ctv" in organ.lower() or "gtv" in organ.lower() or alpha_beta == 10
-
+                            # Fallback logic if structure_mapping is not available
+                            if "ctv" in organ.lower() or "gtv" in organ.lower() or alpha_beta == 10:
+                                is_target = True
+                        
+                        # --- MODIFICATION START: Reformat Target Volume Data ---
                         if is_target:
+                            # D98 row
                             target_dvh_data.append({
                                 "Organ": organ,
-                                "Volume (cc)": data["volume_cc"],
-                                "D98 (Gy)": data["d98_gy_per_fraction"],
-                                "D90 (Gy)": data["d90_gy_per_fraction"],
-                                "Max Dose (Gy)": data["max_dose_gy_per_fraction"],
-                                "Mean Dose (Gy)": data["mean_dose_gy_per_fraction"],
-                                "Min Dose (Gy)": data["min_dose_gy_per_fraction"],
+                                "Volume (cc)": data.get("volume_cc"),
+                                "Dose Metric": "D98",
+                                "Dose (Gy)": data.get("d98_gy_per_fraction"),
+                                "BED (Gy)": data.get("bed_d98"),
+                                "EQD2 (Gy)": data.get("eqd2_d98")
                             })
+                            # D90 row
+                            target_dvh_data.append({
+                                "Organ": organ,
+                                "Volume (cc)": None,
+                                "Dose Metric": "D90",
+                                "Dose (Gy)": data.get("d90_gy_per_fraction"),
+                                "BED (Gy)": data.get("bed_d90"),
+                                "EQD2 (Gy)": data.get("eqd2_d90")
+                            })
+                        # --- MODIFICATION END ---
                         else:
                             constraint_status = "N/A"
                             dose_to_meet = "N/A"
@@ -884,50 +897,101 @@ def main():
                                 "Constraint Status": constraint_status
                             })
                     
+                    # --- MODIFICATION START: Calculate fraction counts once for both tables ---
+                    previous_brachy_json = st.session_state.get('previous_brachy_json', {})
+                    num_json_fractions = 0
+                    if previous_brachy_json:
+                        max_len = 0
+                        # Check DVH results for longest list of fractions
+                        for organ_data in previous_brachy_json.get("dvh_results", {}).values():
+                            for dose_value in organ_data.get("dose_fx", {}).values():
+                                if isinstance(dose_value, list):
+                                    max_len = max(max_len, len(dose_value))
+                                elif isinstance(dose_value, (int, float)):
+                                    max_len = max(max_len, 1)
+                        # Check point dose results for longest list of fractions
+                        for point_data in previous_brachy_json.get("point_dose_results", []):
+                            dose_value = point_data.get("dose_fx")
+                            if dose_value:
+                                if isinstance(dose_value, list):
+                                    max_len = max(max_len, len(dose_value))
+                                elif isinstance(dose_value, (int, float)):
+                                    max_len = max(max_len, 1)
+                            # Handle old format where 'dose_fx' is missing but 'dose' exists
+                            elif 'dose' in point_data:
+                                max_len = max(max_len, 1)
+                        num_json_fractions = max_len
+                    num_current_fractions = results.get('calculation_number_of_fractions', 1)
+                    # --- MODIFICATION END ---
+
+                    # --- MODIFICATION START: New Target Table Display Logic ---
                     if target_dvh_data:
-                        st.dataframe(pd.DataFrame(target_dvh_data), column_config={
-                            "Volume (cc)": st.column_config.NumberColumn(format="%.2f"),
-                            "D98 (Gy)": st.column_config.NumberColumn(format="%.2f"),
-                            "D90 (Gy)": st.column_config.NumberColumn(format="%.2f"),
-                            "Max Dose (Gy)": st.column_config.NumberColumn(format="%.2f"),
-                            "Mean Dose (Gy)": st.column_config.NumberColumn(format="%.2f"),
-                            "Min Dose (Gy)": st.column_config.NumberColumn(format="%.2f"),
-                        })
+                        temp_target_df = pd.DataFrame(target_dvh_data)
+                        
+                        target_all_columns = ["Organ", "Volume (cc)", "Dose Metric"]
+                        for i in range(num_json_fractions + num_current_fractions):
+                            target_all_columns.append(f"Fx {i+1} Dose (Gy)")
+                        target_all_columns.extend(["BED (Gy)", "EQD2 (Gy)"])
+
+                        target_restructured_data = []
+                        for organ_name in temp_target_df['Organ'].unique():
+                            organ_group = temp_target_df[temp_target_df['Organ'] == organ_name]
+                            
+                            for dose_metric in ['D98', 'D90']:
+                                metric_row_df = organ_group[organ_group['Dose Metric'] == dose_metric]
+                                if not metric_row_df.empty:
+                                    row_data = metric_row_df.iloc[0].to_dict()
+                                    
+                                    new_row = {
+                                        "Organ": organ_name,
+                                        "Volume (cc)": row_data["Volume (cc)"] if dose_metric == 'D98' else None,
+                                        "Dose Metric": dose_metric,
+                                        "BED (Gy)": row_data["BED (Gy)"],
+                                        "EQD2 (Gy)": row_data["EQD2 (Gy)"],
+                                    }
+
+                                    json_doses = []
+                                    if previous_brachy_json:
+                                        mapped_organ_name = organ_name
+                                        if 'confirmed_structure_mapping' in st.session_state:
+                                            for key, value in st.session_state.confirmed_structure_mapping.items():
+                                                if key == organ_name: mapped_organ_name = value; break
+                                        
+                                        json_doses_raw = previous_brachy_json.get("dvh_results", {}).get(mapped_organ_name, {}).get("dose_fx", {}).get(f"{dose_metric.lower()}_gy_per_fraction")
+                                        if json_doses_raw is not None:
+                                            json_doses = json_doses_raw if isinstance(json_doses_raw, list) else [json_doses_raw]
+
+                                    for i, dose in enumerate(json_doses):
+                                        new_row[f"Fx {i+1} Dose (Gy)"] = dose
+                                    
+                                    current_dose = row_data["Dose (Gy)"]
+                                    for i in range(num_current_fractions):
+                                        new_row[f"Fx {num_json_fractions + i + 1} Dose (Gy)"] = current_dose
+
+                                    target_restructured_data.append(new_row)
+
+                        if target_restructured_data:
+                            final_target_df = pd.DataFrame(target_restructured_data, columns=target_all_columns)
+                            
+                            target_column_config = {
+                                "Volume (cc)": st.column_config.NumberColumn(format="%.2f"),
+                                "BED (Gy)": st.column_config.NumberColumn(format="%.2f"),
+                                "EQD2 (Gy)": st.column_config.NumberColumn(format="%.2f"),
+                            }
+                            for col in final_target_df.columns:
+                                if col.startswith("Fx ") and col.endswith(" Dose (Gy)"):
+                                    target_column_config[col] = st.column_config.NumberColumn(format="%.2f")
+                            
+                            st.dataframe(final_target_df, column_config=target_column_config)
+                        else:
+                            st.info("No target volume DVH data available to display.")
                     else:
                         st.info("No target volume DVH data available.")
-
+                    # --- MODIFICATION END ---
+                    
                     st.subheader("OAR DVH Results")
                     if oar_dvh_data:
                         temp_oar_df = pd.DataFrame(oar_dvh_data)
-                        
-                        previous_brachy_json = st.session_state.get('previous_brachy_json', {})
-
-                        # *** FIX STARTS HERE: Robustly count fractions from old/new JSON formats ***
-                        num_json_fractions = 0
-                        if previous_brachy_json:
-                            max_len = 0
-                            # Check DVH results for longest list of fractions
-                            for organ_data in previous_brachy_json.get("dvh_results", {}).values():
-                                for dose_value in organ_data.get("dose_fx", {}).values():
-                                    if isinstance(dose_value, list):
-                                        max_len = max(max_len, len(dose_value))
-                                    elif isinstance(dose_value, (int, float)):
-                                        max_len = max(max_len, 1)
-                            # Check point dose results for longest list of fractions
-                            for point_data in previous_brachy_json.get("point_dose_results", []):
-                                dose_value = point_data.get("dose_fx")
-                                if dose_value:
-                                    if isinstance(dose_value, list):
-                                        max_len = max(max_len, len(dose_value))
-                                    elif isinstance(dose_value, (int, float)):
-                                        max_len = max(max_len, 1)
-                                # Handle old format where 'dose_fx' is missing but 'dose' exists
-                                elif 'dose' in point_data:
-                                    max_len = max(max_len, 1)
-                            num_json_fractions = max_len
-                        # *** FIX ENDS HERE ***
-
-                        num_current_fractions = results.get('calculation_number_of_fractions', 1)
                         
                         all_columns = ["Organ", "Volume (cc)", "Dose Metric"]
                         for i in range(num_json_fractions + num_current_fractions):
