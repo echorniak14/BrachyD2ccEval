@@ -17,6 +17,11 @@ import tempfile
 
 def main():
     st.set_page_config(layout="wide")
+
+    def clear_results():
+        """Clears the results from the session state if they exist."""
+        if 'results' in st.session_state:
+            del st.session_state.results
     
     # Injected CSS
     st.markdown("""
@@ -70,7 +75,7 @@ def main():
         st.session_state.widget_key_suffix = 0
 
     st.header("Upload DICOM Files")
-    uploaded_files = st.file_uploader("Upload RTDOSE, RTSTRUCT, and RTPLAN files", type=["dcm", "DCM"], accept_multiple_files=True)
+    uploaded_files = st.file_uploader("Upload RTDOSE, RTSTRUCT, and RTPLAN files", type=["dcm", "DCM"], accept_multiple_files=True, on_change=clear_results)
 
     # If no files are uploaded, clear any previous results to prevent displaying stale data.
     if not uploaded_files:
@@ -121,26 +126,24 @@ def main():
     if "current_template_name" not in st.session_state:
         st.session_state.current_template_name = "Cervix HDR - EMBRACE II" # Default template
 
+    def on_template_change():
+        st.session_state.current_template_name = st.session_state.template_selector
+        st.session_state.ab_ratios = templates[st.session_state.current_template_name]["alpha_beta_ratios"].copy()
+        st.session_state.custom_constraints = templates[st.session_state.current_template_name]["constraints"].copy()
+        st.session_state.widget_key_suffix = st.session_state.get('widget_key_suffix', 0) + 1
+        if 'manual_mapping' in st.session_state:
+            del st.session_state['manual_mapping']
+        clear_results()
+
     selected_template_name = st.selectbox(
         "Select Template",
         options=template_names,
         index=template_names.index(st.session_state.current_template_name),
-        key="template_selector"
+        key="template_selector",
+        on_change=on_template_change
     )
 
-    # Update session state if a new template is selected
-    if selected_template_name != st.session_state.current_template_name:
-        st.session_state.current_template_name = selected_template_name
-        # Reset alpha/beta ratios and constraints to the selected template's defaults
-        st.session_state.ab_ratios = templates[selected_template_name]["alpha_beta_ratios"].copy()
-        st.session_state.custom_constraints = templates[selected_template_name]["constraints"].copy()
-        # Clear input widgets by setting a unique key for each
-        st.session_state.widget_key_suffix = st.session_state.get('widget_key_suffix', 0) + 1
-        # Clear manual mapping when template changes
-        if 'manual_mapping' in st.session_state:
-            del st.session_state['manual_mapping']
-        if 'results' in st.session_state:
-            del st.session_state.results
+    # The logic from the old `if` block is now in the `on_template_change` callback
 
     # Initialize ab_ratios and custom_constraints in session state if not already present
     if "ab_ratios" not in st.session_state:
@@ -176,7 +179,8 @@ def main():
                 st.session_state.ab_ratios[organ] = st.number_input(
                     f"{organ}",
                     value=float(val),
-                    key=f"ab_{organ}_{st.session_state.widget_key_suffix}"
+                    key=f"ab_{organ}_{st.session_state.widget_key_suffix}",
+                    on_change=clear_results
                 )
 
             st.header("Constraints")
@@ -200,25 +204,29 @@ def main():
                         st.session_state.custom_constraints["target_constraints"][organ]["min"] = st.number_input(
                             f"Min (Gy)",
                             value=float(organ_constraints["min"]),
-                            key=f"constraint_{organ}_min_{st.session_state.widget_key_suffix}"
+                            key=f"constraint_{organ}_min_{st.session_state.widget_key_suffix}",
+                            on_change=clear_results
                         )
                     if "max" in organ_constraints:
                         st.session_state.custom_constraints["target_constraints"][organ]["max"] = st.number_input(
                             f"Max (Gy)",
                             value=float(organ_constraints["max"]),
-                            key=f"constraint_{organ}_max_{st.session_state.widget_key_suffix}"
+                            key=f"constraint_{organ}_max_{st.session_state.widget_key_suffix}",
+                            on_change=clear_results
                         )
                     if "D90" in organ_constraints:
                         st.session_state.custom_constraints["target_constraints"][organ]["D90"] = st.number_input(
                             f"D90 (Gy)",
                             value=float(organ_constraints["D90"]),
-                            key=f"constraint_{organ}_D90_{st.session_state.widget_key_suffix}"
+                            key=f"constraint_{organ}_D90_{st.session_state.widget_key_suffix}",
+                            on_change=clear_results
                         )
                     if "D98" in organ_constraints:
                         st.session_state.custom_constraints["target_constraints"][organ]["D98"] = st.number_input(
                             f"D98 (Gy)",
                             value=float(organ_constraints["D98"]),
-                            key=f"constraint_{organ}_D98_{st.session_state.widget_key_suffix}"
+                            key=f"constraint_{organ}_D98_{st.session_state.widget_key_suffix}",
+                            on_change=clear_results
                         )
 
             with col2:
@@ -229,12 +237,14 @@ def main():
                         st.session_state.custom_constraints["oar_constraints"][organ]["D2cc"]["warning"] = st.number_input(
                             f"D2cc Warning (Gy)",
                             value=float(organ_constraints["D2cc"]["warning"]),
-                            key=f"constraint_{organ}_D2cc_warning_{st.session_state.widget_key_suffix}"
+                            key=f"constraint_{organ}_D2cc_warning_{st.session_state.widget_key_suffix}",
+                            on_change=clear_results
                         )
                     st.session_state.custom_constraints["oar_constraints"][organ]["D2cc"]["max"] = st.number_input(
                         f"D2cc Max (Gy)",
                         value=float(organ_constraints["D2cc"]["max"]),
-                        key=f"constraint_{organ}_D2cc_max_{st.session_state.widget_key_suffix}"
+                        key=f"constraint_{organ}_D2cc_max_{st.session_state.widget_key_suffix}",
+                        on_change=clear_results
                     )
     
     st.sidebar.header("Loaded EQD2 Constraints")
@@ -280,7 +290,7 @@ def main():
 
         with st.expander("Optional Inputs", expanded=True):
             st.markdown("<h3 style='color: #fc8781;'>Previous Brachytherapy Treatments Delivered</h3>", unsafe_allow_html=True)
-            previous_brachy_data_file = st.file_uploader("Upload previous brachytherapy data (optional)", type=["html", "json"], key="prev_brachy_uploader")
+            previous_brachy_data_file = st.file_uploader("Upload previous brachytherapy data (optional)", type=["html", "json"], key="prev_brachy_uploader", on_change=clear_results)
 
             # *** Read JSON file once and store in session_state ***
             if 'prev_brachy_uploader' in st.session_state and st.session_state.prev_brachy_uploader is not None:
@@ -346,12 +356,14 @@ def main():
             # Callback functions to update EBRT values
             def update_total_dose():
                 st.session_state.ebrt_total_dose = st.session_state.ebrt_fraction_dose * st.session_state.ebrt_num_fractions
+                clear_results()
 
             def update_fraction_dose():
                 if st.session_state.ebrt_num_fractions > 0:
                     st.session_state.ebrt_fraction_dose = st.session_state.ebrt_total_dose / st.session_state.ebrt_num_fractions
                 else:
                     st.session_state.ebrt_fraction_dose = 0
+                clear_results()
 
             def update_num_fractions():
                 if st.session_state.ebrt_fraction_dose > 0:
@@ -403,7 +415,8 @@ def main():
                 value=default_num_fractions,
                 min_value=1,
                 step=1,
-                key="num_fractions_delivered_input"
+                key="num_fractions_delivered_input",
+                on_change=clear_results
             )
 
             st.subheader("Dwell Time Decay Sheet")
@@ -506,7 +519,8 @@ def main():
                                     options=clinical_point_names,
                                     index=current_index,
                                     key=f"map_{dicom_point}", # The key links this widget to session state
-                                    label_visibility="collapsed"
+                                    label_visibility="collapsed",
+                                    on_change=clear_results
                                 )
                                 
                                 # Update our manual_mapping dict from the widget's state
@@ -535,7 +549,8 @@ def main():
                             f"Map '{structure_name}' to:",
                             options=["TARGET", "OAR", "IGNORE"],
                             index=["TARGET", "OAR", "IGNORE"].index(st.session_state.structure_mapping.get(structure_name, default_mapping)),
-                            key=f"map_{structure_name}"
+                            key=f"map_{structure_name}",
+                            on_change=clear_results
                         )
                         st.session_state.structure_mapping[structure_name] = mapping
             else:
@@ -546,7 +561,8 @@ def main():
         st.session_state.selected_point_names = st.multiselect(
             "Select Points to Display in Report",
             options=st.session_state.available_point_names,
-            default=st.session_state.available_point_names
+            default=st.session_state.available_point_names,
+            on_change=clear_results
         )
     else:
         st.session_state.selected_point_names = []
