@@ -10,6 +10,7 @@ from .calculations import get_dvh, evaluate_constraints, calculate_dose_to_meet_
 import argparse
 from pathlib import Path
 import json
+import os
 import pdfkit
 
 def replace_css_variables(html_content):
@@ -47,7 +48,7 @@ def convert_html_to_pdf(html_content, output_path):
             base_path = Path(sys._MEIPASS)
         else:
             # Path in development
-            base_path = Path(__file__).parent
+            base_path = Path(os.path.dirname(os.path.abspath(__file__)))
 
         # Construct path to the executable
         path_wkhtmltopdf = base_path / 'vendor' / 'bin' / 'wkhtmltopdf.exe'

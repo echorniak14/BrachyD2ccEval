@@ -522,7 +522,9 @@ def main():
                     if 'structure_mapping' not in st.session_state:
                         st.session_state.structure_mapping = {}
 
-                    for structure_name in structure_names:
+                    # De-duplicate the list of structure names to prevent key errors
+                    unique_structure_names = list(dict.fromkeys(structure_names))
+                    for structure_name in unique_structure_names:
                         # Auto-map based on name
                         if structure_name.lower() in ['gtv', 'ctv', 'hr-ctv']:
                             default_mapping = "TARGET"
@@ -599,105 +601,106 @@ def main():
 
                 # st.write([file.name for file in uploaded_files])
             
-            with tempfile.TemporaryDirectory() as tmpdir_analysis:
-                for uploaded_file in uploaded_files:
-                    file_path = os.path.join(tmpdir_analysis, uploaded_file.name)
-                    uploaded_file.seek(0)
-                    with open(file_path, "wb") as f:
-                        f.write(uploaded_file.getbuffer())
+            tmpdir_analysis = tempfile.mkdtemp()
+            st.session_state.tmpdir_analysis = tmpdir_analysis
+            for uploaded_file in uploaded_files:
+                file_path = os.path.join(tmpdir_analysis, uploaded_file.name)
+                uploaded_file.seek(0)
+                with open(file_path, "wb") as f:
+                    f.write(uploaded_file.getbuffer())
+            
+            rtdose_dir_analysis = os.path.join(tmpdir_analysis, "RTDOSE")
+            rtstruct_dir_analysis = os.path.join(tmpdir_analysis, "RTst")
+            rtplan_dir_analysis = os.path.join(tmpdir_analysis, "RTPLAN")
 
-                rtdose_dir_analysis = os.path.join(tmpdir_analysis, "RTDOSE")
-                rtstruct_dir_analysis = os.path.join(tmpdir_analysis, "RTst")
-                rtplan_dir_analysis = os.path.join(tmpdir_analysis, "RTPLAN")
+            os.makedirs(rtdose_dir_analysis, exist_ok=True)
+            os.makedirs(rtstruct_dir_analysis, exist_ok=True)
+            os.makedirs(rtplan_dir_analysis, exist_ok=True)
 
-                os.makedirs(rtdose_dir_analysis, exist_ok=True)
-                os.makedirs(rtstruct_dir_analysis, exist_ok=True)
-                os.makedirs(rtplan_dir_analysis, exist_ok=True)
+            rtdose_path = None
+            rtstruct_path = None
+            rtplan_path = None
 
-                rtdose_path = None
-                rtstruct_path = None
-                rtplan_path = None
+            for uploaded_file in uploaded_files:
+                file_path = os.path.join(tmpdir_analysis, uploaded_file.name)
+                uploaded_file.seek(0)
+                with open(file_path, "wb") as f:
+                    f.write(uploaded_file.getbuffer())
 
-                for uploaded_file in uploaded_files:
-                    file_path = os.path.join(tmpdir_analysis, uploaded_file.name)
-                    uploaded_file.seek(0)
-                    with open(file_path, "wb") as f:
-                        f.write(uploaded_file.getbuffer())
-
-                    try:
-                        ds = pydicom.dcmread(file_path)
-                        if ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.481.2':
-                            rtdose_path = os.path.join(rtdose_dir_analysis, uploaded_file.name)
-                            os.rename(file_path, rtdose_path)
-                        elif ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.481.3':
-                            rtstruct_path = os.path.join(rtstruct_dir_analysis, uploaded_file.name)
-                            os.rename(file_path, rtstruct_path)
-                        elif ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.481.5':
-                            rtplan_path = os.path.join(rtplan_dir_analysis, uploaded_file.name)
-                            os.rename(file_path, rtplan_path)
-                    except Exception as e:
-                        st.warning(f"Could not read DICOM file {uploaded_file.name}: {e}")
-
-                if rtdose_path and rtstruct_path and rtplan_path:
-                    # Correctly parse JSON fractional data for backend calculation
-                    previous_brachy_data = {}
-                    if 'previous_brachy_json' in st.session_state:
-                        json_content = st.session_state.previous_brachy_json
-                        
-                        # This new structure contains the lists of fractional doses, not pre-calculated BEDs.
-                        # The backend (main.py) will be responsible for calculating the total BED from this.
-                        previous_brachy_fx_data = {'dvh_results': {}, 'point_dose_results': {}}
-                        
-                        for organ, data in json_content.get("dvh_results", {}).items():
-                            previous_brachy_fx_data['dvh_results'][organ] = data.get('dose_fx', {})
-                        
-                        for point in json_content.get("point_dose_results", []):
-                            point_name = point.get("name")
-                            if point_name:
-                                # Handle old format where dose_fx might be missing
-                                if 'dose_fx' in point:
-                                    previous_brachy_fx_data['point_dose_results'][point_name] = point.get('dose_fx', [])
-                                elif 'dose' in point:
-                                     previous_brachy_fx_data['point_dose_results'][point_name] = [point.get('dose', 0)] # Treat as single fraction
-                        
-                        previous_brachy_data = previous_brachy_fx_data
-                    elif previous_brachy_data_file and previous_brachy_data_file.name.endswith('.html'):
-                         with tempfile.NamedTemporaryFile(delete=False, suffix=".html") as tmp_html_file:
-                            tmp_html_file.write(previous_brachy_data_file.getbuffer())
-                            previous_brachy_data = tmp_html_file.name
-
-                    args = argparse.Namespace(
-                        data_dir=tmpdir_analysis,
-                        ebrt_dose=st.session_state.ebrt_total_dose,
-                        ebrt_fractions=st.session_state.ebrt_num_fractions,
-                        previous_brachy_data=previous_brachy_data,
-                        output_html=os.path.join(tmpdir_analysis, "report.html"),
-                        alpha_beta_ratios=ab_ratios,
-                        selected_point_names=st.session_state.selected_point_names,
-                        custom_constraints=templates[st.session_state.current_template_name],
-                    )
+                try:
+                    ds = pydicom.dcmread(file_path)
+                    if ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.481.2':
+                        rtdose_path = os.path.join(rtdose_dir_analysis, uploaded_file.name)
+                        os.rename(file_path, rtdose_path)
+                    elif ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.481.3':
+                        rtstruct_path = os.path.join(rtstruct_dir_analysis, uploaded_file.name)
+                        os.rename(file_path, rtstruct_path)
+                    elif ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.481.5':
+                        rtplan_path = os.path.join(rtplan_dir_analysis, uploaded_file.name)
+                        os.rename(file_path, rtplan_path)
+                except Exception as e:
+                    st.warning(f"Could not read DICOM file {uploaded_file.name}: {e}")
+            
+            if rtdose_path and rtstruct_path and rtplan_path:
+                # Correctly parse JSON fractional data for backend calculation
+                previous_brachy_data = {}
+                if 'previous_brachy_json' in st.session_state:
+                    json_content = st.session_state.previous_brachy_json
                     
-                    # Corrected the function call to include missing arguments
-                    results = run_analysis(
-                        args, 
-                        structure_data, 
-                        plan_data, 
-                        selected_point_names=st.session_state.selected_point_names, 
-                        dose_point_mapping=manual_dose_point_mapping, 
-                        custom_constraints=st.session_state.custom_constraints, 
-                        num_fractions_delivered=num_fractions_delivered, 
-                        ebrt_fractions=st.session_state.ebrt_num_fractions, 
-                        structure_mapping=st.session_state.structure_mapping, 
-                        confirmed_structure_mapping=st.session_state.get('confirmed_structure_mapping', {})
-                    )
+                    # This new structure contains the lists of fractional doses, not pre-calculated BEDs.
+                    # The backend (main.py) will be responsible for calculating the total BED from this.
+                    previous_brachy_fx_data = {'dvh_results': {}, 'point_dose_results': {}}
+                    
+                    for organ, data in json_content.get("dvh_results", {}).items():
+                        previous_brachy_fx_data['dvh_results'][organ] = data.get('dose_fx', {})
+                    
+                    for point in json_content.get("point_dose_results", []):
+                        point_name = point.get("name")
+                        if point_name:
+                            # Handle old format where dose_fx might be missing
+                            if 'dose_fx' in point:
+                                previous_brachy_fx_data['point_dose_results'][point_name] = point.get('dose_fx', [])
+                            elif 'dose' in point:
+                                 previous_brachy_fx_data['point_dose_results'][point_name] = [point.get('dose', 0)] # Treat as single fraction
+                    
+                    previous_brachy_data = previous_brachy_fx_data
+                elif previous_brachy_data_file and previous_brachy_data_file.name.endswith('.html'):
+                     with tempfile.NamedTemporaryFile(delete=False, suffix=".html") as tmp_html_file:
+                        tmp_html_file.write(previous_brachy_data_file.getbuffer())
+                        previous_brachy_data = tmp_html_file.name
 
-                    if results and 'error' in results:
-                        st.error(results['error'])
-                    else:
-                        # Store results in session state to persist them across reruns
-                        st.session_state.results = results
+                args = argparse.Namespace(
+                    data_dir=tmpdir_analysis,
+                    ebrt_dose=st.session_state.ebrt_total_dose,
+                    ebrt_fractions=st.session_state.ebrt_num_fractions,
+                    previous_brachy_data=previous_brachy_data,
+                    output_html=os.path.join(tmpdir_analysis, "report.html"),
+                    alpha_beta_ratios=ab_ratios,
+                    selected_point_names=st.session_state.selected_point_names,
+                    custom_constraints=templates[st.session_state.current_template_name],
+                )
+                
+                # Corrected the function call to include missing arguments
+                results = run_analysis(
+                    args, 
+                    structure_data, 
+                    plan_data, 
+                    selected_point_names=st.session_state.selected_point_names, 
+                    dose_point_mapping=manual_dose_point_mapping, 
+                    custom_constraints=st.session_state.custom_constraints, 
+                    num_fractions_delivered=num_fractions_delivered, 
+                    ebrt_fractions=st.session_state.ebrt_num_fractions, 
+                    structure_mapping=st.session_state.structure_mapping, 
+                    confirmed_structure_mapping=st.session_state.get('confirmed_structure_mapping', {})
+                )
+
+                if results and 'error' in results:
+                    st.error(results['error'])
                 else:
-                    st.error("Please upload all required DICOM files (RTDOSE, RTSTRUCT, RTPLAN).")
+                    # Store results in session state to persist them across reruns
+                    st.session_state.results = results
+            else:
+                st.error("Please upload all required DICOM files (RTDOSE, RTSTRUCT, RTPLAN).")
         else:
             st.error("Please upload DICOM files.")
     
@@ -1126,18 +1129,21 @@ def main():
                             )
 
                             try:
-                                pdf_path = os.path.join(tmpdir_analysis, "report.pdf")
-                                convert_html_to_pdf(html_report, pdf_path)
+                                if 'tmpdir_analysis' in st.session_state:
+                                    pdf_path = os.path.join(st.session_state.tmpdir_analysis, "report.pdf")
+                                    convert_html_to_pdf(html_report, pdf_path)
 
-                                with open(pdf_path, "rb") as f:
-                                    pdf_bytes = f.read()
-                                
-                                st.download_button(
-                                    label="Download PDF",
-                                    data=pdf_bytes,
-                                    file_name="report.pdf",
-                                    mime="application/pdf"
-                                )
+                                    with open(pdf_path, "rb") as f:
+                                        pdf_bytes = f.read()
+                                    
+                                    st.download_button(
+                                        label="Download PDF",
+                                        data=pdf_bytes,
+                                        file_name="report.pdf",
+                                        mime="application/pdf"
+                                    )
+                                else:
+                                    st.warning("Could not find temporary directory to generate PDF.")
                             except IOError as e:
                                 st.error(f"Could not generate PDF. {e}")
                         else:
