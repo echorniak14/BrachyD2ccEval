@@ -544,15 +544,27 @@ def main():
                             default_mapping = "TARGET"
                         else:
                             default_mapping = "OAR"
+                        
+                        # --- MODIFICATION START ---
+                        # Get the current mapping, defaulting if not present
+                        current_mapping = st.session_state.structure_mapping.get(structure_name, default_mapping)
+                        
+                        # Define the valid options without 'IGNORE'
+                        valid_options = ["TARGET", "OAR"]
+                        
+                        # If the current mapping is not valid (e.g., 'IGNORE' from a previous session), fall back to the default
+                        if current_mapping not in valid_options:
+                            current_mapping = default_mapping
 
                         mapping = st.selectbox(
                             f"Map '{structure_name}' to:",
-                            options=["TARGET", "OAR", "IGNORE"],
-                            index=["TARGET", "OAR", "IGNORE"].index(st.session_state.structure_mapping.get(structure_name, default_mapping)),
+                            options=valid_options,
+                            index=valid_options.index(current_mapping),
                             key=f"map_{structure_name}",
                             on_change=clear_results
                         )
                         st.session_state.structure_mapping[structure_name] = mapping
+                        # --- MODIFICATION END ---
             else:
                 st.session_state.available_point_names = []
 
