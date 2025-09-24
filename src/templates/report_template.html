@@ -3,49 +3,18 @@
 <head>
     <title>Brachytherapy Evaluation Report</title>
     <style>
-        :root {
-            --text-color: #333;
-            --background-color: #fff;
-            --header-color-1: #2a7ae2; /* Blue from the PDF */
-            --header-color-2: #1e5aab; /* Darker blue from the PDF */
-            --border-color: #ddd;
-            --table-header-bg: #2a7ae2; /* Blue from the PDF */
-            --table-header-text: white;
-            --table-even-row-bg: #eaf2fa; /* Light blue from the PDF */
-            --met-bg: #77dd77; /* Green from the PDF */
-            --met-text: white;
-            --not-met-bg: #ff6961; /* Red from the PDF */
-            --not-met-text: white;
-            --warning-bg: #fdfd96; /* Yellow from the PDF */
-            --warning-text: black;
-        }
-
-        @media (prefers-color-scheme: dark) {
-            :root {
-                --text-color: #f2f2f2;
-                --background-color: #1a1a1a;
-                --header-color-1: #3498db;
-                --header-color-2: #6cb6ff;
-                --border-color: #555;
-                --table-header-bg: #2a7ae2;
-                --table-header-text: #f2f2f2;
-                --table-even-row-bg: #2c3e50;
-                
-            }
-        }
-
-        body { font-family: Arial, sans-serif; margin: 20px; color: var(--text-color); background-color: var(--background-color); }
+        body { font-family: Arial, sans-serif; margin: 20px; color: #333; background-color: #fff; }
         .logo { float: right; max-height: 80px; }
         h1 {
-            color: var(--header-color-1);
-            border-bottom: 2px solid var(--header-color-2);
+            color: #2a7ae2;
+            border-bottom: 2px solid #1e5aab;
             padding-bottom: 10px;
             margin-bottom: 30px;
             font-size: 28px;
         }
         h2 {
-            color: var(--header-color-1);
-            border-bottom: 1px solid var(--border-color);
+            color: #2a7ae2;
+            border-bottom: 1px solid #ddd;
             padding-bottom: 5px;
             margin-top: 40px;
             font-size: 22px;
@@ -54,24 +23,22 @@
             width: 100%;
             border-collapse: collapse;
             margin-top: 20px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
         th, td {
-            border: 1px solid var(--border-color);
+            border: 1px solid #ddd;
             padding: 12px 15px;
             text-align: left;
         }
         th {
-            background-color: var(--table-header-bg);
-            color: var(--table-header-text);
+            background-color: #2a7ae2;
+            color: white;
             font-weight: bold;
             text-transform: uppercase;
         }
         .no-transform {
             text-transform: none;
         }
-        tbody tr:nth-child(even) { background-color: var(--table-even-row-bg); }
-        
+        tbody tr:nth-child(even) { background-color: #eaf2fa; }
     </style>
 </head>
 <body>

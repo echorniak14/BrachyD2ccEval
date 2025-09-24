@@ -72,6 +72,19 @@ def main():
     st.header("Upload DICOM Files")
     uploaded_files = st.file_uploader("Upload RTDOSE, RTSTRUCT, and RTPLAN files", type=["dcm", "DCM"], accept_multiple_files=True)
 
+    # If no files are uploaded, clear any previous results to prevent displaying stale data.
+    if not uploaded_files:
+        if 'results' in st.session_state:
+            del st.session_state.results
+        if 'patient_info' in st.session_state:
+            del st.session_state.patient_info
+        if 'manual_mapping' in st.session_state:
+            del st.session_state.manual_mapping
+        if 'available_point_names' in st.session_state:
+            st.session_state.available_point_names = []
+        if 'selected_point_names' in st.session_state:
+            st.session_state.selected_point_names = []
+
     if uploaded_files:
         rtplan_count = 0
         rtstruct_count = 0

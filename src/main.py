@@ -40,14 +40,34 @@ def convert_html_to_pdf(html_content, output_path):
     """
     try:
         options = {'enable-local-file-access': None}
-        
+
+        # Determine base path
+        if getattr(sys, 'frozen', False):
+            # Path in bundled app (e.g., PyInstaller)
+            base_path = Path(sys._MEIPASS)
+        else:
+            # Path in development
+            base_path = Path(__file__).parent
+
+        # Construct path to the executable
+        path_wkhtmltopdf = base_path / 'vendor' / 'bin' / 'wkhtmltopdf.exe'
+
+        if not path_wkhtmltopdf.is_file():
+            raise IOError(f"wkhtmltopdf.exe not found at the expected path: {path_wkhtmltopdf}")
+
+        config = pdfkit.configuration(wkhtmltopdf=str(path_wkhtmltopdf))
+
         pdf_html_content = replace_css_variables(html_content)
-        pdfkit.from_string(pdf_html_content, output_path, options=options)
+        pdfkit.from_string(pdf_html_content, output_path, options=options, configuration=config)
     except IOError as e:
-        raise IOError(
-            "Could not locate wkhtmltopdf. Please install it and ensure it's in your system's PATH."
-            f"\n\nOriginal error: {e}"
-        )
+        # The original error is now less helpful, so let's create a more specific one
+        if 'wkhtmltopdf' in str(e):
+             raise IOError(
+                "Could not generate PDF. There might be an issue with the wkhtmltopdf executable."
+                f"\nPath being used: {path_wkhtmltopdf}"
+                f"\n\nOriginal error: {e}"
+             )
+        raise e
 
 def generate_html_report(patient_name, patient_mrn, plan_name, plan_date, plan_time, source_info, brachy_dose_per_fraction, number_of_fractions, ebrt_dose, ebrt_fractions, dvh_results, constraint_evaluation, dose_references, point_dose_results, output_path, alpha_beta_ratios, previous_brachy_data=None):
     if not isinstance(alpha_beta_ratios, dict) or "Default" not in alpha_beta_ratios:
