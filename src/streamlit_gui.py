@@ -39,21 +39,49 @@ def main():
     if 'widget_key_suffix' not in st.session_state:
         st.session_state.widget_key_suffix = 0
 
-        # --- Sidebar for Settings Display ---
+        # --- NEW: Define callback functions at the top of main() ---
+    def calculate_dose_per_fraction():
+        if st.session_state.ebrt_num_fractions > 0:
+            st.session_state.ebrt_fraction_dose = st.session_state.ebrt_total_dose / st.session_state.ebrt_num_fractions
+        else:
+            st.session_state.ebrt_fraction_dose = 0.0
+
+    def calculate_total_dose():
+        st.session_state.ebrt_total_dose = st.session_state.ebrt_fraction_dose * st.session_state.ebrt_num_fractions
+    
+    def reset_doses_to_default():
+        template_name = st.session_state.template_selector
+        if "Cylinder" in template_name:
+            st.session_state.proposed_brachy_dose_fx = 5.0
+            st.session_state.proposed_brachy_num_fx = 5
+        else:
+            st.session_state.proposed_brachy_dose_fx = 7.0
+            st.session_state.proposed_brachy_num_fx = 4
+        st.session_state.ebrt_total_dose = 45.0
+        st.session_state.ebrt_num_fractions = 25
+        st.session_state.ebrt_fraction_dose = 1.8
+        if 'optimization_goals' in st.session_state:
+            del st.session_state.optimization_goals
+            
+    # --- NEW: Sidebar with Interactive Widgets ---
     with st.sidebar:
-        st.header("Current Settings")
+        st.header("Treatment Parameters")
         st.write(f"**Template:** {st.session_state.current_template_name}")
         st.markdown("---")
         
-        st.subheader("EBRT Summary")
-        st.metric("Total Dose (Gy)", f"{st.session_state.ebrt_total_dose:.2f}")
-        st.metric("Number of Fractions", f"{st.session_state.ebrt_num_fractions}")
-        st.metric("Dose per Fraction (Gy)", f"{st.session_state.ebrt_fraction_dose:.2f}")
+        st.subheader("EBRT Dose")
+        st.number_input("Total Dose (Gy)", key='ebrt_total_dose', on_change=calculate_dose_per_fraction)
+        st.number_input("Number of Fractions", min_value=0, step=1, key='ebrt_num_fractions', on_change=calculate_dose_per_fraction)
+        st.number_input("Dose per Fraction (Gy)", key='ebrt_fraction_dose', on_change=calculate_total_dose, format="%.2f")
         st.markdown("---")
         
         st.subheader("Proposed Brachytherapy")
-        st.metric("Dose per Fraction (Gy)", f"{st.session_state.proposed_brachy_dose_fx:.2f}")
-        st.metric("Number of Fractions", f"{st.session_state.proposed_brachy_num_fx}")
+        st.number_input("Proposed Dose per Fraction (Gy)", min_value=0.0, step=0.5, key='proposed_brachy_dose_fx')
+        st.number_input("Proposed Number of Fractions", min_value=1, step=1, key='proposed_brachy_num_fx')
+        st.markdown("---")
+
+        st.button("Reset Doses to Default", on_click=reset_doses_to_default, use_container_width=True)
+
 
     def clear_results():
         if 'results' in st.session_state:
@@ -81,52 +109,24 @@ def main():
         st.header("Step 1: Define Treatment Parameters")
         st.markdown("Use this section to calculate OAR dose limits **before** creating a plan to set clear optimization goals.")
 
-        col1, col2 = st.columns(2)
-        with col1:
-            st.subheader("Constraint Template")
-            template_names = list(templates.keys())
+        # --- UPDATED: Dose inputs have been moved to the sidebar ---
+        st.subheader("Constraint Template")
+        template_names = list(templates.keys())
+        
+        def on_template_change():
+            st.session_state.current_template_name = st.session_state.template_selector
+            st.session_state.ab_ratios = templates[st.session_state.current_template_name]["alpha_beta_ratios"].copy()
+            st.session_state.custom_constraints = templates[st.session_state.current_template_name].copy()
             
-            def on_template_change():
-                st.session_state.current_template_name = st.session_state.template_selector
-                st.session_state.ab_ratios = templates[st.session_state.current_template_name]["alpha_beta_ratios"].copy()
-                st.session_state.custom_constraints = templates[st.session_state.current_template_name].copy()
-                
-                template_name = st.session_state.current_template_name
-                if "Cylinder" in template_name:
-                    st.session_state.proposed_brachy_dose_fx = 5.0
-                    st.session_state.proposed_brachy_num_fx = 5
-                else:
-                    st.session_state.proposed_brachy_dose_fx = 7.0
-                    st.session_state.proposed_brachy_num_fx = 4
-                
-                if 'optimization_goals' in st.session_state:
-                    del st.session_state.optimization_goals
-                clear_results()
+            # This logic now calls the reset function
+            reset_doses_to_default()
+            clear_results()
 
-            st.selectbox("Select Template", options=template_names, index=template_names.index(st.session_state.current_template_name), key="template_selector", on_change=on_template_change)
-
-            st.subheader("Proposed Brachytherapy Prescription")
-            st.number_input("Proposed Dose per Fraction (Gy)", min_value=0.0, step=0.5, key='proposed_brachy_dose_fx')
-            st.number_input("Proposed Number of Fractions", min_value=1, step=1, key='proposed_brachy_num_fx')
-
-        with col2:
-            st.subheader("EBRT Dose (Gy)")
-            
-            def calculate_dose_per_fraction():
-                if st.session_state.ebrt_num_fractions > 0:
-                    st.session_state.ebrt_fraction_dose = st.session_state.ebrt_total_dose / st.session_state.ebrt_num_fractions
-                else:
-                    st.session_state.ebrt_fraction_dose = 0.0
-
-            def calculate_total_dose():
-                st.session_state.ebrt_total_dose = st.session_state.ebrt_fraction_dose * st.session_state.ebrt_num_fractions
-            
-            st.number_input("Total Dose (Gy)", key='ebrt_total_dose', on_change=calculate_dose_per_fraction)
-            st.number_input("Number of Fractions", min_value=0, step=1, key='ebrt_num_fractions', on_change=calculate_dose_per_fraction)
-            st.number_input("Dose per Fraction (Gy)", key='ebrt_fraction_dose', on_change=calculate_total_dose, format="%.2f")
+        st.selectbox("Select Template", options=template_names, index=template_names.index(st.session_state.current_template_name), key="template_selector", on_change=on_template_change)
 
         if st.session_state.current_template_name == "Custom":
             with st.expander("Customize Template", expanded=True):
+                # (The custom template editor remains unchanged)
                 st.header("Alpha/Beta Ratios")
                 for organ, val in st.session_state.ab_ratios.items():
                     st.session_state.ab_ratios[organ] = st.number_input(f"{organ}", value=float(val), key=f"ab_{organ}_{st.session_state.widget_key_suffix}")
@@ -156,64 +156,47 @@ def main():
         st.file_uploader("Upload previous brachy data (optional .json)", type=["json"], key="prev_brachy_uploader")
         st.markdown("---")
         
-        def reset_doses_to_default():
-            template_name = st.session_state.template_selector
-            if "Cylinder" in template_name:
-                st.session_state.proposed_brachy_dose_fx = 5.0
-                st.session_state.proposed_brachy_num_fx = 5
-            else:
-                st.session_state.proposed_brachy_dose_fx = 7.0
-                st.session_state.proposed_brachy_num_fx = 4
-            st.session_state.ebrt_total_dose = 45.0
-            st.session_state.ebrt_num_fractions = 25
-            st.session_state.ebrt_fraction_dose = 1.8
-            if 'optimization_goals' in st.session_state:
-                del st.session_state.optimization_goals
-        
-        b_col1, b_col2 = st.columns(2)
-        with b_col1:
-            if st.button("Calculate Optimization Goals", type="primary", use_container_width=True):
-                st.session_state.optimization_goals = []
-                oar_constraints = st.session_state.custom_constraints.get("constraints", {}).get("oar_constraints", {})
-                previous_brachy_bed_per_organ = {}
-                prev_brachy_file = st.session_state.get('prev_brachy_uploader')
+        if st.button("Calculate Optimization Goals", type="primary", use_container_width=True):
+            # (The logic for calculating optimization goals remains unchanged)
+            st.session_state.optimization_goals = []
+            oar_constraints = st.session_state.custom_constraints.get("constraints", {}).get("oar_constraints", {})
+            previous_brachy_bed_per_organ = {}
+            prev_brachy_file = st.session_state.get('prev_brachy_uploader')
 
-                if prev_brachy_file:
-                    try:
-                        prev_brachy_file.seek(0)
-                        json_content = json.loads(prev_brachy_file.read().decode("utf-8"))
-                        for organ, data in json_content.get("dvh_results", {}).items():
-                            alpha_beta = st.session_state.ab_ratios.get(organ, 3.0)
-                            dose_fx_list = data.get("dose_fx", {}).get("d2cc_gy_per_fraction", [])
-                            total_prev_bed = sum([fx * (1 + fx / alpha_beta) for fx in dose_fx_list])
-                            previous_brachy_bed_per_organ[organ] = total_prev_bed
-                    except Exception as e:
-                        st.error(f"Error parsing previous brachytherapy JSON: {e}")
+            if prev_brachy_file:
+                try:
+                    prev_brachy_file.seek(0)
+                    json_content = json.loads(prev_brachy_file.read().decode("utf-8"))
+                    for organ, data in json_content.get("dvh_results", {}).items():
+                        alpha_beta = st.session_state.ab_ratios.get(organ, 3.0)
+                        dose_fx_list = data.get("dose_fx", {}).get("d2cc_gy_per_fraction", [])
+                        total_prev_bed = sum([fx * (1 + fx / alpha_beta) for fx in dose_fx_list])
+                        previous_brachy_bed_per_organ[organ] = total_prev_bed
+                except Exception as e:
+                    st.error(f"Error parsing previous brachytherapy JSON: {e}")
 
-                for organ, constraints in oar_constraints.items():
-                    total_eqd2_constraint = constraints.get("D2cc", {}).get("max")
-                    alpha_beta = st.session_state.ab_ratios.get(organ, 3.0)
-                    previous_brachy_bed = previous_brachy_bed_per_organ.get(organ, 0.0)
+            for organ, constraints in oar_constraints.items():
+                total_eqd2_constraint = constraints.get("D2cc", {}).get("max")
+                alpha_beta = st.session_state.ab_ratios.get(organ, 3.0)
+                previous_brachy_bed = previous_brachy_bed_per_organ.get(organ, 0.0)
 
-                    if total_eqd2_constraint is not None:
-                        goal = calculate_optimization_goal(
-                            total_eqd2_constraint=total_eqd2_constraint,
-                            alpha_beta=alpha_beta,
-                            ebrt_dose=st.session_state.ebrt_total_dose,
-                            ebrt_fractions=st.session_state.ebrt_num_fractions,
-                            previous_brachy_bed=previous_brachy_bed,
-                            num_new_brachy_fractions=st.session_state.proposed_brachy_num_fx
-                        )
-                        st.session_state.optimization_goals.append({
-                            "Organ": organ,
-                            "Total EQD2 Constraint (Gy)": total_eqd2_constraint,
-                            "Max D2cc per Fraction (Gy)": goal
-                        })
-        with b_col2:
-            st.button("Reset Doses to Default", on_click=reset_doses_to_default, use_container_width=True)
+                if total_eqd2_constraint is not None:
+                    goal = calculate_optimization_goal(
+                        total_eqd2_constraint=total_eqd2_constraint,
+                        alpha_beta=alpha_beta,
+                        ebrt_dose=st.session_state.ebrt_total_dose,
+                        ebrt_fractions=st.session_state.ebrt_num_fractions,
+                        previous_brachy_bed=previous_brachy_bed,
+                        num_new_brachy_fractions=st.session_state.proposed_brachy_num_fx
+                    )
+                    st.session_state.optimization_goals.append({
+                        "Organ": organ,
+                        "Total EQD2 Constraint (Gy)": total_eqd2_constraint,
+                        "Max D2cc per Fraction (Gy)": goal
+                    })
 
         if 'optimization_goals' in st.session_state and st.session_state.optimization_goals:
-            st.subheader("🎯 Optimization Goals")
+            st.subheader("識 Optimization Goals")
             st.markdown(f"The following D2cc limits are calculated for a plan with **{st.session_state.proposed_brachy_num_fx}** new brachytherapy fraction(s).")
             df_goals = pd.DataFrame(st.session_state.optimization_goals)
             st.dataframe(df_goals.style.format({"Total EQD2 Constraint (Gy)": "{:.1f}", "Max D2cc per Fraction (Gy)": "{:.2f}"}), use_container_width=True)
