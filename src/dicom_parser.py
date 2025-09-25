@@ -46,23 +46,63 @@ def sort_dicom_files(dicom_files):
     return sorted_files
 
 def get_structure_data(rtstruct_dataset):
-    """Extracts ROI names and contour data from an RTSTRUCT file."""
+    """
+    Safely extracts ROI names and contour data from an RTSTRUCT file.
+    Returns an empty dictionary if essential tags are missing or the file is invalid.
+    """
     if not rtstruct_dataset:
         return {}
-    structures = {}
-    for roi_contour, structure_set_roi in zip(rtstruct_dataset.ROIContourSequence, rtstruct_dataset.StructureSetROISequence):
-        structures[structure_set_roi.ROIName] = {
-            "ROINumber": structure_set_roi.ROINumber,
-            "ContourData": [contour.ContourData for contour in roi_contour.ContourSequence]
-        }
-    return structures
+    
+    try:
+        # Check for the presence and validity of essential sequences
+        if not hasattr(rtstruct_dataset, 'ROIContourSequence') or \
+           not hasattr(rtstruct_dataset, 'StructureSetROISequence') or \
+           len(rtstruct_dataset.ROIContourSequence) == 0:
+            print("Warning: RTSTRUCT file is missing or has empty structure sequences. Cannot process structures.")
+            return {}
+
+        structures = {}
+        for roi_contour, structure_set_roi in zip(rtstruct_dataset.ROIContourSequence, rtstruct_dataset.StructureSetROISequence):
+            # Also make the inner loop safer in case a contour is present but has no data
+            contour_data = [contour.ContourData for contour in getattr(roi_contour, 'ContourSequence', [])]
+            structures[structure_set_roi.ROIName] = {
+                "ROINumber": structure_set_roi.ROINumber,
+                "ContourData": contour_data
+            }
+        return structures
+
+    except (AttributeError, KeyError, Exception) as e:
+        print(f"Error processing RTSTRUCT file. It may be incomplete or corrupt. Error: {e}")
+        return {}
+
 
 def get_dose_data(rtdose_file):
-    """Extracts dose grid, scaling factor, and position data from an RTDOSE file."""
+    """
+    Safely extracts dose grid, scaling factor, and position data from an RTDOSE file.
+    Returns None for all values if essential tags are missing or the file is invalid.
+    """
     if not rtdose_file:
         return None, None, None, None, None, None
-    ds = pydicom.dcmread(rtdose_file)
-    return ds.pixel_array, ds.DoseGridScaling, ds.ImagePositionPatient, ds.PixelSpacing, ds.GridFrameOffsetVector, ds.ImageOrientationPatient
+    try:
+        ds = pydicom.dcmread(rtdose_file)
+        
+        # The most critical check: does the file contain a dose grid?
+        if 'PixelData' not in ds:
+            print(f"Warning: RTDOSE file {rtdose_file} is missing the PixelData tag. Cannot process dose.")
+            return None, None, None, None, None, None
+
+        dose_grid = ds.pixel_array
+        dose_scaling = ds.DoseGridScaling
+        image_position = ds.ImagePositionPatient
+        pixel_spacing = ds.PixelSpacing
+        grid_offsets = ds.GridFrameOffsetVector
+        orientation = ds.ImageOrientationPatient
+        
+        return dose_grid, dose_scaling, image_position, pixel_spacing, grid_offsets, orientation
+        
+    except (AttributeError, KeyError, Exception) as e:
+        print(f"Error processing RTDOSE file {rtdose_file}. It may be incomplete or corrupt. Error: {e}")
+        return None, None, None, None, None, None
 
 def get_plan_data(rtplan_file):
     """Extracts prescription data from an RTPLAN file."""
@@ -81,6 +121,24 @@ def get_plan_data(rtplan_file):
         plan_name = ds.SeriesDescription
     plan_data['plan_name'] = plan_name
 
+    # Get Plan Date and Time
+    plan_data['plan_date'] = getattr(ds, 'RTPlanDate', 'N/A')
+    plan_data['plan_time'] = getattr(ds, 'RTPlanTime', 'N/A')
+    
+    # Get Source Information
+    plan_data['source_info'] = 'N/A'
+    plan_data['rakr'] = 0.0
+    plan_data['source_strength_ref_date'] = 'N/A'
+    plan_data['source_strength_ref_time'] = 'N/A'
+    if hasattr(ds, 'SourceSequence') and len(ds.SourceSequence) > 0:
+        source = ds.SourceSequence[0]
+        if hasattr(source, 'ReferenceAirKermaRate'):
+            rakr = float(source.ReferenceAirKermaRate)
+            plan_data['source_info'] = f"{rakr:.2f} cGy cm^2/hr"
+            plan_data['rakr'] = rakr
+        plan_data['source_strength_ref_date'] = getattr(source, 'SourceStrengthReferenceDate', 'N/A')
+        plan_data['source_strength_ref_time'] = getattr(source, 'SourceStrengthReferenceTime', 'N/A')
+
     # Get Number of Fractions and Dose per Fraction
     if hasattr(ds, 'FractionGroupSequence') and len(ds.FractionGroupSequence) > 0:
         fraction_group = ds.FractionGroupSequence[0]
@@ -97,11 +155,48 @@ def get_plan_data(rtplan_file):
     # Get Dose Reference Data
     plan_data['dose_references'] = []
     if hasattr(ds, 'DoseReferenceSequence'):
+        unnamed_point_counter = 1
         for dr in ds.DoseReferenceSequence:
+            point_name = getattr(dr, 'DoseReferenceDescription', '').strip()
+            if not point_name or point_name == '-':
+                point_name = f"Unnamed Point {unnamed_point_counter}"
+                unnamed_point_counter += 1
+            
             plan_data['dose_references'].append({
-                'name': dr.DoseReferenceDescription,
+                'name': point_name,
                 'dose': dr.TargetPrescriptionDose
             })
+
+    # Get Prescription Points for Cylinder Plans
+    plan_data['prescription_points'] = []
+    if hasattr(ds, 'BrachyApplicationSetupSequence') and len(ds.BrachyApplicationSetupSequence) > 0:
+        if getattr(ds.BrachyApplicationSetupSequence[0], 'ApplicationSetupType', '') == 'VAGINAL':
+            if hasattr(ds, 'DoseReferenceSequence'):
+                for dr in ds.DoseReferenceSequence:
+                    point_name = dr.DoseReferenceDescription.lower()
+                    if any(name in point_name for name in ['tip', 'shoulder', '3cm', '3.5cm', '2cm', '2.5cm']):
+                        plan_data['prescription_points'].append({
+                            'name': dr.DoseReferenceDescription,
+                            'coordinates': dr.DoseReferencePointCoordinates
+                        })
+
+    # Get Channel Mapping Data
+    plan_data['channel_mapping'] = []
+    brachy_app_setup_sequence = ds.get((0x300a, 0x0230))
+    if brachy_app_setup_sequence:
+        for app_setup in brachy_app_setup_sequence:
+            if hasattr(app_setup, 'ChannelSequence'):
+                for channel_item in app_setup.ChannelSequence:
+                    channel_info = {
+                        'channel_number': getattr(channel_item, 'ChannelNumber', 'N/A'),
+                        'source_applicator_id': getattr(channel_item, 'SourceApplicatorID', 'N/A'),
+                        'source_applicator_type': getattr(channel_item, 'SourceApplicatorType', 'N/A'),
+                        'source_position': getattr(channel_item, 'SourcePosition', 'N/A'),
+                        'source_dwell_time': getattr(channel_item, 'SourceDwellTime', 'N/A'),
+                        'source_dwell_position': getattr(channel_item, 'SourceDwellPosition', 'N/A'),
+                        'transfer_tube_number': getattr(channel_item, 'TransferTubeNumber', 'N/A'),
+                    }
+                    plan_data['channel_mapping'].append(channel_info)
 
     return plan_data
 
@@ -109,14 +204,6 @@ def get_dose_point_mapping(rtplan_file, point_dose_constraints):
     """
     Parses the RTPLAN file to find dose reference points and maps them to the
     point dose constraints based on naming conventions.
-
-    Args:
-        rtplan_file (str): The path to the RTPLAN DICOM file.
-        point_dose_constraints (dict): The dictionary of point dose constraints from the config.
-
-    Returns:
-        dict: A dictionary mapping the DICOM dose reference description to the
-              corresponding key in the point_dose_constraints dictionary.
     """
     ds = pydicom.dcmread(rtplan_file)
     mapping = {}
@@ -127,7 +214,23 @@ def get_dose_point_mapping(rtplan_file, point_dose_constraints):
     for dose_ref in ds.DoseReferenceSequence:
         if "DoseReferenceDescription" in dose_ref:
             dicom_point_name = dose_ref.DoseReferenceDescription.lower()
-            # First, try to find an exact match (case-insensitive)
+            
+            cylinder_point_keywords = ['tip', 'shoulder', '3cm', '3.5cm', '2cm', '2.5cm']
+            if any(keyword in dicom_point_name for keyword in cylinder_point_keywords):
+                mapping[dose_ref.DoseReferenceDescription] = "Prescription Point"
+                continue
+
+            rv_point_keywords = ['rv', 'rv point', 'rv pt']
+            if any(keyword in dicom_point_name for keyword in rv_point_keywords):
+                mapping[dose_ref.DoseReferenceDescription] = "RV Point"
+                continue
+
+            # Check for Point A variations
+            point_a_keywords = ['a_rt', 'a_lt']
+            if any(keyword in dicom_point_name for keyword in point_a_keywords):
+                mapping[dose_ref.DoseReferenceDescription] = "Point A"
+                continue
+
             exact_match_found = False
             for constraint_name in point_dose_constraints.keys():
                 if dicom_point_name == constraint_name.lower():
@@ -135,13 +238,11 @@ def get_dose_point_mapping(rtplan_file, point_dose_constraints):
                     exact_match_found = True
                     break
             
-            # If no exact match, then try substring matching
             if not exact_match_found:
                 for constraint_name in point_dose_constraints.keys():
                     if constraint_name.lower() in dicom_point_name:
                         mapping[dose_ref.DoseReferenceDescription] = constraint_name
-                        break  # Move to the next dose reference once a match is found
-
+                        break
     return mapping
 
 def get_control_point_data(rtplan_file):
@@ -160,44 +261,31 @@ def get_control_point_data(rtplan_file):
                     })
     return control_points
 
-from .calculations import get_dvh
+def get_dwell_times_and_positions(rtplan_file):
+    """
+    Calculates the dwell times and positions from a DICOM RT Plan file.
+    """
+    plan = pydicom.dcmread(rtplan_file)
+    dwell_data = []
 
-if __name__ == "__main__":
-    # Example usage:
-    dicom_dir = "."
-    all_files = get_dicom_files(dicom_dir)
-    is_consistent, patient_ids = verify_patient_consistency(all_files)
-    if is_consistent:
-        print(f"All files belong to patient: {patient_ids}")
-        sorted_files = sort_dicom_files(all_files)
-        print("Sorted files:", sorted_files)
-        structure_data = get_structure_data(sorted_files.get("RTSTRUCT"))
-        if structure_data:
-            print("\n--- Structure Data ---")
-            for name, data in structure_data.items():
-                print(f"ROI: {name}, ROINumber: {data['ROINumber']}, Contours: {len(data['ContourData'])}")
+    brachy_app_setup_sequence = plan.get((0x300a, 0x0230))
+    if not brachy_app_setup_sequence or not hasattr(brachy_app_setup_sequence[0], 'ChannelSequence'):
+        return dwell_data
 
-        dose_grid, dose_scaling, image_position, pixel_spacing, grid_frame_offset_vector, image_orientation = get_dose_data(sorted_files.get("RTDOSE"))
-        if dose_grid is not None:
-            print("\n--- Dose Data ---")
-            print(f"Dose grid shape: {dose_grid.shape}")
-            print(f"Dose scaling factor: {dose_scaling}")
-            print(f"Image Position (Patient): {image_position}")
-            print(f"Pixel Spacing: {pixel_spacing}")
-            print(f"Grid Frame Offset Vector: {grid_frame_offset_vector}")
-            print(f"Image Orientation (Patient): {image_orientation}")
+    for channel in brachy_app_setup_sequence[0].ChannelSequence:
+        channel_total_time = float(channel.ChannelTotalTime)
+        final_cumulative_time_weight = float(channel.FinalCumulativeTimeWeight)
+        
+        if final_cumulative_time_weight == 0:
+            continue
 
-        plan_data = get_plan_data(sorted_files.get("RTPLAN"))
-        if plan_data:
-            print("\n--- Plan Data ---")
-            print(f"Plan Name: {plan_data.get('plan_name', 'N/A')}")
-            print(f"Number of Fractions: {plan_data.get('number_of_fractions', 'N/A')}")
-            print(f"Brachy Dose per Fraction: {plan_data.get('brachy_dose_per_fraction', 'N/A')}")
-
-        dvh_results = get_dvh(structure_data, dose_grid, dose_scaling, image_position, pixel_spacing, grid_frame_offset_vector, plan_data.get('number_of_fractions', 1), image_orientation)
-        if dvh_results:
-            print("\n--- DVH Results ---")
-            for name, data in dvh_results.items():
-                print(f"Structure: {name}, Volume: {data['volume_cc']} cc, D2cc/fx: {data['d2cc_gy_per_fraction']} Gy, Total D2cc: {data['total_d2cc_gy']} Gy")
-    else:
-        print(f"Error: Mismatched patient IDs: {patient_ids[0]} vs {patient_ids[1]}")
+        control_points = channel.BrachyControlPointSequence
+        
+        for i in range(1, len(control_points)):
+            dwell_time_weight = float(control_points[i].CumulativeTimeWeight) - float(control_points[i-1].CumulativeTimeWeight)
+            
+            if dwell_time_weight > 0:
+                dwell_time = dwell_time_weight * channel_total_time / final_cumulative_time_weight
+                position = float(control_points[i].ControlPointRelativePosition)
+                dwell_data.append({"position": position, "dwell_time": dwell_time})
+    return dwell_data
