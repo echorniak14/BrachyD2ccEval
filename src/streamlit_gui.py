@@ -39,6 +39,22 @@ def main():
     if 'widget_key_suffix' not in st.session_state:
         st.session_state.widget_key_suffix = 0
 
+        # --- Sidebar for Settings Display ---
+    with st.sidebar:
+        st.header("Current Settings")
+        st.write(f"**Template:** {st.session_state.current_template_name}")
+        st.markdown("---")
+        
+        st.subheader("EBRT Summary")
+        st.metric("Total Dose (Gy)", f"{st.session_state.ebrt_total_dose:.2f}")
+        st.metric("Number of Fractions", f"{st.session_state.ebrt_num_fractions}")
+        st.metric("Dose per Fraction (Gy)", f"{st.session_state.ebrt_fraction_dose:.2f}")
+        st.markdown("---")
+        
+        st.subheader("Proposed Brachytherapy")
+        st.metric("Dose per Fraction (Gy)", f"{st.session_state.proposed_brachy_dose_fx:.2f}")
+        st.metric("Number of Fractions", f"{st.session_state.proposed_brachy_num_fx}")
+
     def clear_results():
         if 'results' in st.session_state:
             del st.session_state.results
@@ -207,11 +223,6 @@ def main():
     # ==============================================================================
     with plan_analysis_tab:
         st.header("Step 2: Upload and Analyze a Completed Plan")
-        
-        info_txt = (f"**Current Settings:** Template: **{st.session_state.current_template_name}** | "
-                    f"EBRT: **{st.session_state.ebrt_total_dose:.2f} Gy** in **{st.session_state.ebrt_num_fractions} Fx** | "
-                    f"Brachy Fx: **{st.session_state.proposed_brachy_num_fx}**")
-        st.info(info_txt)
 
         st.subheader("Upload DICOM Files")
         uploaded_files = st.file_uploader("Upload RTDOSE, RTSTRUCT, and RTPLAN files", type=["dcm", "DCM"], accept_multiple_files=True, key="dicom_uploader", on_change=clear_results)
