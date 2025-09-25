@@ -395,10 +395,10 @@ def main():
                     elif mapping_lower.get(organ.lower()) == 'TARGET':
                         target_dvh_raw[organ] = metrics
 
-                # --- NEW: OAR Table with Full Historical Fraction Display ---
+                # --- NEW: OAR Table with Full Historical Fraction Display and ""Fill-Forward" Dynamic Fraction Logic ---
                 st.markdown("##### **Organs at Risk (OAR) DVH Results**")
                 if oar_dvh_raw:
-                    # Parse the previous brachy file to get historical doses
+                    # Step 1: Parse previous brachy file to get historical dose lists
                     previous_doses = {}
                     prev_brachy_file = st.session_state.get('prev_brachy_uploader')
                     if prev_brachy_file:
@@ -412,19 +412,29 @@ def main():
                             st.error(f"Could not parse previous brachy data for display: {e}")
 
                     restructured_data = []
-                    
-                    # Use the dynamic number of fractions from the Pre-Planning tab
                     total_fractions = st.session_state.proposed_brachy_num_fx
 
-                    # Build the data for the new table layout
+                    # Step 2: Build the data for the table with the new "fill-forward" logic
                     for organ, metrics in oar_dvh_raw.items():
                         hist_doses_for_organ = previous_doses.get(organ, {})
-                        
-                        # Combine historical doses with the current fraction's dose
-                        doses_d0_1cc = hist_doses_for_organ.get('d0_1cc_gy_per_fraction', []) + [metrics.get('d0_1cc_gy_per_fraction')]
-                        doses_d1cc = hist_doses_for_organ.get('d1cc_gy_per_fraction', []) + [metrics.get('d1cc_gy_per_fraction')]
-                        doses_d2cc = hist_doses_for_organ.get('d2cc_gy_per_fraction', []) + [metrics.get('d2cc_gy_per_fraction')]
+                        num_historical_fx = len(hist_doses_for_organ.get('d2cc_gy_per_fraction', []))
 
+                        # --- "Fill-Forward" Logic Happens Here ---
+                        def create_full_dose_list(metric_key):
+                            hist_list = hist_doses_for_organ.get(metric_key, [])
+                            current_dose = metrics.get(metric_key)
+                            full_list = []
+                            for i in range(total_fractions):
+                                if i < len(hist_list):
+                                    full_list.append(hist_list[i])
+                                else:
+                                    full_list.append(current_dose)
+                            return full_list
+
+                        doses_d0_1cc = create_full_dose_list('d0_1cc_gy_per_fraction')
+                        doses_d1cc = create_full_dose_list('d1cc_gy_per_fraction')
+                        doses_d2cc = create_full_dose_list('d2cc_gy_per_fraction')
+                        
                         # Get constraint info for the D2cc row
                         is_met_str = results.get('constraint_evaluation', {}).get(organ, {}).get('EQD2_met', 'False')
                         constraint_status = "Met" if str(is_met_str).lower() == 'true' else "NOT Met"
@@ -455,7 +465,7 @@ def main():
                         row_d2cc.update({'EQD2 (Gy)': f"{metrics.get('eqd2_d2cc', 0):.2f}", 'Constraint Status': constraint_status, 'Dose to Meet Constraint (Gy)': dose_to_meet_str})
                         restructured_data.append(row_d2cc)
                     
-                    # Create and display the final DataFrame
+                    # Step 3: Create and display the final DataFrame
                     final_oar_df = pd.DataFrame(restructured_data)
                     
                     def style_oar_rows(row):
