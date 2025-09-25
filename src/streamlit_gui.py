@@ -109,7 +109,6 @@ def main():
         st.header("Step 1: Define Treatment Parameters")
         st.markdown("Use this section to calculate OAR dose limits **before** creating a plan to set clear optimization goals.")
 
-        # --- UPDATED: Dose inputs have been moved to the sidebar ---
         st.subheader("Constraint Template")
         template_names = list(templates.keys())
         
@@ -118,15 +117,43 @@ def main():
             st.session_state.ab_ratios = templates[st.session_state.current_template_name]["alpha_beta_ratios"].copy()
             st.session_state.custom_constraints = templates[st.session_state.current_template_name].copy()
             
-            # This logic now calls the reset function
             reset_doses_to_default()
             clear_results()
 
         st.selectbox("Select Template", options=template_names, index=template_names.index(st.session_state.current_template_name), key="template_selector", on_change=on_template_change)
 
+        # --- UPDATED: Styling for constraint text ---
+        with st.expander("View Current Constraints"):
+            target_constraints = st.session_state.custom_constraints.get("constraints", {}).get("target_constraints", {})
+            oar_constraints = st.session_state.custom_constraints.get("constraints", {}).get("oar_constraints", {})
+
+            t_col, o_col = st.columns(2)
+            with t_col:
+                st.subheader("Target Volumes")
+                if not target_constraints:
+                    st.write("No target constraints defined.")
+                else:
+                    for organ, constraints in target_constraints.items():
+                        st.markdown(f"**{organ}**")
+                        for key, value in constraints.items():
+                            if key != 'unit':
+                                st.markdown(f"- {key}: **{value}** Gy") # Changed from `value` to **value**
+            with o_col:
+                st.subheader("Organs at Risk")
+                if not oar_constraints:
+                    st.write("No OAR constraints defined.")
+                else:
+                    for organ, constraints in oar_constraints.items():
+                        st.markdown(f"**{organ}**")
+                        for d_metric, d_values in constraints.items():
+                            st.markdown(f"  - **{d_metric}**")
+                            for key, value in d_values.items():
+                                if key != 'unit':
+                                    st.markdown(f"    - {key}: **{value}** Gy") # Changed from `value` to **value**
+        
+        # --- The rest of the tab remains the same ---
         if st.session_state.current_template_name == "Custom":
             with st.expander("Customize Template", expanded=True):
-                # (The custom template editor remains unchanged)
                 st.header("Alpha/Beta Ratios")
                 for organ, val in st.session_state.ab_ratios.items():
                     st.session_state.ab_ratios[organ] = st.number_input(f"{organ}", value=float(val), key=f"ab_{organ}_{st.session_state.widget_key_suffix}")
@@ -157,7 +184,6 @@ def main():
         st.markdown("---")
         
         if st.button("Calculate Optimization Goals", type="primary", use_container_width=True):
-            # (The logic for calculating optimization goals remains unchanged)
             st.session_state.optimization_goals = []
             oar_constraints = st.session_state.custom_constraints.get("constraints", {}).get("oar_constraints", {})
             previous_brachy_bed_per_organ = {}
