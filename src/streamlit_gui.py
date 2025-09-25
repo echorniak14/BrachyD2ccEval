@@ -318,6 +318,11 @@ def main():
                             prev_brachy_file.seek(0)
                             prev_brachy_data_main = json.loads(prev_brachy_file.read().decode("utf-8"))
 
+                        # --- Transform point_dose_results from a list to a dictionary ---
+                            if 'point_dose_results' in prev_brachy_data_main and isinstance(prev_brachy_data_main['point_dose_results'], list):
+                                transformed_points = {item.get('name', f'point_{i}'): item for i, item in enumerate(prev_brachy_data_main['point_dose_results'])}
+                                prev_brachy_data_main['point_dose_results'] = transformed_points
+
                         args = argparse.Namespace(
                             data_dir=tmpdir_analysis,
                             ebrt_dose=st.session_state.ebrt_total_dose,
@@ -390,24 +395,75 @@ def main():
                     elif mapping_lower.get(organ.lower()) == 'TARGET':
                         target_dvh_raw[organ] = metrics
 
-                # --- OAR DVH Results Table (with updated keys) ---
+                # --- NEW: OAR Table with Full Historical Fraction Display ---
                 st.markdown("##### **Organs at Risk (OAR) DVH Results**")
-                oar_dvh_data = []
-                for organ, metrics in oar_dvh_raw.items():
-                    oar_dvh_data.append({'Organ': organ, 'Volume (cc)': f"{metrics.get('volume_cc', 0):.2f}", 'Dose Metric': 'D0.1cc', 'EQD2 (Gy)': f"{metrics.get('eqd2_d0_1cc', metrics.get('bed_d0_1cc', 0)):.2f}", 'Constraint Met': 'N/A'})
-                    oar_dvh_data.append({'Organ': '', 'Volume (cc)': '', 'Dose Metric': 'D1cc', 'EQD2 (Gy)': f"{metrics.get('eqd2_d1cc', metrics.get('bed_d1cc', 0)):.2f}", 'Constraint Met': 'N/A'})
-                    is_met_str = results.get('constraint_evaluation', {}).get(organ, {}).get('EQD2_met', 'False')
-                    is_met = str(is_met_str).lower() == 'true'
-                    constraint_met_status = "Met" if is_met else "NOT Met"
-                    oar_dvh_data.append({'Organ': '', 'Volume (cc)': '', 'Dose Metric': 'D2cc', 'EQD2 (Gy)': f"{metrics.get('eqd2_d2cc', metrics.get('bed_d2cc', 0)):.2f}", 'Constraint Met': constraint_met_status})
+                if oar_dvh_raw:
+                    # Parse the previous brachy file to get historical doses
+                    previous_doses = {}
+                    prev_brachy_file = st.session_state.get('prev_brachy_uploader')
+                    if prev_brachy_file:
+                        try:
+                            prev_brachy_file.seek(0)
+                            json_content = json.loads(prev_brachy_file.read().decode("utf-8"))
+                            prev_dvh_results = json_content.get("dvh_results", {})
+                            for organ, data in prev_dvh_results.items():
+                                previous_doses[organ] = data.get("dose_fx", {})
+                        except Exception as e:
+                            st.error(f"Could not parse previous brachy data for display: {e}")
 
-                if oar_dvh_data:
-                    oar_df = pd.DataFrame(oar_dvh_data)
+                    restructured_data = []
+                    
+                    # Use the dynamic number of fractions from the Pre-Planning tab
+                    total_fractions = st.session_state.proposed_brachy_num_fx
+
+                    # Build the data for the new table layout
+                    for organ, metrics in oar_dvh_raw.items():
+                        hist_doses_for_organ = previous_doses.get(organ, {})
+                        
+                        # Combine historical doses with the current fraction's dose
+                        doses_d0_1cc = hist_doses_for_organ.get('d0_1cc_gy_per_fraction', []) + [metrics.get('d0_1cc_gy_per_fraction')]
+                        doses_d1cc = hist_doses_for_organ.get('d1cc_gy_per_fraction', []) + [metrics.get('d1cc_gy_per_fraction')]
+                        doses_d2cc = hist_doses_for_organ.get('d2cc_gy_per_fraction', []) + [metrics.get('d2cc_gy_per_fraction')]
+
+                        # Get constraint info for the D2cc row
+                        is_met_str = results.get('constraint_evaluation', {}).get(organ, {}).get('EQD2_met', 'False')
+                        constraint_status = "Met" if str(is_met_str).lower() == 'true' else "NOT Met"
+                        dose_to_meet = metrics.get('dose_to_meet_constraint', 'N/A')
+                        dose_to_meet_str = f"{dose_to_meet:.2f}" if isinstance(dose_to_meet, (int, float)) else "N/A"
+
+                        # Build the three rows for the current organ
+                        base_row = {'Organ': organ, 'Volume (cc)': f"{metrics.get('volume_cc', 0):.2f}"}
+                        
+                        # D0.1cc Row
+                        row_d0_1cc = {**base_row, 'Dose Metric': 'D0.1cc'}
+                        for i in range(total_fractions):
+                            row_d0_1cc[f'Fx {i+1} Dose (Gy)'] = f"{doses_d0_1cc[i]:.2f}" if i < len(doses_d0_1cc) and doses_d0_1cc[i] is not None else "-"
+                        row_d0_1cc.update({'EQD2 (Gy)': f"{metrics.get('eqd2_d0_1cc', 0):.2f}", 'Constraint Status': 'N/A', 'Dose to Meet Constraint (Gy)': ''})
+                        restructured_data.append(row_d0_1cc)
+
+                        # D1cc Row
+                        row_d1cc = {**base_row, 'Dose Metric': 'D1cc', 'Organ': '', 'Volume (cc)': ''}
+                        for i in range(total_fractions):
+                            row_d1cc[f'Fx {i+1} Dose (Gy)'] = f"{doses_d1cc[i]:.2f}" if i < len(doses_d1cc) and doses_d1cc[i] is not None else "-"
+                        row_d1cc.update({'EQD2 (Gy)': f"{metrics.get('eqd2_d1cc', 0):.2f}", 'Constraint Status': 'N/A', 'Dose to Meet Constraint (Gy)': ''})
+                        restructured_data.append(row_d1cc)
+
+                        # D2cc Row
+                        row_d2cc = {**base_row, 'Dose Metric': 'D2cc', 'Organ': '', 'Volume (cc)': ''}
+                        for i in range(total_fractions):
+                            row_d2cc[f'Fx {i+1} Dose (Gy)'] = f"{doses_d2cc[i]:.2f}" if i < len(doses_d2cc) and doses_d2cc[i] is not None else "-"
+                        row_d2cc.update({'EQD2 (Gy)': f"{metrics.get('eqd2_d2cc', 0):.2f}", 'Constraint Status': constraint_status, 'Dose to Meet Constraint (Gy)': dose_to_meet_str})
+                        restructured_data.append(row_d2cc)
+                    
+                    # Create and display the final DataFrame
+                    final_oar_df = pd.DataFrame(restructured_data)
+                    
                     def style_oar_rows(row):
-                        if row['Constraint Met'] == 'Met': return ['background-color: rgba(40, 167, 69, 0.2)'] * len(row)
-                        elif row['Constraint Met'] == 'NOT Met': return ['background-color: rgba(220, 53, 69, 0.2)'] * len(row)
+                        if row['Constraint Status'] == 'Met': return ['background-color: rgba(40, 167, 69, 0.2)'] * len(row)
+                        elif row['Constraint Status'] == 'NOT Met': return ['background-color: rgba(220, 53, 69, 0.2)'] * len(row)
                         return [''] * len(row)
-                    st.dataframe(oar_df.style.apply(style_oar_rows, axis=1), use_container_width=True, hide_index=True)
+
+                    st.dataframe(final_oar_df.style.apply(style_oar_rows, axis=1), use_container_width=True, hide_index=True)
                 else:
                     st.info("No OAR DVH data to display. Check structure mappings.")
 
