@@ -267,58 +267,77 @@ def main():
         if st.button("Run Analysis", type="primary", use_container_width=True):
             if uploaded_files:
                 with tempfile.TemporaryDirectory() as tmpdir_analysis:
-                    # Create subdirectories for sorting files
-                    rtdose_dir = os.path.join(tmpdir_analysis, "RTDOSE"); os.makedirs(rtdose_dir, exist_ok=True)
-                    rtst_dir = os.path.join(tmpdir_analysis, "RTst"); os.makedirs(rtst_dir, exist_ok=True)
-                    rtplan_dir = os.path.join(tmpdir_analysis, "RTPLAN"); os.makedirs(rtplan_dir, exist_ok=True)
-                    
-                    # Write uploaded files to temp directory and sort them
+                    # --- CORRECTED: Combined validation and sorting logic ---
+                    files_to_sort = {}
+                    patient_ids = set()
+                    has_rtplan, has_rtstruct, has_rtdose = False, False, False
+
+                    # First, loop through to validate files and gather info
                     for up_file in uploaded_files:
                         file_path = os.path.join(tmpdir_analysis, up_file.name)
-                        with open(file_path, "wb") as f: 
+                        with open(file_path, "wb") as f:
                             up_file.seek(0)
                             f.write(up_file.getbuffer())
                         try:
                             ds = pydicom.dcmread(file_path, stop_before_pixels=True)
+                            patient_ids.add(ds.PatientID)
                             if ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.481.2': # RT Dose
-                                os.rename(file_path, os.path.join(rtdose_dir, up_file.name))
+                                files_to_sort[file_path] = "RTDOSE"
+                                has_rtdose = True
                             elif ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.481.3': # RT Structure
-                                os.rename(file_path, os.path.join(rtst_dir, up_file.name))
+                                files_to_sort[file_path] = "RTst"
+                                has_rtstruct = True
                             elif ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.481.5': # RT Plan
-                                os.rename(file_path, os.path.join(rtplan_dir, up_file.name))
-                        except Exception as e: 
-                            st.warning(f"Could not classify file {up_file.name}: {e}")
-                    
-                    # Handle previous brachytherapy data
-                    prev_brachy_data_main = {}
-                    prev_brachy_file = st.session_state.get('prev_brachy_uploader')
-                    if prev_brachy_file:
-                        prev_brachy_file.seek(0)
-                        prev_brachy_data_main = json.loads(prev_brachy_file.read().decode("utf-8"))
+                                files_to_sort[file_path] = "RTPLAN"
+                                has_rtplan = True
+                        except Exception as e:
+                            st.warning(f"Could not read or classify file {up_file.name}: {e}")
 
-                    # --- FIX: Revert to argparse.Namespace ---
-                    # Bundle arguments into an args object as expected by run_analysis
-                    args = argparse.Namespace(
-                        data_dir=tmpdir_analysis,  # Corrected argument name
-                        ebrt_dose=st.session_state.ebrt_total_dose,
-                        ebrt_fractions=st.session_state.ebrt_num_fractions,
-                        previous_brachy_data=prev_brachy_data_main,
-                        output_html=None, # Not used in GUI context
-                        alpha_beta_ratios=st.session_state.ab_ratios,
-                        custom_constraints=st.session_state.custom_constraints
-                    )
+                    # Now, run the safety checks
+                    proceed = True
+                    if not (has_rtplan and has_rtstruct and has_rtdose):
+                        st.error("Error: Please upload all three required DICOM files (RT Plan, RT Structure Set, and RT Dose).")
+                        proceed = False
                     
-                    with st.spinner("Analyzing plan... this may take a moment."):
-                        # Call run_analysis with the correct signature
-                        st.session_state.results = run_analysis(
-                            args,  # Pass the args object
-                            structure_data, # Pass the parsed structure data
-                            plan_data_from_dicom, # Pass the parsed plan data
-                            dose_point_mapping=[(k, v) for k, v in st.session_state.get('manual_mapping', {}).items() if v != "N/A"],
-                            custom_constraints=st.session_state.custom_constraints,
-                            num_fractions_delivered=st.session_state.proposed_brachy_num_fx,
-                            structure_mapping=st.session_state.get('structure_mapping', {})
+                    if len(patient_ids) > 1:
+                        st.error(f"Error: Mismatched Patient IDs found across files: {list(patient_ids)}. Please upload files for a single patient.")
+                        proceed = False
+
+                    # --- CORRECTED: Analysis now runs ONLY if proceed is True ---
+                    if proceed:
+                        # Move files to their respective subdirectories
+                        for path, dir_name in files_to_sort.items():
+                            target_dir = os.path.join(tmpdir_analysis, dir_name)
+                            os.makedirs(target_dir, exist_ok=True)
+                            os.rename(path, os.path.join(target_dir, os.path.basename(path)))
+
+                        # Handle previous brachytherapy data
+                        prev_brachy_data_main = {}
+                        prev_brachy_file = st.session_state.get('prev_brachy_uploader')
+                        if prev_brachy_file:
+                            prev_brachy_file.seek(0)
+                            prev_brachy_data_main = json.loads(prev_brachy_file.read().decode("utf-8"))
+
+                        args = argparse.Namespace(
+                            data_dir=tmpdir_analysis,
+                            ebrt_dose=st.session_state.ebrt_total_dose,
+                            ebrt_fractions=st.session_state.ebrt_num_fractions,
+                            previous_brachy_data=prev_brachy_data_main,
+                            output_html=None,
+                            alpha_beta_ratios=st.session_state.ab_ratios,
+                            custom_constraints=st.session_state.custom_constraints
                         )
+                        
+                        with st.spinner("Analyzing plan... this may take a moment."):
+                            st.session_state.results = run_analysis(
+                                args,
+                                structure_data,
+                                plan_data_from_dicom,
+                                dose_point_mapping=[(k, v) for k, v in st.session_state.get('manual_mapping', {}).items() if v != "N/A"],
+                                custom_constraints=st.session_state.custom_constraints,
+                                num_fractions_delivered=st.session_state.proposed_brachy_num_fx,
+                                structure_mapping=st.session_state.get('structure_mapping', {})
+                            )
             else:
                 st.error("Please upload DICOM files to run the analysis.")
 
@@ -338,11 +357,26 @@ def main():
                 col1.metric("Patient Name", results.get('patient_name', 'N/A').replace('^', ' '))
                 col2.metric("Patient ID", results.get('patient_mrn', 'N/A'))
                 col3.metric("Plan Name", results.get('plan_name', 'N/A'))
+
+                # Second row for plan date and time
+                col4, col5, col6 = st.columns(3)
+                col4.metric("Plan Date", results.get('plan_date', 'N/A'))
+                col5.metric("Plan Time", results.get('plan_time', 'N/A'))
+                # An empty column (col6) is used to keep the layout clean and spaced out.
+                
+                # Time and Fraction warnings
+                if results.get("plan_time_warning"):
+                    st.warning(results["plan_time_warning"])
+
+                if results.get('calculation_number_of_fractions') != results.get('planned_number_of_fractions'):
+                    st.warning("Warning: The planned number of fractions and the number of fractions used for EQD2 calculations differ.")
+                
+                st.markdown("---")
                 
                 dvh_results = results.get('dvh_results', {})
                 point_dose_results = results.get('point_dose_results', [])
                 
-                # --- FIX: Make sorting logic case-insensitive ---
+                # Make sorting logic case-insensitive ---
                 oar_dvh_raw = {}
                 target_dvh_raw = {}
                 structure_mapping = st.session_state.get('structure_mapping', {})
@@ -377,6 +411,8 @@ def main():
                 else:
                     st.info("No OAR DVH data to display. Check structure mappings.")
 
+                st.markdown("---")
+
                 # --- Target Volume DVH Results Table (with updated keys) ---
                 st.markdown("##### **Target Volume DVH Results**")
                 target_dvh_data = []
@@ -392,6 +428,8 @@ def main():
                     st.dataframe(pd.DataFrame(target_dvh_data), use_container_width=True, hide_index=True)
                 else:
                     st.info("No Target DVH data to display. Check structure mappings.")
+
+                st.markdown("---")
                 
                 # --- Point Dose Results Table ---
                 st.markdown("##### **Point Dose Results**")

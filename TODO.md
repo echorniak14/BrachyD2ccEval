@@ -18,11 +18,14 @@
     - [x] Round all reported total planned doses to the same number of decimal points
     - [x] Dose fx 1, dose fx 2, dose fx 3 etc.
 - [x] Templates and Presets for alpha/beta ratios, point selections and dose constraints.
+- [x] Clear results with input changes
+- [x] IGNORE structure mapping has no use
 
 ### Backend & Calculation Engine
 - [ ] Database Integration
     - [x] Patient Schedule Review and Dose Summary Fill
     - [x] Planned Delivery Date and Time from RTPLAN?
+- [ ] combine bowel 1 and bowel 2 contours into bowel contour + warning to the user
 - [ ] Robust Unit Testing
     - [ ] Point Matching
     - [ ] Volume Metric Calculations
@@ -39,7 +42,7 @@
 - [ ] Dwell time decay dwell position flexibility -> dwell position = index length - 1000.
 - [ ] Auto save excel file and pdf and pull up print option
 - [x] Flag user if the planned time is outside normal buisness hours
-- [ ] Correctly round the dose to meet constraint display in results
+- [x] Correctly round the dose to meet constraint display in results
 - [x] EBRT Dose and number of fractions
 - [ ] Use provided previous brachy dose to give optimzation goals to user to achieve ALARA
 
