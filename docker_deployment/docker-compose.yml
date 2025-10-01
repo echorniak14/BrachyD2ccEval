@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "8501:8501"
+    networks:
+      brachynet:
+        ipv4_address: 172.30.98.100 # You can assign a specific IP or let Docker assign one
+
+networks:
+  brachynet:
+    driver: bridge
+    driver_opts:
+      parent: br0
+    ipam:
+      config:
+        - subnet: 172.30.98.0/24
