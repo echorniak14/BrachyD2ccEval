@@ -1,14 +1,9 @@
-# Python
+reports/
+/sample_data/Michelle Albert/
+dist/
+build/
 __pycache__/
-*.pyc
-*.pyd
-*.so
-
-# Reports and temporary files
-
-*.xlsx
-*.xls
-*.PNG
-temp_scripts/
-build/  
-dist/ 
+*-p/
+# Ignore validation data files
+validation/manual_sheets/
+validation/app_json_outputs/

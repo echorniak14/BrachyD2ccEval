@@ -1,7 +1,8 @@
 pydicom
-pandas
 numpy
+pandas
 openpyxl
-scikit-image
-beautifulsoup4
-pyinstaller
+streamlit
+dicompyler-core
+pdfkit
+fuzzywuzzy

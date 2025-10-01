@@ -2,18 +2,37 @@
 
 ## Project Overview
 
-This project aims to automate and streamline the evaluation process for HDR brachytherapy plans, specifically for cases planned using Oncentra. It processes DICOM RT Dose, RT Structure Set, and RT Plan files to calculate various dose-volume metrics, including D2cc, Biologically Effective Dose (BED), and Equivalent Dose in 2 Gy fractions (EQD2). The tool also integrates External Beam Radiation Therapy (EBRT) doses into the calculations.
+This project aims to automate and streamline the evaluation process for HDR brachytherapy plans, specifically for cases planned using Oncentra. It processes DICOM RT Dose, RT Structure Set, and RT Plan files to calculate various dose-volume metrics, including D0.1cc, D1cc, D2cc, Biologically Effective Dose (BED), and Equivalent Dose in 2 Gy fractions (EQD2). The tool also integrates External Beam Radiation Therapy (EBRT) doses into the calculations and provides a user-friendly Streamlit graphical interface for interactive analysis and report generation.
+
+## Features
 
 ## Features
 
 - **DICOM Data Parsing:** Reads and extracts relevant data from RTDOSE, RTSTRUCT, and RTPLAN files.
+- **Plan Time Warning:** Displays a warning if the planned treatment time is outside of normal business hours (7am-5pm).
 - **Patient Consistency Verification:** Ensures all input DICOM files belong to the same patient.
-- **D2cc Calculation:** Calculates the minimum dose to 2 cubic centimeters of the most irradiated volume of an organ, utilizing the `dicompyler-core` library for accurate Dose-Volume Histogram (DVH) analysis.
-- **BED/EQD2 Calculation:** Computes Biologically Effective Dose (BED) and Equivalent Dose in 2 Gy fractions (EQD2) for various organs, incorporating user-defined alpha/beta ratios and optional EBRT doses. Includes constraint evaluation based on EMBRACE II.
+- **Dose Metric Calculation (D0.1cc, D1cc, D2cc):** Calculates the minimum dose to 0.1, 1, and 2 cubic centimeters of the most irradiated volume of an organ, utilizing the `dicompyler-core` library for accurate Dose-Volume Histogram (DVH) analysis.
+- **BED/EQD2 Calculation:** Computes Biologically Effective Dose (BED) and Equivalent Dose in 2 Gy fractions (EQD2) for various organs, incorporating user-defined alpha/beta ratios and optional EBRT doses.
+- **Constraint Evaluation:** Evaluates calculated doses against EMBRACE II constraints, with visual indicators (red/green) in the GUI and reports.
+- **Point Dose Conditional Formatting:** Displays point dose results with visual indicators (green for 'Pass', red for 'Fail') based on their constraint status, providing immediate feedback on adherence to planning objectives.
+- **Plan Type-Based Constraint Management:** Dynamically manages and applies constraints based on predefined plan types, allowing for flexible and accurate evaluation across different treatment scenarios.
+- **Automatic Prescription Point Mapping (Cylinder Plans):** Automatically identifies and maps specific prescription points (e.g., 'Tip', 'Shoulder', '3cm') in cylinder brachytherapy plans based on DICOM tags (`ApplicationSetupType`). These points are automatically pre-selected in the Streamlit GUI's dose point mapping section.
+- **Channel Mapping Validation:** Provides a warning in the Streamlit GUI if the selected template is 'Cylinder HDR', 'Cervix HDR - EMBRACE II', or 'Cervix HDR - ABS/GEC-Estro' and the channel mapping does not match the expected configuration for the plan type (Cylinder, Tandem and Ovoid, or Tandem and Ring).
+- **Dose to Meet Constraint Calculation:** For unmet constraints, calculates the highest fractional brachytherapy dose needed to meet the constraint, providing actionable feedback.
 - **EBRT Integration:** Allows for the inclusion of external beam radiation therapy doses in the BED/EQD2 calculations.
 - **Robust File Path Handling:** Utilizes `pathlib` for reliable handling of file paths across different operating systems, including those with special characters.
-- **Graphical User Interface (GUI):** A `tkinter`-based interface for easy input of DICOM data directory and EBRT dose.
-- **HTML Report Generation:** Generates a comprehensive HTML report summarizing the evaluation results, including patient information, DVH data, and constraint evaluation with visual indicators.
+- **Streamlit Graphical User Interface (GUI):** A modern web-based interface for:
+    - Easy upload of DICOM files.
+    - Input of EBRT dose and previous brachytherapy data (HTML or JSON).
+    - Generation of a dwell time decay sheet from a Mosaiq schedule report.
+    - Customizable alpha/beta ratios and EQD2 constraints, including target volume goals (D90 and D98 for GTV and HR-CTV).
+    - Autofill EBRT section from previous brachytherapy data.
+    - Interactive display of DVH and Point Dose results with visual constraint indicators.
+    - **Channel Mapping Display:** Clearly shows the mapping between channel numbers and transfer tube numbers extracted from the RTPLAN file.
+    - Downloadable HTML and PDF reports.
+    - Export of current plan's brachytherapy data to JSON for multi-fraction dose accumulation.
+- **Interactive Dose Point Mapping:** Provides a user-friendly interface to manually map DICOM RT Plan points to clinical constraints using dropdown menus, offering greater control and flexibility over the evaluation process, now enhanced with automatic pre-selection for cylinder plan prescription points.
+
 
 ## Core Concepts
 
@@ -39,23 +58,24 @@ In short, `dicom_parser.py` acts as an information gatherer, and the heavy lifti
 
 The `calculations.py` file contains the core logic for all dosimetric calculations.
 
-*   **DVH and D2cc Calculation:**
-    *   The `get_dvh` function uses the `dvhcalc.get_dvh` function from the `dicompyler-core` library.
+*   **DVH and Dose-Volume Metric Calculation (D0.1cc, D1cc, D2cc, D90, D98, Max, Mean, Min):**
+    *   The `get_dvh` function uses the `dvhcalc.get_dvh` function from the `dicompyler-core` library to compute Dose-Volume Histograms.
     *   It takes the RTSTRUCT and RTDOSE file paths and the ROI number for a specific structure.
-    *   `dicompyler-core` returns a DVH object which contains the volume of the structure and the D2cc (dose to 2cc) value.
-    *   The D2cc is returned as a dose per fraction.
+    *   For each structure, it extracts key dose-volume metrics such as D0.1cc, D1cc, D2cc (minimum dose to 0.1, 1, and 2 cubic centimeters of the most irradiated volume), D90, D98 (dose covering 90% and 98% of the volume), and Max, Mean, Min doses. These are returned as dose per fraction.
 *   **BED and EQD2 Calculation:**
-    *   The `calculate_bed_and_eqd2` function calculates the Biologically Effective Dose (BED) and Equivalent Dose in 2 Gy fractions (EQD2).
-    *   It takes the total dose, dose per fraction, organ name, and an optional EBRT dose as input.
+    *   The `calculate_bed_and_eqd2` function computes the Biologically Effective Dose (BED) and Equivalent Dose in 2 Gy fractions (EQD2).
+    *   It takes the total dose, dose per fraction, organ name, and optional EBRT dose and previous brachytherapy EQD2 as input.
     *   The alpha/beta ratio for the organ is retrieved from the `config.py` file.
-    *   The BED for both the brachytherapy and EBRT components are calculated and summed.
-    *   The total BED is then used to calculate the final EQD2 value.
+    *   The BED for the current brachytherapy plan, EBRT, and any previous brachytherapy fractions are calculated and summed to determine the total accumulated BED.
+    *   The total BED is then used to calculate the final accumulated EQD2 value.
+*   **Dose at Specific Points:**
+    *   The `get_dose_at_point` function calculates the dose at a given 3D coordinate within the dose grid. This is used for evaluating prescription points in cylinder plans.
 *   **Constraint Evaluation:**
-    *   The `evaluate_constraints` function compares the calculated BED and EQD2 values against the constraints defined in `config.py`.
+    *   The `evaluate_constraints` function compares the calculated EQD2 values against the constraints defined in `config.py` (or user-defined constraints from the GUI).
     *   It returns a dictionary indicating whether the constraints for each organ have been met.
 *   **Dose to Meet Constraint Calculation:**
     *   For any organ that fails to meet its EQD2 constraint, the `calculate_dose_to_meet_constraint` function determines the highest fractional brachytherapy dose required to meet that constraint exactly.
-    *   This calculation involves converting the EQD2 constraint back to a total BED target, accounting for any EBRT dose, and then solving a quadratic equation to find the necessary brachytherapy dose per fraction.
+    *   This calculation involves converting the EQD2 constraint back to a total BED target, accounting for any EBRT dose and previous brachytherapy fractions, and then solving a quadratic equation to find the necessary brachytherapy dose per fraction.
     *   This provides actionable feedback for plan optimization, indicating what dose adjustment might be needed to satisfy the constraint.
 
 ## Getting Started
@@ -80,33 +100,43 @@ The `calculations.py` file contains the core logic for all dosimetric calculatio
 
 ### Usage
 
-To run the GUI application:
+### Usage
+
+To run the Streamlit GUI application (recommended):
 
 ```bash
-python gui.py
+streamlit run src/streamlit_gui.py
 ```
 
-Alternatively, to run the evaluation from the command line:
+This will open the application in your web browser, providing an interactive interface for uploading DICOM files, setting parameters, and viewing results.
+
+When using the GUI, you can now upload a JSON file from a previous brachytherapy session to automatically populate the EBRT dose information. The application will also export a JSON file that includes the EBRT summary, allowing for a seamless workflow between sessions.
+
+Alternatively, to run the evaluation from the command line (for scripting or batch processing):
 
 ```bash
-python main.py --data_dir "/path/to/your/dicom/data" --ebrt_dose 0.0 --output_html "Brachytherapy_Report.html"
+python main.py --data_dir "/path/to/your/dicom/data" --ebrt_dose 0.0 --output_html "Brachytherapy_Report.html" --previous_brachy_data "/path/to/previous_report.html_or_json" --custom_constraints '{"Bladder": {"EQD2": {"max": 80}}}'
 ```
 
 **Arguments for `main.py`:**
 
 - `--data_dir` (required): Path to the parent directory containing the patient's DICOM RT Dose, RT Structure Set, and RT Plan subdirectories.
 - `--ebrt_dose` (optional): The prescription dose of the external beam radiation therapy in Gray (Gy). Defaults to `0.0`.
-- `--output_html` (optional): If provided, the results will be saved to this HTML file.
+- `--output_html` (optional): If provided, the comprehensive HTML report will be saved to this file.
+- `--previous_brachy_data` (optional): Path to a previous brachytherapy evaluation report (HTML or JSON format) to incorporate its EQD2 values for dose accumulation. If a JSON file is provided, it should be the output from the GUI's "Download Brachy Data (JSON)" button.
+- `--custom_constraints` (optional): A JSON string representing custom EQD2 constraints. This will override the default constraints defined in `config.py` for the selected plan type. Example: `'{"Bladder": {"EQD2": {"max": 80}}}'`
 
-**Example:**
+**Example (Command Line):**
 
 ```bash
-python main.py --data_dir "C:\Users\echorniak\GIT\BrachyD2ccEval\DOE^JANE_ANON93124_RTDOSE_2025-07-11_122839_HDR_Dose.for.30mm.Cylinder_n1__00000" --ebrt_dose 50 --output_html "MyPatientReport.html"
+python main.py --data_dir "C:\Users\echorniak\GIT\BrachyD2ccEval\sample_data\Jane Doe" --ebrt_dose 50 --output_html "MyPatientReport.html" --previous_brachy_data "C:\Users\echorniak\GIT\BrachyD2ccEval\sample_data\previous_brachy_plan.json" --custom_constraints '{"Rectum": {"EQD2": {"max": 75}}}'
 ```
+
 
 ## Configuration
 
-Alpha/beta ratios for different organs are configured in `config.py`. You can modify these values to suit your specific requirements.
+Alpha/beta ratios, plan types, and their associated point dose constraints are configured in `config.py`. This includes specific `point_dose_constraints` for "Prescription Point" within the "Cylinder HDR" template, which are used for automatic evaluation of cylinder plan prescription points. You can modify these values to suit your specific requirements.
+
 
 ## Development Notes
 

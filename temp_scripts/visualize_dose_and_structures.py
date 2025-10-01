@@ -5,27 +5,10 @@ from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from skimage import measure
 import os
 
-# Function to find DICOM files in a directory
-def find_dicom_files(directory):
-    dicom_files = {"RTDOSE": None, "RTSTRUCT": None}
-    for root, _, files in os.walk(directory):
-        for file in files:
-            if file.endswith('.dcm'):
-                file_path = os.path.join(root, file)
-                try:
-                    ds = pydicom.dcmread(file_path, force=True)
-                    modality = ds.Modality
-                    if modality == "RTDOSE":
-                        dicom_files["RTDOSE"] = file_path
-                    elif modality == "RTSTRUCT":
-                        dicom_files["RTSTRUCT"] = file_path
-                except Exception as e:
-                    print(f"Skipping file {file_path}: {e}")
-    return dicom_files
-
 # Load DICOM files
-dicom_dir = "C:\\Users\\echorniak\\GIT\\BrachyD2ccEval"
-dicom_files = find_dicom_files(dicom_dir)
+dicom_files = {
+    "RTDOSE":  
+    "RTSTRUCT": }
 
 if not dicom_files["RTDOSE"] or not dicom_files["RTSTRUCT"]:
     print("Error: RTDOSE or RTSTRUCT file not found.")

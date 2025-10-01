@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EMBRACE II OAR Constraint Calculator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+        .container {
+            max-width: 1000px;
+        }
+        .table-header {
+            background-color: #4b5563;
+            color: white;
+        }
+        .input-field {
+            @apply w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-center;
+        }
+        .output-cell {
+            @apply px-4 py-3 bg-gray-50 text-center font-medium;
+        }
+         .result-cell {
+            @apply px-4 py-3 bg-emerald-100 text-emerald-900 text-center font-bold text-lg;
+        }
+        .info-box {
+            background-color: #eef2ff;
+            border-left: 4px solid #6366f1;
+            padding: 1rem;
+            margin-top: 1.5rem;
+            border-radius: 0.25rem;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div class="container mx-auto bg-white p-6 rounded-xl shadow-lg">
+
+        <header class="mb-6 text-center">
+            <h1 class="text-3xl font-bold text-gray-800">EMBRACE II OAR Constraint Calculator</h1>
+            <p class="text-gray-600 mt-2">Determine the maximum allowed External Beam (EBRT) dose based on prior Brachytherapy dose.</p>
+        </header>
+
+        <!-- Main Inputs -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 p-4 bg-gray-50 rounded-lg border">
+            <div>
+                <label for="ebrtDosePerFraction" class="block text-sm font-medium text-gray-700 mb-1">EBRT Dose per Fraction (Gy)</label>
+                <input type="number" id="ebrtDosePerFraction" value="1.8" step="0.1" class="input-field">
+            </div>
+            <div>
+                <label for="brachyFractions" class="block text-sm font-medium text-gray-700 mb-1">Brachytherapy Number of Fractions</label>
+                <input type="number" id="brachyFractions" value="4" step="1" class="input-field">
+            </div>
+        </div>
+        
+        <!-- Results Table -->
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200 border rounded-lg">
+                <thead class="table-header">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Organ (OAR)</th>
+                        <th class="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider">Brachy D2cc (Physical Dose, Gy)</th>
+                        <th class="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider">EMBRACE II Constraint (EQD2)</th>
+                        <th class="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider">Brachy EQD2 Contribution</th>
+                        <th class="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider">Remaining EBRT Budget (EQD2)</th>
+                        <th class="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider">Max EBRT Physical Dose (Gy)</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200" id="results-table">
+                    <!-- Rows will be dynamically inserted here by JavaScript -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Explanations -->
+        <div class="info-box">
+            <h3 class="text-lg font-semibold text-indigo-800">Calculation Details</h3>
+            <p class="text-indigo-700 mt-2 text-sm">
+                This calculator uses the Linear-Quadratic model to convert physical doses into a biologically equivalent dose (EQD2).
+            </p>
+            <ul class="list-disc list-inside mt-2 text-sm text-indigo-700 space-y-1">
+                <li>An <strong>alpha/beta (α/β) ratio of 3 Gy</strong> is assumed for all organs at risk, as per the EMBRACE II guidelines.</li>
+                <li><strong>EQD2 Formula:</strong> EQD2 = D * (d + α/β) / (2 + α/β), where D is total dose and d is dose per fraction.</li>
+                <li>The 'Max EBRT Physical Dose' is the key result, showing the maximum dose you can deliver with your specified EBRT fractionation without exceeding the total OAR constraint.</li>
+            </ul>
+        </div>
+
+    </div>
+
+    <script>
+        const organs = [
+            { name: 'Bladder', brachyD2cc: 4.3555, constraintEQD2: 80.0 },
+            { name: 'Rectum', brachyD2cc: 5.1040, constraintEQD2: 65.0 },
+            { name: 'Sigmoid', brachyD2cc: 4.7631, constraintEQD2: 70.0 }, // Using the upper limit of 65-70 Gy
+            { name: 'Bowel', brachyD2cc: 0.4772, constraintEQD2: 70.0 }   // Using the upper limit of 65-70 Gy
+        ];
+        const alphaBeta = 3.0;
+
+        const ebrtDosePerFractionInput = document.getElementById('ebrtDosePerFraction');
+        const brachyFractionsInput = document.getElementById('brachyFractions');
+        const tableBody = document.getElementById('results-table');
+
+        function calculateAndDisplay() {
+            const ebrtDosePerFraction = parseFloat(ebrtDosePerFractionInput.value);
+            const brachyFractions = parseInt(brachyFractionsInput.value);
+
+            // Clear previous results
+            tableBody.innerHTML = '';
+            
+            if (isNaN(ebrtDosePerFraction) || ebrtDosePerFraction <= 0 || isNaN(brachyFractions) || brachyFractions <= 0) {
+                 tableBody.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-red-600">Please enter valid, positive numbers for the inputs.</td></tr>`;
+                 return;
+            }
+
+            organs.forEach(organ => {
+                // 1. Calculate Brachytherapy EQD2 contribution
+                const D_brachy_per_fraction = organ.brachyD2cc;
+                const total_brachy_dose = D_brachy_per_fraction * brachyFractions;
+                const eqd2_brachy = total_brachy_dose * (D_brachy_per_fraction + alphaBeta) / (2 + alphaBeta);
+
+                // 2. Calculate remaining EQD2 budget for EBRT
+                const remaining_eqd2_ebrt = organ.constraintEQD2 - eqd2_brachy;
+                
+                let max_ebrt_physical_dose = 0;
+                if (remaining_eqd2_ebrt > 0) {
+                    // 3. Solve for max EBRT physical dose (D_EBRT)
+                    // remaining_eqd2_ebrt = D_EBRT * (d_EBRT + alphaBeta) / (2 + alphaBeta)
+                    // D_EBRT = remaining_eqd2_ebrt * (2 + alphaBeta) / (d_EBRT + alphaBeta)
+                    max_ebrt_physical_dose = remaining_eqd2_ebrt * (2 + alphaBeta) / (ebrtDosePerFraction + alphaBeta);
+                }
+                
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="px-4 py-3 whitespace-nowrap font-semibold text-gray-700">${organ.name}</td>
+                    <td class="text-center">
+                        <input type="number" value="${organ.brachyD2cc.toFixed(4)}" class="input-field organ-brachy-dose" data-organ-name="${organ.name}">
+                    </td>
+                    <td class="output-cell">${organ.constraintEQD2.toFixed(1)} Gy</td>
+                    <td class="output-cell">${eqd2_brachy.toFixed(2)} Gy</td>
+                    <td class="output-cell ${remaining_eqd2_ebrt < 0 ? 'text-red-600 bg-red-100' : ''}">${remaining_eqd2_ebrt.toFixed(2)} Gy</td>
+                    <td class="result-cell ${remaining_eqd2_ebrt < 0 ? 'bg-red-200 text-red-900' : ''}">
+                        ${max_ebrt_physical_dose > 0 ? max_ebrt_physical_dose.toFixed(2) + ' Gy' : 'Constraint Exceeded'}
+                    </td>
+                `;
+                tableBody.appendChild(row);
+            });
+            
+            // Add event listeners to newly created brachy dose inputs
+            document.querySelectorAll('.organ-brachy-dose').forEach(input => {
+                input.addEventListener('input', (e) => {
+                    const organName = e.target.getAttribute('data-organ-name');
+                    const newValue = parseFloat(e.target.value);
+                    const organToUpdate = organs.find(o => o.name === organName);
+                    if (organToUpdate && !isNaN(newValue)) {
+                        organToUpdate.brachyD2cc = newValue;
+                        calculateAndDisplay();
+                    }
+                });
+            });
+        }
+        
+        // Initial calculation on page load
+        window.addEventListener('load', calculateAndDisplay);
+
+        // Recalculate when main inputs change
+        ebrtDosePerFractionInput.addEventListener('input', calculateAndDisplay);
+        brachyFractionsInput.addEventListener('input', calculateAndDisplay);
+
+    </script>
+
+</body>
+</html>
