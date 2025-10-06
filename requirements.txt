@@ -6,3 +6,4 @@ streamlit
 dicompyler-core
 pdfkit
 fuzzywuzzy
+beautifulsoup4
