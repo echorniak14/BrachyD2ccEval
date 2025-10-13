@@ -19,7 +19,50 @@ from src.calculations import calculate_optimization_goal
 def main():
     st.set_page_config(layout="wide")
 
-    # --- Session State Initialization ---
+    def clear_uploads():
+        st.session_state.widget_key_suffix += 1
+        if 'results' in st.session_state:
+            del st.session_state.results
+        if 'structure_mapping' in st.session_state:
+            del st.session_state.structure_mapping
+        if 'manual_mapping' in st.session_state:
+            del st.session_state.manual_mapping
+
+    def clear_results():
+        if 'results' in st.session_state:
+            del st.session_state.results
+
+    def calculate_dose_per_fraction():
+        if st.session_state.ebrt_num_fractions > 0:
+            st.session_state.ebrt_fraction_dose = st.session_state.ebrt_total_dose / st.session_state.ebrt_num_fractions
+        else:
+            st.session_state.ebrt_fraction_dose = 0.0
+
+    def calculate_total_dose():
+        st.session_state.ebrt_total_dose = st.session_state.ebrt_fraction_dose * st.session_state.ebrt_num_fractions
+
+    def reset_doses_to_default():
+        template_name = st.session_state.template_selector
+        if "Cylinder" in template_name:
+            st.session_state.proposed_brachy_dose_fx = 5.0
+            st.session_state.proposed_brachy_num_fx = 5
+        else:
+            st.session_state.proposed_brachy_dose_fx = 7.0
+            st.session_state.proposed_brachy_num_fx = 4
+        st.session_state.ebrt_total_dose = 45.0
+        st.session_state.ebrt_num_fractions = 25
+        st.session_state.ebrt_fraction_dose = 1.8
+        if 'optimization_goals' in st.session_state:
+            del st.session_state.optimization_goals
+
+    def on_template_change():
+        st.session_state.current_template_name = st.session_state.template_selector
+        st.session_state.ab_ratios = templates[st.session_state.current_template_name]["alpha_beta_ratios"].copy()
+        st.session_state.custom_constraints = templates[st.session_state.current_template_name].copy()
+        reset_doses_to_default()
+        clear_results()
+
+
     if "current_template_name" not in st.session_state:
         st.session_state.current_template_name = "Cervix HDR - EMBRACE II"
     if "ab_ratios" not in st.session_state:
@@ -38,31 +81,10 @@ def main():
         st.session_state.proposed_brachy_num_fx = 4
     if 'widget_key_suffix' not in st.session_state:
         st.session_state.widget_key_suffix = 0
+    if 'widget_key_suffix' not in st.session_state:
+        st.session_state.widget_key_suffix = 0
 
-        # --- NEW: Define callback functions at the top of main() ---
-    def calculate_dose_per_fraction():
-        if st.session_state.ebrt_num_fractions > 0:
-            st.session_state.ebrt_fraction_dose = st.session_state.ebrt_total_dose / st.session_state.ebrt_num_fractions
-        else:
-            st.session_state.ebrt_fraction_dose = 0.0
 
-    def calculate_total_dose():
-        st.session_state.ebrt_total_dose = st.session_state.ebrt_fraction_dose * st.session_state.ebrt_num_fractions
-    
-    def reset_doses_to_default():
-        template_name = st.session_state.template_selector
-        if "Cylinder" in template_name:
-            st.session_state.proposed_brachy_dose_fx = 5.0
-            st.session_state.proposed_brachy_num_fx = 5
-        else:
-            st.session_state.proposed_brachy_dose_fx = 7.0
-            st.session_state.proposed_brachy_num_fx = 4
-        st.session_state.ebrt_total_dose = 45.0
-        st.session_state.ebrt_num_fractions = 25
-        st.session_state.ebrt_fraction_dose = 1.8
-        if 'optimization_goals' in st.session_state:
-            del st.session_state.optimization_goals
-            
     # --- NEW: Sidebar with Interactive Widgets ---
     with st.sidebar:
         st.header("Treatment Parameters")
@@ -81,7 +103,18 @@ def main():
         st.markdown("---")
 
         st.button("Reset Doses to Default", on_click=reset_doses_to_default, use_container_width=True)
+        st.markdown("---")
+        st.button("Clear Uploads", on_click=clear_uploads, use_container_width=True)
 
+
+    def clear_uploads():
+        st.session_state.widget_key_suffix += 1
+        if 'results' in st.session_state:
+            del st.session_state.results
+        if 'structure_mapping' in st.session_state:
+            del st.session_state.structure_mapping
+        if 'manual_mapping' in st.session_state:
+            del st.session_state.manual_mapping
 
     def clear_results():
         if 'results' in st.session_state:
@@ -234,7 +267,8 @@ def main():
         st.header("Step 2: Upload and Analyze a Completed Plan")
 
         st.subheader("Upload DICOM Files")
-        uploaded_files = st.file_uploader("Upload RTDOSE, RTSTRUCT, and RTPLAN files", type=["dcm", "DCM"], accept_multiple_files=True, key="dicom_uploader", on_change=clear_results)
+        uploaded_files = st.file_uploader("Upload RTDOSE, RTSTRUCT, and RTPLAN files", type=["dcm", "DCM"], accept_multiple_files=True, key=f"dicom_uploader_{st.session_state.widget_key_suffix}", on_change=clear_results)
+
         
         structure_data, plan_data_from_dicom = {}, {}
         if uploaded_files:
