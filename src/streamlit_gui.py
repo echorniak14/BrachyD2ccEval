@@ -350,6 +350,7 @@ def main():
                                 dose_point_mapping=[(k, v) for k, v in st.session_state.get('manual_mapping', {}).items() if v != "N/A"],
                                 custom_constraints=st.session_state.custom_constraints,
                                 num_fractions_delivered=st.session_state.proposed_brachy_num_fx,
+                                ebrt_fractions=st.session_state.ebrt_num_fractions, # ADDED THIS LINE
                                 structure_mapping=st.session_state.get('structure_mapping', {})
                             )
             else:

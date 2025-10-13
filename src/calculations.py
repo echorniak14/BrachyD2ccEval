@@ -114,32 +114,22 @@ def calculate_bed_and_eqd2(total_dose, dose_per_fraction, organ_name, ebrt_dose=
     
     return round(total_bed, 2), round(eqd2, 2), round(bed_brachy, 2), round(bed_ebrt, 2), round(previous_brachy_bed, 2)
 
-def calculate_dose_to_meet_constraint(eqd2_constraint, organ_name, number_of_fractions, ebrt_dose=0, previous_brachy_bed=0, alpha_beta_ratios=None):
+def calculate_dose_to_meet_constraint(eqd2_constraint, organ_name, number_of_fractions, ebrt_dose=0, ebrt_fractions=1, previous_brachy_bed=0, alpha_beta_ratios=None):
     """Calculates the brachytherapy dose per fraction needed to meet a specific EQD2 constraint."""
     if alpha_beta_ratios is None:
         from .config import templates
         alpha_beta_ratios = templates["Cervix HDR - EMBRACE II"]["alpha_beta_ratios"]
 
     alpha_beta = alpha_beta_ratios.get(organ_name, alpha_beta_ratios["Default"])
-    k_factor = (1 + (2 / alpha_beta))
-    total_bed_target = eqd2_constraint * k_factor
-    bed_ebrt = ebrt_dose * k_factor
-    bed_brachy_needed = total_bed_target - bed_ebrt - previous_brachy_bed
 
-    a = number_of_fractions / alpha_beta
-    b = number_of_fractions
-    c = -bed_brachy_needed
-    discriminant = b**2 - 4*a*c
-
-    if discriminant < 0:
-        return None
-    
-    dose_per_fraction_solution = (-b + np.sqrt(discriminant)) / (2*a)
-
-    if dose_per_fraction_solution < 0:
-        return None
-
-    return round(dose_per_fraction_solution, 2)
+    return calculate_optimization_goal(
+        total_eqd2_constraint=eqd2_constraint,
+        alpha_beta=alpha_beta,
+        ebrt_dose=ebrt_dose,
+        ebrt_fractions=ebrt_fractions,
+        previous_brachy_bed=previous_brachy_bed,
+        num_new_brachy_fractions=number_of_fractions
+    )
 
 def calculate_point_dose_bed_eqd2(point_dose, number_of_fractions, organ_name, ebrt_dose=0, ebrt_fractions=1, previous_brachy_bed=0, alpha_beta_ratios=None):
     """Calculates BED and EQD2 for a given point dose."""
