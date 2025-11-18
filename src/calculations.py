@@ -6,6 +6,18 @@ import os
 import contextlib
 import re
 
+def get_alpha_beta(organ_name, alpha_beta_ratios):
+    """Performs a case-insensitive lookup to find the correct alpha/beta ratio."""
+    # First, try a direct, case-sensitive match for performance
+    if organ_name in alpha_beta_ratios:
+        return alpha_beta_ratios[organ_name]
+    # If that fails, iterate and find a case-insensitive match
+    for key, value in alpha_beta_ratios.items():
+        if key.lower() == organ_name.lower():
+            return value
+    # If no specific match is found, fall back to the default value
+    return alpha_beta_ratios.get("Default", 3.0)
+
 def normalize_structure_name(name):
     """Normalizes structure names for consistent matching."""
     # Remove content in brackets (e.g., [cm3]) or parentheses
@@ -105,10 +117,15 @@ def calculate_bed_and_eqd2(total_dose, dose_per_fraction, organ_name, ebrt_dose=
         from .config import templates
         alpha_beta_ratios = templates["Cervix HDR - EMBRACE II"]["alpha_beta_ratios"]
 
-    alpha_beta = alpha_beta_ratios.get(organ_name, alpha_beta_ratios["Default"])
+    alpha_beta = get_alpha_beta(organ_name, alpha_beta_ratios)   
     
     bed_brachy = total_dose * (1 + (dose_per_fraction / alpha_beta))
-    bed_ebrt = ebrt_dose * (1 + (2 / alpha_beta))
+    # --- START: Corrected EBRT BED Calculation ---
+    bed_ebrt = 0
+    if ebrt_dose > 0 and ebrt_fractions > 0:
+        ebrt_dose_per_fraction = ebrt_dose / ebrt_fractions
+        bed_ebrt = ebrt_dose * (1 + (ebrt_dose_per_fraction / alpha_beta))
+    # --- END: Corrected EBRT BED Calculation ---
     total_bed = bed_brachy + bed_ebrt + previous_brachy_bed
     eqd2 = total_bed / (1 + (2 / alpha_beta))
     
@@ -120,7 +137,7 @@ def calculate_dose_to_meet_constraint(eqd2_constraint, organ_name, number_of_fra
         from .config import templates
         alpha_beta_ratios = templates["Cervix HDR - EMBRACE II"]["alpha_beta_ratios"]
 
-    alpha_beta = alpha_beta_ratios.get(organ_name, alpha_beta_ratios["Default"])
+    alpha_beta = get_alpha_beta(organ_name, alpha_beta_ratios)
 
     return calculate_optimization_goal(
         total_eqd2_constraint=eqd2_constraint,
@@ -137,7 +154,7 @@ def calculate_point_dose_bed_eqd2(point_dose, number_of_fractions, organ_name, e
         from .config import templates
         alpha_beta_ratios = templates["Cervix HDR - EMBRACE II"]["alpha_beta_ratios"]
 
-    alpha_beta = alpha_beta_ratios.get(organ_name, alpha_beta_ratios["Default"])
+    alpha_beta = get_alpha_beta(organ_name, alpha_beta_ratios)
     total_dose = point_dose * number_of_fractions
     bed_brachy = total_dose * (1 + (point_dose / alpha_beta))
     bed_ebrt = ebrt_dose * (1 + (2 / alpha_beta))
@@ -146,16 +163,24 @@ def calculate_point_dose_bed_eqd2(point_dose, number_of_fractions, organ_name, e
     
     return round(total_bed, 2), round(eqd2, 2), round(bed_brachy, 2), round(bed_ebrt, 2), round(previous_brachy_bed, 2)
 
-def get_dvh(rtss_file, rtdose_file, structure_data, number_of_fractions, ebrt_dose=0, ebrt_fractions=1, previous_brachy_bed_per_organ=None, alpha_beta_ratios=None):
-    """Calculates the Dose-Volume Histogram (DVH) for each structure."""
+def get_dvh(rtss_file, rtdose_file, structure_data, number_of_fractions, ebrt_dose=0, ebrt_fractions=1, previous_brachy_bed_per_organ=None, alpha_beta_ratios=None, confirmed_structure_mapping=None):
+    """Calculates the Dose-Volume Histogram (DVH) for each structure and includes previous BED."""
     if previous_brachy_bed_per_organ is None:
         previous_brachy_bed_per_organ = {}
+    if confirmed_structure_mapping is None:
+        confirmed_structure_mapping = {}
+        
     dvh_results = {}
 
     all_calculated_volumes = calculate_contour_volumes(rtss_file, structure_data)
 
+    # Invert the confirmed mapping for easier lookup: {OriginalDICOMName: MappedJSONName}
+    # We will use this to find the correct previous dose data.
+    dicom_to_json_map = {k.lower(): v for k, v in confirmed_structure_mapping.items() if v != "Ignore"}
+
     for name, data in structure_data.items():
-        normalized_name = normalize_structure_name(name)
+        # 'name' is the original DICOM name, e.g., "HR-CTV Fx3_4"
+        normalized_name = normalize_structure_name(name) # Becomes "Hr-ctv fx3_4"
         organ_volume_cc = all_calculated_volumes.get(normalized_name, 0.0)
 
         roi_number = data["ROINumber"]
@@ -174,9 +199,33 @@ def get_dvh(rtss_file, rtdose_file, structure_data, number_of_fractions, ebrt_do
 
         except Exception as e:
             d2cc_gy_per_fraction, d1cc_gy_per_fraction, d0_1cc_gy_per_fraction, max_dose_gy_per_fraction, mean_dose_gy_per_fraction, min_dose_gy_per_fraction, d95_gy_per_fraction, d98_gy_per_fraction, d90_gy_per_fraction = (0.0,) * 9
-            
+        
+        # --- START: New Robust Historical Dose Lookup ---
+        
+        standardized_name = None
+        previous_bed_data = {}
+
+        # 1. Find the standardized name from the user's mapping (case-insensitive).
+        # `name` is the original DICOM name (e.g., 'Bladder').
+        # `dicom_name_from_map` is a key from the mapping UI (also original DICOM name).
+        # `std_name` is the value from the mapping UI (e.g., 'rectum', 'bladder').
+        for dicom_name_from_map, std_name in confirmed_structure_mapping.items():
+            if dicom_name_from_map.lower() == name.lower():
+                standardized_name = std_name
+                break
+
+        # 2. If a mapping was found, use it to find the historical data (case-insensitive).
+        if standardized_name and standardized_name != "Ignore":
+            # `history_key` is a key from the loaded JSON file (e.g., 'Bladder').
+            # `history_value` is the dictionary of dose data for that organ.
+            for history_key, history_value in previous_brachy_bed_per_organ.items():
+                if history_key.lower() == standardized_name.lower():
+                    previous_bed_data = history_value
+                    break
+        # --- END: New Logic ---
+
         dvh_results[normalized_name] = {
-            'volume_cc': organ_volume_cc, # *** CORRECTED KEY ***
+            'volume_cc': organ_volume_cc,
             'd2cc_gy_per_fraction': d2cc_gy_per_fraction,
             'd1cc_gy_per_fraction': d1cc_gy_per_fraction,
             'd0_1cc_gy_per_fraction': d0_1cc_gy_per_fraction,
@@ -186,6 +235,7 @@ def get_dvh(rtss_file, rtdose_file, structure_data, number_of_fractions, ebrt_do
             'd95_gy_per_fraction': d95_gy_per_fraction,
             'd98_gy_per_fraction': d98_gy_per_fraction,
             'd90_gy_per_fraction': d90_gy_per_fraction,
+            'previous_brachy_bed': previous_bed_data # Use the result from our new logic
         }
         
     return dvh_results
