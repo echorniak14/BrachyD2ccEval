@@ -1,56 +1,31 @@
 ## Future Enhancements
 
 ### User Interface & Experience
-- [x] Visual Constraint Indicators
-    - [x] Get MD feedback on dose summary
-- [x] Conditional Formatting for Point Dose Results
-- [x] Fix the total planned dose column in the report.
-- [x] Remove BED in report
-- [x] fix contrast on dark mode
-- [x] check that you don't have to approve a plan before you can export it.
 - [ ] intermediate user input after real-time plan adjustments
-- [x] Customizable Constraints
-    - [x] OAR DVH constraints
-    - [x] Target DVH constraints/goals
-- [x] Report Customization
-    - [x] fix alpha/beta symbol on report
-    - [x] Remove two extra columns on OAR DVH results table from previous constraint status removal
-    - [x] Round all reported total planned doses to the same number of decimal points
-    - [x] Dose fx 1, dose fx 2, dose fx 3 etc.
-- [x] Templates and Presets for alpha/beta ratios, point selections and dose constraints.
+- [ ] simplified structure mapping list: bladder, rectum, sigmoid, bowel, gtv, hrctv, ignore
+- [ ] dynamic fractional updates in the DVH statisitcs section using previous brachy data for early fractions and new data for current fractions
+- [ ] auto-update the proposed brachy fraction number after dicom upload from rt plan file
+- [ ] final report can use patient schedule for each fraction or list treatment date range at the top
 
 ### Backend & Calculation Engine
 - [ ] Database Integration
-    - [x] Patient Schedule Review and Dose Summary Fill
-    - [x] Planned Delivery Date and Time from RTPLAN?
+- [ ] combine bowel 1 and bowel 2 contours into bowel contour + warning to the user
 - [ ] Robust Unit Testing
     - [ ] Point Matching
     - [ ] Volume Metric Calculations
     - [ ] Dose Summations
     - [ ] Constraint met visualization
-        - [x] DVH
         - [ ] Points
-        - [ ] Dose to meet constraint calculation
-    - [x] Constraint Template Updates
-- [x] fix point dose reporting and constraint evaluation (need details for point dose constraints eg bladder point, metrics and constraint values)
-- [x] check that the planned number of fractions is correct for plan evaluation
-- [x] Display RTPlan info on streamlet plan evaluation summary page - instant second check
-- [x] Channel Mapping display for catheters (right side of Results) have it look for channel number, channel length, and transfer tube number
 - [ ] Dwell time decay dwell position flexibility -> dwell position = index length - 1000.
 - [ ] Auto save excel file and pdf and pull up print option
-- [x] Flag user if the planned time is outside normal buisness hours
-- [ ] Correctly round the dose to meet constraint display in results
-- [x] EBRT Dose and number of fractions
 - [ ] Use provided previous brachy dose to give optimzation goals to user to achieve ALARA
 
 ### Deployment & Integration
+- [ ] Web Application Deployment
+- [ ] PACS Integration
+- [ ] API for Automation
+
 ## Phase 1: Preparation and Data Gathering
-- [x] Gather Data
-    - [x] Cylinder Case (3-5)
-    - [x] Tandem and Ovoid Case (3-5)
-    - [ ] Tandem and Ring Case (3-5)
-    - [x] Multichannel Cylinder Case
-    - [ ] Interstitial Case
 - [ ] Document the manual process
 - [ ] Create the Data collection Spreadsheet
     - [ ] Patient ID
@@ -81,6 +56,47 @@
     - [ ] 4.0 Efficiency Analysis: Present the timing comparison and discuss benefits
     - [ ] 5.0 Conclusion and Recommendation: Summarize findings and formally recommend for clinical implementation
 
-- [ ] Web Application Deployment
-- [ ] PACS Integration
-- [ ] API for Automation
+## Complete
+
+### User Interface & Experience
+- [x] Visual Constraint Indicators
+    - [x] Get MD feedback on dose summary
+- [x] Conditional Formatting for Point Dose Results
+- [x] Fix the total planned dose column in the report.
+- [x] Remove BED in report
+- [x] fix contrast on dark mode
+- [x] check that you don't have to approve a plan before you can export it.
+- [x] Customizable Constraints
+    - [x] OAR DVH constraints
+    - [x] Target DVH constraints/goals
+- [x] Report Customization
+    - [x] fix alpha/beta symbol on report
+    - [x] Remove two extra columns on OAR DVH results table from previous constraint status removal
+    - [x] Round all reported total planned doses to the same number of decimal points
+    - [x] Dose fx 1, dose fx 2, dose fx 3 etc.
+- [x] Templates and Presets for alpha/beta ratios, point selections and dose constraints.
+- [x] Clear results with input changes
+- [x] IGNORE structure mapping has no use
+
+### Backend & Calculation Engine
+- [x] Patient Schedule Review and Dose Summary Fill
+- [x] Planned Delivery Date and Time from RTPLAN?
+- [x] fix point dose reporting and constraint evaluation (need details for point dose constraints eg bladder point, metrics and constraint values)
+- [x] check that the planned number of fractions is correct for plan evaluation
+- [x] Display RTPlan info on streamlet plan evaluation summary page - instant second check
+- [x] Channel Mapping display for catheters (right side of Results) have it look for channel number, channel length, and transfer tube number
+- [x] Flag user if the planned time is outside normal buisness hours
+- [x] Correctly round the dose to meet constraint display in results
+- [x] EBRT Dose and number of fractions
+- [x] Constraint met visualization
+    - [x] DVH
+    - [x] Dose to meet constraint calculation
+- [x] Constraint Template Updates
+
+### Deployment & Integration
+- [x] Gather Data
+    - [x] Cylinder Case (3-5)
+    - [x] Tandem and Ovoid Case (3-5)
+    - [ ] Tandem and Ring Case (3-5)
+    - [x] Multichannel Cylinder Case
+    - [ ] Interstitial Case

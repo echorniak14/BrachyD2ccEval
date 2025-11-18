@@ -5,1228 +5,861 @@ import os
 import pydicom
 import pandas as pd
 import json
+import tempfile
 
 # Add the project root to the Python path
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, project_root)
 
-from src.dicom_parser import get_plan_data, get_dose_point_mapping
-from src.main import main as run_analysis, convert_html_to_pdf
+from src.main import generate_html_report, convert_html_to_pdf
+from src.dicom_parser import get_plan_data, get_dose_point_mapping, get_structure_data
+from src.main import main as run_analysis
 from src.config import templates
-import tempfile
+from src.calculations import calculate_optimization_goal
 
 def main():
     st.set_page_config(layout="wide")
-
-    def clear_results():
-        """Clears the results from the session state if they exist."""
-        if 'results' in st.session_state:
-            del st.session_state.results
     
+    # --- 👇 PASTE THE CSS BLOCK HERE 👇 ---
     # Injected CSS
     st.markdown("""
-    <style>
-        /* Target headers in the main page */
-        [data-testid="stHeader"] + [data-testid="stHorizontalBlock"] {
-            margin-top: -25px;
-        }
-        /* Target headers in the sidebar */
-        [data-testid="stSidebar"] [data-testid="stHeader"] + [data-testid="stHorizontalBlock"] {
-            margin-top: -25px;
-        }
-        /* Define the style for the results section container */
-        .results-container {
-            background-color: #e9ecef; /* A darker grey background */
-            padding: 20px;
-            border-radius: 10px;
-            border: 1px solid #e6e6e6;
-        }
-        /* Style for expander headers to match h2 */
-        summary > div[data-testid="stMarkdownContainer"] p {
-            font-size: 1.5rem; /* Equivalent to h2 font size */
-            font-weight: 600; /* Equivalent to h2 font weight */
-        }
-    </style>
-    """, unsafe_allow_html=True)
-    # Custom CSS to change header colors
+        <style>
+            /* Target headers in the main page */
+            [data-testid="stHeader"] + [data-testid="stHorizontalBlock"] {
+                margin-top: -25px;
+            }
+            /* Target headers in the sidebar */
+            [data-testid="stSidebar"] [data-testid="stHeader"] + [data-testid="stHorizontalBlock"] {
+                margin-top: -25px;
+            }
+            /* Define the style for the results section container */
+            .results-container {
+                background-color: #e9ecef; /* A darker grey background */
+                padding: 20px;
+                border-radius: 10px;
+                border: 1px solid #e6e6e6;
+            }
+            /* Style for expander headers to match h2 */
+            summary > div[data-testid="stMarkdownContainer"] p {
+                font-size: 1.5rem; /* Equivalent to h2 font size */
+                font-weight: 600; /* Equivalent to h2 font weight */
+            }
+        </style>
+        """, unsafe_allow_html=True)
+        # Custom CSS to change header colors
     st.markdown("""
-    <style>
-    h1, h2, h3, h4, h5, h6, summary {
-        color: #FF5733 !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-    st.title("Brachytherapy Evaluation and Analysis Module")
+        <style>
+        h1, h2, h3, h4, h5, h6, summary {
+            color: #FF5733 !important;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+    # ------------------------------------
 
-    st.markdown("""
-    This tool allows you to analyze and evaluate brachytherapy treatment plans.
-
-    **Instructions:**
-
-    1.  **Upload DICOM Files:** Use the file uploader below to select the RTDOSE, RTSTRUCT, and RTPLAN files for the plan you want to evaluate.
-    2.  **Select Constraint Template:** Choose a constraint template from the dropdown menu.
-    3.  **Set Parameters:** After uploading DICOM files, you can set optional parameters like EBRT dose and previous brachytherapy data.
-    4.  **Run Analysis:** Click the "Run Analysis" button to process the files and view the results.
-    5.  **View Results:** The results will be displayed in tabs, including DVH data, point doses, and a downloadable PDF report.
-    """)
-
-    # Initialize widget_key_suffix for dynamic key generation
-    if 'widget_key_suffix' not in st.session_state:
-        st.session_state.widget_key_suffix = 0
-
-    st.header("Upload DICOM Files")
-    uploaded_files = st.file_uploader("Upload RTDOSE, RTSTRUCT, and RTPLAN files", type=["dcm", "DCM"], accept_multiple_files=True, on_change=clear_results)
-
-    # If no files are uploaded, clear any previous results to prevent displaying stale data.
-    if not uploaded_files:
-        if 'results' in st.session_state:
-            del st.session_state.results
-        if 'patient_info' in st.session_state:
-            del st.session_state.patient_info
-        if 'manual_mapping' in st.session_state:
-            del st.session_state.manual_mapping
-        if 'available_point_names' in st.session_state:
-            st.session_state.available_point_names = []
-        if 'selected_point_names' in st.session_state:
-            st.session_state.selected_point_names = []
-
-    if uploaded_files:
-        rtplan_count = 0
-        rtstruct_count = 0
-        rtdose_count = 0
-
-        for uploaded_file in uploaded_files:
-            try:
-                uploaded_file.seek(0)
-                ds = pydicom.dcmread(uploaded_file, stop_before_pixels=True)
-                sop_class_uid = ds.SOPClassUID
-                if sop_class_uid == '1.2.840.10008.5.1.4.1.1.481.5':
-                    rtplan_count += 1
-                elif sop_class_uid == '1.2.840.10008.5.1.4.1.1.481.3':
-                    rtstruct_count += 1
-                elif sop_class_uid == '1.2.840.10008.5.1.4.1.1.481.2':
-                    rtdose_count += 1
-            except Exception:
-                # Not a valid DICOM file, skip
-                pass
-            finally:
-                uploaded_file.seek(0)
-
-        if rtplan_count > 1:
-            st.warning(f"Warning: {rtplan_count} RTPLAN files were uploaded. Please upload only one.")
-        if rtstruct_count > 1:
-            st.warning(f"Warning: {rtstruct_count} RTSTRUCT files were uploaded. Please upload only one.")
-        if rtdose_count > 1:
-            st.warning(f"Warning: {rtdose_count} RTDOSE files were uploaded. Please upload only one.")
-
-    st.header("Constraint Template")
-    template_names = list(templates.keys())
+    # --- Callback Functions ---
+    def update_optimization_goals():
+        """Calculates and updates the optimization goals in the session state."""
+        st.session_state.optimization_goals = []
+        oar_constraints = st.session_state.custom_constraints.get("constraints", {}).get("oar_constraints", {})
+        
+        previous_brachy_bed_per_organ = {}
+        if 'json_content' in st.session_state:
+            json_content = st.session_state.json_content
+            for organ, data in json_content.get("dvh_results", {}).items():
+                alpha_beta = st.session_state.ab_ratios.get(organ, 3.0)
+                dose_fx_list = data.get("dose_fx", {}).get("d2cc_gy_per_fraction", [])
+                total_prev_bed = sum([fx * (1 + fx / alpha_beta) for fx in dose_fx_list])
+                previous_brachy_bed_per_organ[organ] = total_prev_bed
+        
+        for organ, constraints in oar_constraints.items():
+            total_eqd2_constraint = constraints.get("D2cc", {}).get("max")
+            alpha_beta = st.session_state.ab_ratios.get(organ, 3.0)
+            previous_brachy_bed = previous_brachy_bed_per_organ.get(organ, 0.0)
+            if total_eqd2_constraint is not None:
+                goal = calculate_optimization_goal(
+                    total_eqd2_constraint=total_eqd2_constraint, alpha_beta=alpha_beta,
+                    ebrt_dose=st.session_state.ebrt_total_dose, ebrt_fractions=st.session_state.ebrt_num_fractions,
+                    previous_brachy_bed=previous_brachy_bed, num_new_brachy_fractions=st.session_state.proposed_brachy_num_fx
+                )
+                st.session_state.optimization_goals.append({
+                    "Organ": organ, "Total EQD2 Constraint (Gy)": total_eqd2_constraint,
+                    "Max D2cc per Fraction (Gy)": goal
+                })
     
-    # Initialize current_template_name in session state
-    if "current_template_name" not in st.session_state:
-        st.session_state.current_template_name = "Cervix HDR - EMBRACE II" # Default template
+    def process_json_upload():
+        prev_brachy_file = st.session_state.get('prev_brachy_uploader')
+        if prev_brachy_file:
+            try:
+                prev_brachy_file.seek(0)
+                st.session_state.json_content = json.loads(prev_brachy_file.read().decode("utf-8"))
+            except Exception as e:
+                st.error(f"Error reading uploaded JSON file: {e}")
+                if 'json_content' in st.session_state:
+                    del st.session_state.json_content
+        else:
+            if 'json_content' in st.session_state:
+                del st.session_state.json_content
+                update_optimization_goals() # Trigger calculation after processing
+    
+    def clear_uploads():
+        st.session_state.widget_key_suffix += 1
+        keys_to_delete = ['results', 'structure_mapping', 'manual_mapping', 'optimization_goals']
+        for key in keys_to_delete:
+            if key in st.session_state:
+                del st.session_state[key]
+
+    def clear_results():
+        if 'results' in st.session_state:
+            del st.session_state['results']
+
+    def calculate_dose_per_fraction():
+        if st.session_state.ebrt_num_fractions > 0:
+            st.session_state.ebrt_fraction_dose = st.session_state.ebrt_total_dose / st.session_state.ebrt_num_fractions
+        else:
+            st.session_state.ebrt_fraction_dose = 0.0
+        update_optimization_goals()
+
+    def calculate_total_dose():
+        st.session_state.ebrt_total_dose = st.session_state.ebrt_fraction_dose * st.session_state.ebrt_num_fractions
+        update_optimization_goals()
+
+    def reset_doses_to_default():
+        template_name = st.session_state.get("template_selector", st.session_state.current_template_name)
+        if "Cylinder" in template_name:
+            st.session_state.proposed_brachy_dose_fx = 5.0
+            st.session_state.proposed_brachy_num_fx = 5
+        else:
+            st.session_state.proposed_brachy_dose_fx = 7.0
+            st.session_state.proposed_brachy_num_fx = 4
+        st.session_state.ebrt_total_dose = 45.0
+        st.session_state.ebrt_num_fractions = 25
+        st.session_state.ebrt_fraction_dose = 1.8
+        if 'optimization_goals' in st.session_state:
+            del st.session_state.optimization_goals
 
     def on_template_change():
         st.session_state.current_template_name = st.session_state.template_selector
         st.session_state.ab_ratios = templates[st.session_state.current_template_name]["alpha_beta_ratios"].copy()
-        st.session_state.custom_constraints = templates[st.session_state.current_template_name]["constraints"].copy()
-        st.session_state.widget_key_suffix = st.session_state.get('widget_key_suffix', 0) + 1
-        if 'manual_mapping' in st.session_state:
-            del st.session_state['manual_mapping']
+        st.session_state.custom_constraints = templates[st.session_state.current_template_name].copy()
+        reset_doses_to_default()
         clear_results()
 
-    selected_template_name = st.selectbox(
-        "Select Template",
-        options=template_names,
-        index=template_names.index(st.session_state.current_template_name),
-        key="template_selector",
-        on_change=on_template_change
-    )
-
-    # The logic from the old `if` block is now in the `on_template_change` callback
-
-    # Initialize ab_ratios and custom_constraints in session state if not already present
+    # --- Session State Initialization ---
+    if "current_template_name" not in st.session_state:
+        st.session_state.current_template_name = "Cervix HDR - EMBRACE II"
     if "ab_ratios" not in st.session_state:
         st.session_state.ab_ratios = templates[st.session_state.current_template_name]["alpha_beta_ratios"].copy()
     if "custom_constraints" not in st.session_state:
-        st.session_state.custom_constraints = templates[st.session_state.current_template_name]["constraints"].copy()
+        st.session_state.custom_constraints = templates[st.session_state.current_template_name].copy()
+    if 'ebrt_total_dose' not in st.session_state:
+        st.session_state.ebrt_total_dose = 45.0
+    if 'ebrt_num_fractions' not in st.session_state:
+        st.session_state.ebrt_num_fractions = 25
+    if 'ebrt_fraction_dose' not in st.session_state:
+        st.session_state.ebrt_fraction_dose = 1.8
+    if 'proposed_brachy_dose_fx' not in st.session_state:
+        st.session_state.proposed_brachy_dose_fx = 7.0
+    if 'proposed_brachy_num_fx' not in st.session_state:
+        st.session_state.proposed_brachy_num_fx = 4
+    if 'widget_key_suffix' not in st.session_state:
+        st.session_state.widget_key_suffix = 0
 
-    # Initialize selected_point_names and available_point_names in session state at the top
-    if 'available_point_names' not in st.session_state:
-        st.session_state.available_point_names = []
-    if 'selected_point_names' not in st.session_state:
-        st.session_state.selected_point_names = []
+    # --- Sidebar ---
+    with st.sidebar:
+        st.header("Treatment Parameters")
+        st.write(f"**Template:** {st.session_state.current_template_name}")
+        st.markdown("---")
+        st.subheader("EBRT Dose")
+        st.number_input("Total Dose (Gy)", key='ebrt_total_dose', on_change=calculate_dose_per_fraction)
+        st.number_input("Number of Fractions", min_value=1, step=1, key='ebrt_num_fractions', on_change=calculate_dose_per_fraction)
+        st.number_input("Dose per Fraction (Gy)", key='ebrt_fraction_dose', on_change=calculate_total_dose, format="%.2f")
+        st.markdown("---")
+        st.subheader("Proposed Brachytherapy")
+        st.number_input("Dose per Fraction (Gy)", min_value=0.0, step=0.5, key='proposed_brachy_dose_fx', on_change=update_optimization_goals())
+        st.number_input("Number of Fractions", min_value=1, step=1, key='proposed_brachy_num_fx', on_change=update_optimization_goals())
+        st.markdown("---")
+        st.button("Reset Doses to Default", on_click=reset_doses_to_default, use_container_width=True)
+        st.button("Clear Uploads", on_click=clear_uploads, use_container_width=True)
+        st.button("Clear Results", on_click=clear_results, use_container_width=True)
 
-    # These will be populated from the UI later
-    ebrt_dose = 0.0
-    previous_brachy_data_file = None
-    num_fractions_delivered = 1
-    plan_data = {}
-    structure_data = {}
+    # --- Main Page Content ---
+    st.title("Brachytherapy Evaluation and Analysis Module")
 
+    pre_planning_tab, plan_analysis_tab, print_plan_tab = st.tabs([
+        "📝 Pre-Planning", "🔬 Plan Analysis", "📄 Print Plan"
+    ])
 
-    if st.session_state.current_template_name == "Custom":
-        with st.expander("Customize Template", expanded=True):
-            st.header("Alpha/Beta Ratios")
-
-            # Reset button for alpha/beta ratios
-            if st.button("Reset Alpha/Beta Ratios to Template Defaults"):
-                st.session_state.ab_ratios = templates[st.session_state.current_template_name]["alpha_beta_ratios"].copy()
-                st.session_state.widget_key_suffix = st.session_state.get('widget_key_suffix', 0) + 1 # Force re-render
-
-            # Display and update alpha/beta ratios
-            for organ, val in st.session_state.ab_ratios.items():
-                st.session_state.ab_ratios[organ] = st.number_input(
-                    f"{organ}",
-                    value=float(val),
-                    key=f"ab_{organ}_{st.session_state.widget_key_suffix}",
-                    on_change=clear_results
-                )
-
-            st.header("Constraints")
-
-            # Reset constraints button
-            if st.button("Reset Constraints to Template Defaults"):
-                st.session_state.custom_constraints = templates[st.session_state.current_template_name]["constraints"].copy()
-                st.session_state.widget_key_suffix = st.session_state.get('widget_key_suffix', 0) + 1 # Force re-render
-
-            # Separate constraints into target and OAR
-            target_constraints = st.session_state.custom_constraints.get("target_constraints", {})
-            oar_constraints = st.session_state.custom_constraints.get("oar_constraints", {})
-
-            # Display and update constraints for Custom template
-            col1, col2 = st.columns(2)
-            with col1:
+    # ==============================================================================
+    # TAB 1: PRE-PLANNING
+    # ==============================================================================
+    with pre_planning_tab:
+        st.header("Step 1: Define Treatment Parameters")
+        st.markdown("Use this section to calculate OAR dose limits **before** creating a plan to set clear optimization goals.")
+        st.subheader("Constraint Template")
+        template_names = list(templates.keys())
+        st.selectbox("Select Template", options=template_names, index=template_names.index(st.session_state.current_template_name), key="template_selector", on_change=on_template_change)
+        with st.expander("View Current Constraints"):
+            target_constraints = st.session_state.custom_constraints.get("constraints", {}).get("target_constraints", {})
+            oar_constraints = st.session_state.custom_constraints.get("constraints", {}).get("oar_constraints", {})
+            t_col, o_col = st.columns(2)
+            with t_col:
                 st.subheader("Target Volumes")
-                for organ, organ_constraints in target_constraints.items():
-                    st.write(f"**{organ}**")
-                    if "min" in organ_constraints:
-                        st.session_state.custom_constraints["target_constraints"][organ]["min"] = st.number_input(
-                            f"Min (Gy)",
-                            value=float(organ_constraints["min"]),
-                            key=f"constraint_{organ}_min_{st.session_state.widget_key_suffix}",
-                            on_change=clear_results
-                        )
-                    if "max" in organ_constraints:
-                        st.session_state.custom_constraints["target_constraints"][organ]["max"] = st.number_input(
-                            f"Max (Gy)",
-                            value=float(organ_constraints["max"]),
-                            key=f"constraint_{organ}_max_{st.session_state.widget_key_suffix}",
-                            on_change=clear_results
-                        )
-                    if "D90" in organ_constraints:
-                        st.session_state.custom_constraints["target_constraints"][organ]["D90"] = st.number_input(
-                            f"D90 (Gy)",
-                            value=float(organ_constraints["D90"]),
-                            key=f"constraint_{organ}_D90_{st.session_state.widget_key_suffix}",
-                            on_change=clear_results
-                        )
-                    if "D98" in organ_constraints:
-                        st.session_state.custom_constraints["target_constraints"][organ]["D98"] = st.number_input(
-                            f"D98 (Gy)",
-                            value=float(organ_constraints["D98"]),
-                            key=f"constraint_{organ}_D98_{st.session_state.widget_key_suffix}",
-                            on_change=clear_results
-                        )
-
-            with col2:
+                if not target_constraints:
+                    st.write("No target constraints defined.")
+                else:
+                    for organ, constraints in target_constraints.items():
+                        st.markdown(f"**{organ}**")
+                        for key, value in constraints.items():
+                            if key != 'unit':
+                                st.markdown(f"- {key}: **{value}** Gy")
+            with o_col:
                 st.subheader("Organs at Risk")
-                for organ, organ_constraints in oar_constraints.items():
-                    st.write(f"**{organ}**")
-                    if "warning" in organ_constraints["D2cc"]:
-                        st.session_state.custom_constraints["oar_constraints"][organ]["D2cc"]["warning"] = st.number_input(
-                            f"D2cc Warning (Gy)",
-                            value=float(organ_constraints["D2cc"]["warning"]),
-                            key=f"constraint_{organ}_D2cc_warning_{st.session_state.widget_key_suffix}",
-                            on_change=clear_results
-                        )
-                    st.session_state.custom_constraints["oar_constraints"][organ]["D2cc"]["max"] = st.number_input(
-                        f"D2cc Max (Gy)",
-                        value=float(organ_constraints["D2cc"]["max"]),
-                        key=f"constraint_{organ}_D2cc_max_{st.session_state.widget_key_suffix}",
-                        on_change=clear_results
-                    )
-    
-    st.sidebar.header("Loaded EQD2 Constraints")
-    target_constraints = st.session_state.custom_constraints.get("target_constraints", {})
-    oar_constraints = st.session_state.custom_constraints.get("oar_constraints", {})
-    st.sidebar.subheader("Target Volumes")
-    for organ, organ_constraints in target_constraints.items():
-        col_left, col_right = st.sidebar.columns([0.4, 1])
-        with col_left:
-            st.sidebar.write(f"**{organ} (α/β = {st.session_state.ab_ratios.get(organ.split(' ')[0], 'N/A')})**")
-        with col_right:
-            if "min" in organ_constraints and "max" in organ_constraints:
-                st.sidebar.write(f"Min: {organ_constraints['min']} Gy, Max: {organ_constraints['max']} Gy")
-            elif "min" in organ_constraints:
-                st.sidebar.write(f"Min: {organ_constraints['min']} Gy")
-    st.sidebar.subheader("Organs at Risk")
-    for organ, organ_constraints in oar_constraints.items():
-        col_left, col_right = st.sidebar.columns([0.4, 1])
-        with col_left:
-            st.sidebar.write(f"**{organ} (α/β = {st.session_state.ab_ratios.get(organ.split(' ')[0], 'N/A')})**")
-        with col_right:
-            if "warning" in organ_constraints["D2cc"]:
-                st.sidebar.write(f"D2cc Warning: {organ_constraints['D2cc']['warning']} Gy, Max: {organ_constraints['D2cc']['max']} Gy")
-            else:
-                st.sidebar.write(f"D2cc Max: {organ_constraints['D2cc']['max']} Gy")
-
-    if uploaded_files:
-        # --- Get patient info from the first DICOM file ---
-        if 'patient_info' not in st.session_state or st.session_state.get("last_uploaded_files") != "_".join(sorted([f.name for f in uploaded_files])):
-            try:
-                first_file = uploaded_files[0]
-                first_file.seek(0)
-                ds = pydicom.dcmread(first_file, stop_before_pixels=True)
-                st.session_state['patient_info'] = {
-                    "name": str(ds.PatientName),
-                    "mrn": str(ds.PatientID)
-                }
-                first_file.seek(0)
-            except Exception as e:
-                st.warning(f"Could not read patient information from DICOM files: {e}")
-                st.session_state['patient_info'] = {"name": "N/A", "mrn": "N/A"}
-        # --- End of new code ---
-
-        with st.expander("Optional Inputs", expanded=True):
-            st.markdown("<h3 style='color: #fc8781;'>Previous Brachytherapy Treatments Delivered</h3>", unsafe_allow_html=True)
-            previous_brachy_data_file = st.file_uploader("Upload previous brachytherapy data (optional)", type=["html", "json"], key="prev_brachy_uploader", on_change=clear_results)
-
-            # *** Read JSON file once and store in session_state ***
-            if 'prev_brachy_uploader' in st.session_state and st.session_state.prev_brachy_uploader is not None:
-                uploaded_json_file = st.session_state.prev_brachy_uploader
-                if uploaded_json_file.name.endswith('.json'):
-                    try:
-                        uploaded_json_file.seek(0)
-                        json_content = json.loads(uploaded_json_file.read().decode("utf-8"))
-                        st.session_state.previous_brachy_json = json_content
-
-                        json_patient_name = json_content.get("patient_name", "N/A")
-                        json_patient_mrn = json_content.get("patient_mrn", "N/A")
-
-                        current_patient_name = st.session_state.get('patient_info', {}).get('name', 'N/A')
-                        current_patient_mrn = st.session_state.get('patient_info', {}).get('mrn', 'N/A')
-
-                        if json_patient_name != current_patient_name or json_patient_mrn != current_patient_mrn:
-                            st.warning(f"Patient mismatch! Current patient: {current_patient_name} ({current_patient_mrn}). JSON patient: {json_patient_name} ({json_patient_mrn}).")
-                        
-                        if "ebrt_summary" in json_content:
-                            st.session_state.ebrt_total_dose = json_content["ebrt_summary"].get("total_dose", 0.0)
-                            st.session_state.ebrt_num_fractions = json_content["ebrt_summary"].get("number_of_fractions", 25)
-                            st.session_state.ebrt_fraction_dose = json_content["ebrt_summary"].get("dose_per_fraction", 0.0)
-
-                        from src.main import get_structure_mapping
-                        structure_names = list(st.session_state.get('structure_mapping', {}).keys())
-                        json_structure_names = list(json_content.get("dvh_results", {}).keys())
-                        if structure_names and json_structure_names:
-                            proposed_mapping = get_structure_mapping(structure_names, json_structure_names)
-
-                            with st.expander("Confirm Structure Mapping"):
-                                if 'confirmed_structure_mapping' not in st.session_state:
-                                    st.session_state.confirmed_structure_mapping = {}
-
-                                for current_struct, json_struct in proposed_mapping.items():
-                                    mapping = st.selectbox(
-                                        f"Map '{current_struct}' to:",
-                                        options=json_structure_names,
-                                        index=json_structure_names.index(json_struct),
-                                        key=f"confirm_map_{current_struct}"
-                                    )
-                                    st.session_state.confirmed_structure_mapping[current_struct] = mapping
-                    except Exception as e:
-                        st.error(f"Error reading patient info from JSON file: {e}")
+                if not oar_constraints:
+                    st.write("No OAR constraints defined.")
                 else:
-                    # If a non-JSON file is uploaded, clear the session state
-                    if 'previous_brachy_json' in st.session_state:
-                        del st.session_state.previous_brachy_json
-            else:
-                 if 'previous_brachy_json' in st.session_state:
-                    del st.session_state.previous_brachy_json
-
-            # Initialize session state for EBRT if it doesn't exist
-            if 'ebrt_total_dose' not in st.session_state:
-                st.session_state.ebrt_total_dose = 0.0
-            if 'ebrt_fraction_dose' not in st.session_state:
-                st.session_state.ebrt_fraction_dose = 0.0
-            if 'ebrt_num_fractions' not in st.session_state:
-                st.session_state.ebrt_num_fractions = 25
-
-            st.markdown("<h3 style='color: #fc8781;'>EBRT Dose (Gy)</h3>", unsafe_allow_html=True)
-
-            # Callback functions to update EBRT values
-            def update_total_dose():
-                st.session_state.ebrt_total_dose = st.session_state.ebrt_fraction_dose * st.session_state.ebrt_num_fractions
-                clear_results()
-
-            def update_fraction_dose():
-                if st.session_state.ebrt_num_fractions > 0:
-                    st.session_state.ebrt_fraction_dose = st.session_state.ebrt_total_dose / st.session_state.ebrt_num_fractions
-                else:
-                    st.session_state.ebrt_fraction_dose = 0
-                clear_results()
-
-            def update_num_fractions():
-                if st.session_state.ebrt_fraction_dose > 0:
-                    st.session_state.ebrt_num_fractions = round(st.session_state.ebrt_total_dose / st.session_state.ebrt_fraction_dose)
-                else:
-                    st.session_state.ebrt_num_fractions = 0
-
-            # Create columns for EBRT inputs
-            col1, col2, col3 = st.columns(3)
-
-            with col1:
-                st.number_input("Total Dose (Gy)", 
-                                key='ebrt_total_dose', 
-                                on_change=update_fraction_dose)
-            with col2:
-                st.number_input("Number of Fractions", 
-                                min_value=0, 
-                                step=1, 
-                                key='ebrt_num_fractions', 
-                                on_change=update_total_dose)
-            with col3:
-                st.number_input("Dose per Fraction (Gy)", 
-                                key='ebrt_fraction_dose', 
-                                on_change=update_total_dose)
-
-            # --- CORRECTED LOGIC TO FIND DEFAULT FRACTIONS ---
-            default_num_fractions = 1
-            for uploaded_file in uploaded_files:
-                try:
-                    # Use seek(0) to ensure we read from the beginning
-                    uploaded_file.seek(0)
-                    ds = pydicom.dcmread(uploaded_file, stop_before_pixels=True)
-
-                    if ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.481.5': # RT Plan Storage
-                        if hasattr(ds, 'FractionGroupSequence') and ds.FractionGroupSequence:
-                            default_num_fractions = ds.FractionGroupSequence[0].NumberOfFractionsPlanned
-                        break # Found the plan, no need to check other files
-                except Exception:
-                    # This file is not a readable DICOM or not the one we're looking for, continue
-                    continue
-                finally:
-                    # IMPORTANT: Reset the file pointer so it can be read again later
-                    uploaded_file.seek(0)
-            # --- END CORRECTED LOGIC ---
-
-            st.markdown("<h3 style='color: #fc8781;'>Number of Fractions to be Delivered</h3>", unsafe_allow_html=True)
-            num_fractions_delivered = st.number_input(
-                " ", # Empty label as we are using markdown for the label
-                value=default_num_fractions,
-                min_value=1,
-                step=1,
-                key="num_fractions_delivered_input",
-                on_change=clear_results
-            )
-
-            st.subheader("Dwell Time Decay Sheet")
-            st.markdown("""
-            **Instructions for generating the Mosaiq schedule report:**
-
-            In Mosaiq, open the patient's chart and go to 'Schedule' > 'All'. Right-click and select 'Reports' > 'Patient Appointment Calendar'. 
-            Select all departments, the current patient, and adjust the date range. For the report format, select 'Display Appointments in LIST format'. 
-            Save the report as an .xlsx file.
-            """)
-            mosaiq_schedule_file = st.file_uploader("Upload Mosaiq schedule report (.xlsx)", type=["xlsx"])
-
-        st.sidebar.subheader("EBRT Summary")
-        st.sidebar.write(f"Total Dose: {st.session_state.ebrt_total_dose:.2f} Gy")
-        st.sidebar.write(f"Fractions: {st.session_state.ebrt_num_fractions}")
-        st.sidebar.write(f"Dose per Fraction: {st.session_state.ebrt_fraction_dose:.2f} Gy")
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            # Create a unique key for the temporary directory based on uploaded file names
-            # This helps ensure that when files change, we re-process them.
-            uploaded_file_key = "_".join(sorted([f.name for f in uploaded_files]))
-            if st.session_state.get("last_uploaded_files") != uploaded_file_key:
-                st.session_state.last_uploaded_files = uploaded_file_key
-                if "manual_mapping" in st.session_state:
-                    del st.session_state.manual_mapping # Clear mapping on new file upload
-
-            rtdose_dir = os.path.join(tmpdir, "RTDOSE")
-            rtstruct_dir = os.path.join(tmpdir, "RTst")
-            rtplan_dir = os.path.join(tmpdir, "RTPLAN")
-
-            os.makedirs(rtdose_dir)
-            os.makedirs(rtstruct_dir)
-            os.makedirs(rtplan_dir)
-
-            rtstruct_file_path = None
-            rtplan_file_path = None # Initialize here
-            for uploaded_file in uploaded_files:
-                file_path = os.path.join(tmpdir, uploaded_file.name)
-                uploaded_file.seek(0)
-                with open(file_path, "wb") as f:
-                    f.write(uploaded_file.getbuffer())
+                    for organ, constraints in oar_constraints.items():
+                        st.markdown(f"**{organ}**")
+                        for d_metric, d_values in constraints.items():
+                            st.markdown(f"  - **{d_metric}**")
+                            for key, value in d_values.items():
+                                if key != 'unit':
+                                    st.markdown(f"    - {key}: **{value}** Gy")
+        if st.session_state.current_template_name == "Custom":
+            with st.expander("Customize Template", expanded=True):
+                st.header("Alpha/Beta Ratios")
+                for organ, val in st.session_state.ab_ratios.items():
+                    st.session_state.ab_ratios[organ] = st.number_input(f"{organ}", value=float(val), key=f"ab_{organ}_{st.session_state.widget_key_suffix}")
+                st.header("Constraints")
+                target_constraints = st.session_state.custom_constraints.get("constraints", {}).get("target_constraints", {})
+                oar_constraints = st.session_state.custom_constraints.get("constraints", {}).get("oar_constraints", {})
+                t_col, o_col = st.columns(2)
+                with t_col:
+                    st.subheader("Target Volumes")
+                    for organ, constraints in target_constraints.items():
+                        st.write(f"**{organ}**")
+                        for key, value in constraints.items():
+                            if key != 'unit':
+                                st.session_state.custom_constraints["constraints"]["target_constraints"][organ][key] = st.number_input(f"{key} (Gy)", value=float(value), key=f"con_{organ}_{key}_{st.session_state.widget_key_suffix}")
+                with o_col:
+                    st.subheader("Organs at Risk")
+                    for organ, constraints in oar_constraints.items():
+                        st.write(f"**{organ}**")
+                        for d_metric, d_values in constraints.items():
+                            for key, value in d_values.items():
+                                if key != 'unit':
+                                    st.session_state.custom_constraints["constraints"]["oar_constraints"][organ][d_metric][key] = st.number_input(f"{d_metric} {key} (Gy)", value=float(value), key=f"con_{organ}_{d_metric}_{key}_{st.session_state.widget_key_suffix}")
+        st.subheader("Previous Brachytherapy Data")
+        st.file_uploader("Upload previous brachy data (optional .json)", type=["json"], key="prev_brachy_uploader", on_change=process_json_upload)
+        
+        # --- START: Corrected Expander Logic ---
+        # This expander will now appear as soon as both the JSON and structure data are processed and ready.
+        if 'json_content' in st.session_state and 'structure_data' in st.session_state:
+            with st.expander("Confirm Structure Mapping for Dose Accumulation", expanded=True):
+                st.info("Match structures from the **current plan** to the standardized names from the **uploaded JSON**.")
+                
+                if 'confirmed_structure_mapping' not in st.session_state:
+                    st.session_state.confirmed_structure_mapping = {}
 
                 try:
-                    ds = pydicom.dcmread(file_path)
-                    if ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.481.2': # RT Dose Storage
-                        os.rename(file_path, os.path.join(rtdose_dir, uploaded_file.name))
-                    elif ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.481.3': # RT Structure Set Storage
-                        rtstruct_file_path = os.path.join(rtstruct_dir, uploaded_file.name)
-                        os.rename(file_path, rtstruct_file_path)
-                    elif ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.481.5': # RT Plan Storage
-                        rtplan_file_path = os.path.join(rtplan_dir, uploaded_file.name) # Store RTPLAN path
-                        os.rename(file_path, rtplan_file_path)
-                except Exception as e:
-                    st.warning(f"Could not read DICOM file {uploaded_file.name}: {e}")
+                    # 1. Get structure names from the processed JSON content in session state
+                    json_structure_names = [name.upper() for name in st.session_state.json_content.get("dvh_results", {}).keys()]
 
-            # Extract dose references if RTPLAN is available
-            if rtplan_file_path:
-                plan_data = get_plan_data(rtplan_file_path)
-                dose_references = [dr['name'] for dr in plan_data.get('dose_references', [])]
-                
-                st.session_state.available_point_names = dose_references
+                    # 2. Get structure names from the session state
+                    current_dicom_structure_names = list(st.session_state['structure_data'].keys())
 
-                point_dose_constraints = templates[st.session_state.current_template_name].get("point_dose_constraints", {})
-                
-                dose_point_mapping = get_dose_point_mapping(rtplan_file_path, point_dose_constraints)
-                
-                with st.expander("Dose Point to Constraint Mapping"):
-                    # --- START: New Manual Mapping Section ---
-                    clinical_point_names = ["N/A"] + list(point_dose_constraints.keys())
-
-                    if 'manual_mapping' not in st.session_state:
-                        st.session_state.manual_mapping = {}
-
-                    # Initialize manual_mapping with automatic mappings, but prioritize existing session state
-                    # This ensures user overrides are kept during a re-run, but auto-mapping is applied once.
-                    auto_mapping_dict = dose_point_mapping.copy()
-                    # Merge dictionaries: manual_mapping (user choices) overwrites auto_mapping
-                    merged_mapping = {**auto_mapping_dict, **st.session_state.manual_mapping}
-                    st.session_state.manual_mapping = merged_mapping
-                    
-                    for dicom_point in st.session_state.available_point_names:
-                        # Ensure the point name is valid before creating a widget
-                        if dicom_point and dicom_point.strip():
-                            col1, col2 = st.columns([1, 2])
-                            
-                            with col1:
-                                st.write(f"**{dicom_point}**")
-                                
-                            with col2:
-                                current_mapping = st.session_state.manual_mapping.get(dicom_point, "N/A")
-                                
-                                try:
-                                    current_index = clinical_point_names.index(current_mapping)
-                                except ValueError:
-                                    current_index = 0
-
-                                # The selectbox's value is automatically managed by Streamlit via its key
-                                st.selectbox(
-                                    f"Map '{dicom_point}' to:",
-                                    options=clinical_point_names,
-                                    index=current_index,
-                                    key=f"map_{dicom_point}", # The key links this widget to session state
-                                    label_visibility="collapsed",
-                                    on_change=clear_results
-                                )
-                                
-                                # Update our manual_mapping dict from the widget's state
-                                st.session_state.manual_mapping[dicom_point] = st.session_state[f"map_{dicom_point}"]
-
-            if rtstruct_file_path:
-                from src.dicom_parser import get_structure_data, load_dicom_file
-                rtstruct_dataset = load_dicom_file(rtstruct_file_path)
-                structure_data = get_structure_data(rtstruct_dataset)
-                structure_names = list(structure_data.keys())
-
-                with st.expander("Structure Mapping"):
-                    if 'structure_mapping' not in st.session_state:
-                        st.session_state.structure_mapping = {}
-
-                    # De-duplicate the list of structure names to prevent key errors
-                    unique_structure_names = list(dict.fromkeys(structure_names))
-                    for structure_name in unique_structure_names:
-                        # Auto-map based on name
-                        if structure_name.lower() in ['gtv', 'ctv', 'hr-ctv']:
-                            default_mapping = "TARGET"
+                    # 3. Propose an automatic mapping using fuzzy matching
+                    from fuzzywuzzy import process
+                    proposed_mapping = {}
+                    for current_name in current_dicom_structure_names:
+                        best_match, score = process.extractOne(current_name, json_structure_names)
+                        if score > 70:
+                            proposed_mapping[current_name] = best_match
                         else:
-                            default_mapping = "OAR"
-                        
-                        # Get the current mapping, defaulting if not present
-                        current_mapping = st.session_state.structure_mapping.get(structure_name, default_mapping)
-                        
-                        # Define the valid options
-                        valid_options = ["TARGET", "OAR"]
-                        
-                        # If the current mapping is not valid (e.g., 'IGNORE' from a previous session), fall back to the default
-                        if current_mapping not in valid_options:
-                            current_mapping = default_mapping
+                            proposed_mapping[current_name] = None
 
-                        mapping = st.selectbox(
-                            f"Map '{structure_name}' to:",
-                            options=valid_options,
-                            index=valid_options.index(current_mapping),
-                            key=f"map_{structure_name}",
-                            on_change=clear_results
+                    # 4. Create the dropdowns for user confirmation
+                    for current_name in current_dicom_structure_names:
+                        default_selection = st.session_state.confirmed_structure_mapping.get(current_name, proposed_mapping.get(current_name))
+                        
+                        options = ["Ignore"] + json_structure_names
+                        try:
+                            default_index = options.index(default_selection)
+                        except ValueError:
+                            default_index = 0 # Default to "Ignore"
+
+                        st.session_state.confirmed_structure_mapping[current_name] = st.selectbox(
+                            f"'{current_name}' maps to:",
+                            options=options,
+                            index=default_index,
+                            key=f"confirm_map_{current_name}"
                         )
-                        st.session_state.structure_mapping[structure_name] = mapping
-            else:
-                st.session_state.available_point_names = []
 
-    # Point selection UI
-    if st.session_state.available_point_names:
-        st.session_state.selected_point_names = st.multiselect(
-            "Select Points to Display in Report",
-            options=st.session_state.available_point_names,
-            default=st.session_state.available_point_names,
-            on_change=clear_results
-        )
-    else:
-        st.session_state.selected_point_names = []
-
-    if st.button("Generate Dwell Time Sheet"):
-        if 'mosaiq_schedule_file' in locals() and mosaiq_schedule_file and uploaded_files:
-            with tempfile.TemporaryDirectory() as tmpdir:
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp_excel_file:
-                    tmp_excel_file.write(mosaiq_schedule_file.getbuffer())
-                    mosaiq_schedule_path = tmp_excel_file.name
-
-                rtplan_file_path = None
-                for uploaded_file in uploaded_files:
-                    file_path = os.path.join(tmpdir, uploaded_file.name)
-                    with open(file_path, "wb") as f:
-                        f.write(uploaded_file.getbuffer())
-                    ds = pydicom.dcmread(file_path)
-                    if ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.481.5': # RT Plan Storage
-                        rtplan_file_path = file_path
-
-
-                output_excel_path = os.path.join(tmpdir, "populated_dwell_time_sheet.xlsx")
-
-                # This function will be created in main.py
-                from src.main import generate_dwell_time_sheet
-                generate_dwell_time_sheet(
-                    mosaiq_schedule_path=mosaiq_schedule_path,
-                    rtplan_file=rtplan_file_path,
-                    output_excel_path=output_excel_path,
-                )
-
-                with open(output_excel_path, "rb") as f:
-                    st.download_button(
-                        label="Download Dwell Time Sheet",
-                        data=f,
-                        file_name="dwell_time_sheet.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    )
-        else:
-            st.warning("Please upload both the Mosaiq schedule and the DICOM files.")
-
-
-    ab_ratios = st.session_state.get("ab_ratios", templates["Cervix HDR - EMBRACE II"]["alpha_beta_ratios"].copy())
-
-
-    if st.button("Run Analysis"):
-        if uploaded_files:
-
-            if uploaded_files:
-                # Create the final mapping list from session state RIGHT BEFORE analysis
-                manual_dose_point_mapping = [(k, v) for k, v in st.session_state.get('manual_mapping', {}).items() if v != "N/A"]
-
-                # st.write([file.name for file in uploaded_files])
-            
-            tmpdir_analysis = tempfile.mkdtemp()
-            st.session_state.tmpdir_analysis = tmpdir_analysis
-            for uploaded_file in uploaded_files:
-                file_path = os.path.join(tmpdir_analysis, uploaded_file.name)
-                uploaded_file.seek(0)
-                with open(file_path, "wb") as f:
-                    f.write(uploaded_file.getbuffer())
-            
-            rtdose_dir_analysis = os.path.join(tmpdir_analysis, "RTDOSE")
-            rtstruct_dir_analysis = os.path.join(tmpdir_analysis, "RTst")
-            rtplan_dir_analysis = os.path.join(tmpdir_analysis, "RTPLAN")
-
-            os.makedirs(rtdose_dir_analysis, exist_ok=True)
-            os.makedirs(rtstruct_dir_analysis, exist_ok=True)
-            os.makedirs(rtplan_dir_analysis, exist_ok=True)
-
-            rtdose_path = None
-            rtstruct_path = None
-            rtplan_path = None
-
-            for uploaded_file in uploaded_files:
-                file_path = os.path.join(tmpdir_analysis, uploaded_file.name)
-                uploaded_file.seek(0)
-                with open(file_path, "wb") as f:
-                    f.write(uploaded_file.getbuffer())
-
-                try:
-                    ds = pydicom.dcmread(file_path)
-                    if ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.481.2':
-                        rtdose_path = os.path.join(rtdose_dir_analysis, uploaded_file.name)
-                        os.rename(file_path, rtdose_path)
-                    elif ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.481.3':
-                        rtstruct_path = os.path.join(rtstruct_dir_analysis, uploaded_file.name)
-                        os.rename(file_path, rtstruct_path)
-                    elif ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.481.5':
-                        rtplan_path = os.path.join(rtplan_dir_analysis, uploaded_file.name)
-                        os.rename(file_path, rtplan_path)
                 except Exception as e:
-                    st.warning(f"Could not read DICOM file {uploaded_file.name}: {e}")
-            
-            if rtdose_path and rtstruct_path and rtplan_path:
-                # Correctly parse JSON fractional data for backend calculation
-                previous_brachy_data = {}
-                if 'previous_brachy_json' in st.session_state:
-                    json_content = st.session_state.previous_brachy_json
-                    
-                    # This new structure contains the lists of fractional doses, not pre-calculated BEDs.
-                    # The backend (main.py) will be responsible for calculating the total BED from this.
-                    previous_brachy_fx_data = {'dvh_results': {}, 'point_dose_results': {}}
-                    
-                    for organ, data in json_content.get("dvh_results", {}).items():
-                        previous_brachy_fx_data['dvh_results'][organ] = data.get('dose_fx', {})
-                    
-                    for point in json_content.get("point_dose_results", []):
-                        point_name = point.get("name")
-                        if point_name:
-                            # Handle old format where dose_fx might be missing
-                            if 'dose_fx' in point:
-                                previous_brachy_fx_data['point_dose_results'][point_name] = point.get('dose_fx', [])
-                            elif 'dose' in point:
-                                 previous_brachy_fx_data['point_dose_results'][point_name] = [point.get('dose', 0)] # Treat as single fraction
-                    
-                    previous_brachy_data = previous_brachy_fx_data
-                elif previous_brachy_data_file and previous_brachy_data_file.name.endswith('.html'):
-                     with tempfile.NamedTemporaryFile(delete=False, suffix=".html") as tmp_html_file:
-                        tmp_html_file.write(previous_brachy_data_file.getbuffer())
-                        previous_brachy_data = tmp_html_file.name
+                    st.error(f"Could not process structure mapping: {e}")
+        # --- END: Corrected Expander Logic ---
 
-                args = argparse.Namespace(
-                    data_dir=tmpdir_analysis,
+        # --- START: ADD THIS NEW ELIF BLOCK ---
+        elif 'json_content' in st.session_state and 'structure_data' not in st.session_state:
+            st.info("Previous treatment data loaded. See the new plan goals below or go to the '🔬 Plan Analysis' tab and upload the new DICOM files to map structures for dose accumulation.")
+        # --- END: NEW ELIF BLOCK ---
+
+        st.markdown("---")
+        if 'optimization_goals' in st.session_state and st.session_state.optimization_goals:
+            st.subheader("Optimization Goals")
+            st.markdown(f"The following D2cc limits are calculated for a plan with **{st.session_state.proposed_brachy_num_fx}** new brachytherapy fraction(s).")
+            df_goals = pd.DataFrame(st.session_state.optimization_goals)
+            st.dataframe(df_goals.style.format({"Total EQD2 Constraint (Gy)": "{:.1f}", "Max D2cc per Fraction (Gy)": "{:.2f}"}), use_container_width=True)
+
+    # ==============================================================================
+    # TAB 2: PLAN ANALYSIS
+    # ==============================================================================
+    with plan_analysis_tab:
+        st.header("Step 2: Upload and Analyze a Completed Plan")
+        st.markdown("Upload the DICOM files from a completed brachytherapy plan to evaluate DVH metrics against the defined constraints.")
+        st.markdown("Be sure to update the proposed brachytherapy parameters in the sidebar before running the analysis.")
+        st.subheader("Upload DICOM Files")
+        uploaded_files = st.file_uploader("Upload RTDOSE, RTSTRUCT, and RTPLAN files", type=["dcm", "DCM"], accept_multiple_files=True, key=f"dicom_uploader_{st.session_state.widget_key_suffix}", on_change=clear_results)
+        
+        # --- START: New Early RTSTRUCT Processing ---
+        # This block runs as soon as files are uploaded on this tab.
+        if uploaded_files:
+            # Find the RTSTRUCT file among the uploads
+            rtstruct_file = None
+            for up_file in uploaded_files:
+                up_file.seek(0)
+                try:
+                    ds = pydicom.dcmread(up_file, stop_before_pixels=True, force=True)
+                    if ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.481.3': # RT Structure Set Storage
+                        rtstruct_file = up_file
+                        break
+                except Exception:
+                    continue # Not a valid DICOM, or not the one we want
+
+            # If we found it, parse it and save the data to the session state
+            if rtstruct_file:
+                rtstruct_file.seek(0)
+                st.session_state['structure_data'] = get_structure_data(pydicom.dcmread(rtstruct_file))
+        # --- END: New Early RTSTRUCT Processing ---
+
+        structure_data, plan_data_from_dicom = {}, {}
+        if uploaded_files:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                rtstruct_file_path, rtplan_file_path = None, None
+                for up_file in uploaded_files:
+                    file_path = os.path.join(tmpdir, up_file.name)
+                    up_file.seek(0)
+                    with open(file_path, "wb") as f: f.write(up_file.getbuffer())
+                    try:
+                        ds = pydicom.dcmread(file_path, stop_before_pixels=True)
+                        if ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.481.3': rtstruct_file_path = file_path
+                        elif ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.481.5': rtplan_file_path = file_path
+                    except Exception: pass
+                
+                with st.expander("Structure & Dose Point Mapping", expanded=True):
+                    if rtstruct_file_path:
+                        structure_data = get_structure_data(pydicom.dcmread(rtstruct_file_path))
+                        st.markdown("**Structure Mapping**")
+                        if 'structure_mapping' not in st.session_state: st.session_state.structure_mapping = {}
+                        mapping_options = ["Ignore", "Bladder", "Rectum", "Sigmoid", "Bowel", "GTV", "HRCTV"]
+                        def get_default_mapping(structure_name):
+                            name_lower = structure_name.lower()
+                            if 'blad' in name_lower: return "Bladder"
+                            if 'rect' in name_lower: return "Rectum"
+                            if 'sigm' in name_lower: return "Sigmoid"
+                            if 'bowel' in name_lower: return "Bowel"
+                            if 'gtv' in name_lower: return "GTV"
+                            if 'hrctv' in name_lower or 'hr-ctv' in name_lower: return "HRCTV"
+                            return "Ignore"
+                        for s_name in structure_data.keys():
+                            default_map = st.session_state.structure_mapping.get(s_name, get_default_mapping(s_name))
+                            st.session_state.structure_mapping[s_name] = st.selectbox(
+                                f"Map '{s_name}' to constraint:", options=mapping_options, 
+                                index=mapping_options.index(default_map), key=f"map_{s_name}"
+                            )
+                    if rtplan_file_path:
+                        plan_data_from_dicom = get_plan_data(rtplan_file_path)
+                        constraints = st.session_state.custom_constraints.get("point_dose_constraints", {})
+                        auto_map = get_dose_point_mapping(rtplan_file_path, constraints)
+                        st.markdown("**Dose Point Mapping**")
+                        if 'manual_mapping' not in st.session_state: st.session_state.manual_mapping = {}
+                        st.session_state.manual_mapping = {**auto_map, **st.session_state.manual_mapping}
+                        for p_name in [dr['name'] for dr in plan_data_from_dicom.get('dose_references', [])]:
+                            c_points = ["N/A"] + list(constraints.keys())
+                            current_map = st.session_state.manual_mapping.get(p_name, "N/A")
+                            if current_map not in c_points: current_map = "N/A"
+                            st.session_state.manual_mapping[p_name] = st.selectbox(f"Map '{p_name}':", c_points, index=c_points.index(current_map), key=f"map_point_{p_name}")
+
+        if st.button("Run Analysis", type="primary", use_container_width=True):
+            if uploaded_files:
+                with tempfile.TemporaryDirectory() as tmpdir_analysis:
+                    files_to_sort, patient_ids = {}, set()
+                    has_rtplan, has_rtstruct, has_rtdose = False, False, False
+                    for up_file in uploaded_files:
+                        file_path = os.path.join(tmpdir_analysis, up_file.name)
+                        with open(file_path, "wb") as f:
+                            up_file.seek(0)
+                            f.write(up_file.getbuffer())
+                        try:
+                            ds = pydicom.dcmread(file_path, stop_before_pixels=True)
+                            patient_ids.add(ds.PatientID)
+                            if ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.481.2':
+                                files_to_sort[file_path] = "RTDOSE"; has_rtdose = True
+                            elif ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.481.3':
+                                files_to_sort[file_path] = "RTst"; has_rtstruct = True
+                            elif ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.481.5':
+                                files_to_sort[file_path] = "RTPLAN"; has_rtplan = True
+                        except Exception as e:
+                            st.warning(f"Could not read or classify file {up_file.name}: {e}")
+                    proceed = True
+                    if not (has_rtplan and has_rtstruct and has_rtdose):
+                        st.error("Error: Please upload all three required DICOM files (RT Plan, RT Structure Set, and RT Dose).")
+                        proceed = False
+                    if len(patient_ids) > 1:
+                        st.error(f"Error: Mismatched Patient IDs found across files: {list(patient_ids)}. Please upload files for a single patient.")
+                        proceed = False
+                    if proceed:
+                        for path, dir_name in files_to_sort.items():
+                            target_dir = os.path.join(tmpdir_analysis, dir_name)
+                            os.makedirs(target_dir, exist_ok=True)
+                            os.rename(path, os.path.join(target_dir, os.path.basename(path)))
+                        prev_brachy_data_main = {}
+                        prev_brachy_file = st.session_state.get('prev_brachy_uploader')
+                        if prev_brachy_file:
+                            prev_brachy_file.seek(0)
+                            prev_brachy_data_main = json.loads(prev_brachy_file.read().decode("utf-8"))
+                            if 'point_dose_results' in prev_brachy_data_main and isinstance(prev_brachy_data_main['point_dose_results'], list):
+                                transformed_points = {item.get('name', f'point_{i}'): item for i, item in enumerate(prev_brachy_data_main['point_dose_results'])}
+                                prev_brachy_data_main['point_dose_results'] = transformed_points
+                        args = argparse.Namespace(
+                            data_dir=tmpdir_analysis, ebrt_dose=st.session_state.ebrt_total_dose,
+                            ebrt_fractions=st.session_state.ebrt_num_fractions, previous_brachy_data=prev_brachy_data_main,
+                            output_html=None, alpha_beta_ratios=st.session_state.ab_ratios,
+                            custom_constraints=st.session_state.custom_constraints
+                        )
+                        with st.spinner("Analyzing plan... this may take a moment."):
+                            st.session_state.results = run_analysis(
+                                args, structure_data, plan_data_from_dicom,
+                                dose_point_mapping=[(k, v) for k, v in st.session_state.get('manual_mapping', {}).items() if v != "N/A"],
+                                custom_constraints=st.session_state.custom_constraints,
+                                num_fractions_delivered=st.session_state.proposed_brachy_num_fx,
+                                ebrt_fractions=st.session_state.ebrt_num_fractions,
+                                structure_mapping=st.session_state.get('structure_mapping', {}),
+                                confirmed_structure_mapping=st.session_state.get('confirmed_structure_mapping', {}) # ADD THIS LINE
+                            )
+            else:
+                st.error("Please upload DICOM files to run the analysis.")
+
+        st.markdown("---")
+
+        if 'results' in st.session_state:
+            results = st.session_state.results
+            if not results:
+                 st.warning("Analysis returned empty results. Please check the DICOM files and mappings.")
+            elif 'error' in results:
+                st.error(f"Analysis Failed: {results['error']}")
+            else:
+                st.header("Analysis Results")
+                
+                col1, col2, col3 = st.columns(3)
+                col1.metric("Patient Name", results.get('patient_name', 'N/A').replace('^', ' '))
+                col2.metric("Patient ID", results.get('patient_mrn', 'N/A'))
+                col3.metric("Plan Name", results.get('plan_name', 'N/A'))
+                col4, col5, _ = st.columns(3)
+                col4.metric("Plan Date", results.get('plan_date', 'N/A'))
+                col5.metric("Plan Time", results.get('plan_time', 'N/A'))
+                if results.get("plan_time_warning"): st.warning(results["plan_time_warning"])
+                if results.get('calculation_number_of_fractions') != results.get('planned_number_of_fractions'):
+                    st.warning("Warning: Planned fractions and calculation fractions differ.")
+                st.markdown("---")
+                
+                dvh_results = results.get('dvh_results', {})
+                point_dose_results = results.get('point_dose_results', [])
+                
+                OAR_NAMES = ["Bladder", "Rectum", "Sigmoid", "Bowel"]
+                TARGET_NAMES = ["GTV", "HRCTV"]
+                
+                st.markdown("##### **Organs at Risk (OAR) DVH Results**")
+                oars_to_display = {k: v for k, v in dvh_results.items() if k in OAR_NAMES}
+                
+                if oars_to_display:
+                    previous_brachy_data = st.session_state.get('json_content', {})
+                    num_new_fractions = st.session_state.proposed_brachy_num_fx
+                    
+                    # 1. Calculate previous fractions
+                    previous_fractions = 0
+                    if previous_brachy_data:
+                        max_len = 0
+                        if previous_brachy_data.get("dvh_results"):
+                            for organ_data in previous_brachy_data["dvh_results"].values():
+                                for dose_list in organ_data.get("dose_fx", {}).values():
+                                    if isinstance(dose_list, list):
+                                        max_len = max(max_len, len(dose_list))
+                        previous_fractions = max_len
+
+                    # 2. Determine total fractions for display
+                    total_display_fractions = previous_fractions + num_new_fractions
+                    fraction_headers = [f"Fx {i+1} Dose (Gy)" for i in range(total_display_fractions)]
+
+                    restructured_data = []
+                    
+                    # Helper to get historical doses for a specific organ and metric
+                    def get_historical_doses(organ_name, metric_key):
+                         if not previous_brachy_data: return []
+                         # Try to find the organ in the JSON data (case-insensitive search)
+                         json_dvh = previous_brachy_data.get("dvh_results", {})
+                         for key, val in json_dvh.items():
+                             if key.lower() == organ_name.lower():
+                                 return val.get("dose_fx", {}).get(metric_key, [])
+                         return []
+
+                    for organ, metrics in oars_to_display.items():
+                         # Prepare rows
+                         base_row = {'Organ': organ, 'Volume (cc)': f"{metrics.get('volume_cc', 0):.2f}"}
+                         
+                         metric_map = [
+                             ('D0.1cc', 'd0_1cc_gy_per_fraction', 'eqd2_d0_1cc'),
+                             ('D1cc',   'd1cc_gy_per_fraction',   'eqd2_d1cc'),
+                             ('D2cc',   'd2cc_gy_per_fraction',   'eqd2_d2cc')
+                         ]
+
+                         for i, (m_name, m_key, m_eqd2) in enumerate(metric_map):
+                             # Create the row structure
+                             row = base_row.copy() if i == 0 else {'Organ': '', 'Volume (cc)': ''}
+                             row['Dose Metric'] = m_name
+                             
+                             # Get dose data
+                             hist_doses = get_historical_doses(organ, m_key)
+                             current_dose = metrics.get(m_key, 0)
+                             
+                             # Combine: Historical + [Current * New Fractions]
+                             full_dose_list = hist_doses + ([current_dose] * num_new_fractions)
+                             
+                             # Populate fraction columns
+                             for idx, header in enumerate(fraction_headers):
+                                 if idx < len(full_dose_list):
+                                     val = full_dose_list[idx]
+                                     row[header] = f"{val:.2f}" if val is not None else "-"
+                                 else:
+                                     row[header] = "-"
+
+                             # Add EQD2 and Constraint Status
+                             row['EQD2 (Gy)'] = f"{metrics.get(m_eqd2, 0):.2f}"
+                             
+                             if m_name == 'D2cc':
+                                 is_met_str = results.get('constraint_evaluation', {}).get(organ, {}).get('EQD2_met', 'False')
+                                 row['Constraint Status'] = "Met" if str(is_met_str).lower() == 'true' else "NOT Met"
+                                 dose_to_meet = metrics.get('dose_to_meet_constraint', 'N/A')
+                                 row['Dose to Meet Constraint (Gy)'] = f"{dose_to_meet:.2f}" if isinstance(dose_to_meet, (int, float)) else "N/A"
+                             else:
+                                 row['Constraint Status'] = 'N/A'
+                                 row['Dose to Meet Constraint (Gy)'] = ''
+                             
+                             restructured_data.append(row)
+
+                    final_oar_df = pd.DataFrame(restructured_data)
+                    
+                    # Apply styling
+                    def style_oar_rows(row):
+                        if row['Constraint Status'] == 'Met':
+                            return ['background-color: rgba(40, 167, 69, 0.2)'] * len(row)
+                        elif row['Constraint Status'] == 'NOT Met':
+                            return ['background-color: rgba(220, 53, 69, 0.2)'] * len(row)
+                        return [''] * len(row)
+
+                    # Reorder columns to ensure fractions are in the middle
+                    cols = ['Organ', 'Volume (cc)', 'Dose Metric'] + fraction_headers + ['EQD2 (Gy)', 'Constraint Status', 'Dose to Meet Constraint (Gy)']
+                    final_oar_df = final_oar_df[cols]
+                    
+                    st.dataframe(final_oar_df.style.apply(style_oar_rows, axis=1), use_container_width=True, hide_index=True)
+                else:
+                    st.info("No OAR DVH data to display. Check structure mappings.")
+
+                st.markdown("---")
+
+                st.markdown("##### **Target Volume DVH Results**")
+                
+                targets_to_display = {k: v for k, v in dvh_results.items() if k in TARGET_NAMES}
+
+                if targets_to_display:
+                    # --- Re-calculate total fractions for display ---
+                    previous_brachy_data = st.session_state.get('json_content', {})
+                    num_new_fractions = st.session_state.proposed_brachy_num_fx
+                    
+                    previous_fractions = 0
+                    if previous_brachy_data:
+                        max_len = 0
+                        if previous_brachy_data.get("dvh_results"):
+                            for organ_data in previous_brachy_data["dvh_results"].values():
+                                for dose_list in organ_data.get("dose_fx", {}).values():
+                                    if isinstance(dose_list, list):
+                                        max_len = max(max_len, len(dose_list))
+                        previous_fractions = max_len
+                    
+                    total_display_fractions = previous_fractions + num_new_fractions
+                    fraction_headers = [f"Fx {i+1} Dose (Gy)" for i in range(total_display_fractions)]
+                    # -------------------------------------------------------------------
+
+                    restructured_target_data = []
+                    constraint_eval = results.get('constraint_evaluation', {})
+                    
+                    # Retrieve the confirmed mapping from session state (the one that fixed the calc)
+                    confirmed_map = st.session_state.get('confirmed_structure_mapping', {})
+
+                    # Helper to normalize name for constraint lookup (HRCTV -> Hrctv)
+                    def normalize_for_lookup(name):
+                        return name.strip().lower().capitalize()
+
+                    # --- ROBUST LOOKUP HELPER ---
+                    def get_historical_doses(organ_name, metric_key):
+                         if not previous_brachy_data: return []
+                         json_dvh = previous_brachy_data.get("dvh_results", {})
+                         target_json_name = None
+
+                         # 1. Priority: Use the explicit user mapping if available
+                         if organ_name in confirmed_map:
+                             mapped = confirmed_map[organ_name]
+                             if mapped and mapped != "Ignore":
+                                 target_json_name = mapped
+
+                         # 2. Fallback: Fuzzy match (lowercase, no hyphens)
+                         if not target_json_name:
+                             search_term = organ_name.lower().replace("-", "").replace("_", "")
+                             for key in json_dvh.keys():
+                                 if key.lower().replace("-", "").replace("_", "") == search_term:
+                                     target_json_name = key
+                                     break
+                        
+                         # 3. Retrieve data if key found
+                         if target_json_name and target_json_name in json_dvh:
+                             return json_dvh[target_json_name].get("dose_fx", {}).get(metric_key, [])
+                         
+                         return []
+                    # ------------------------------
+
+                    for organ, metrics in targets_to_display.items():
+                        base_row = {'Structure': organ, 'Volume (cc)': f"{metrics.get('volume_cc', 0):.2f}"}
+                        norm_organ = normalize_for_lookup(organ)
+
+                        # --- Process D90 ---
+                        row_d90 = {**base_row, 'Dose Metric': 'D90'}
+                        
+                        hist_d90 = get_historical_doses(organ, 'd90_gy_per_fraction')
+                        curr_d90 = metrics.get('d90_gy_per_fraction', 0)
+                        
+                        # Pad historical list
+                        padding_len = max(0, previous_fractions - len(hist_d90))
+                        full_d90 = hist_d90 + ([None] * padding_len) + ([curr_d90] * num_new_fractions)
+                        
+                        for idx, header in enumerate(fraction_headers):
+                            if idx < len(full_d90):
+                                val = full_d90[idx]
+                                row_d90[header] = f"{val:.2f}" if val is not None else "-"
+                            else:
+                                row_d90[header] = "-"
+                        
+                        row_d90['EQD2 (Gy)'] = f"{metrics.get('eqd2_d90', 0):.2f}"
+                        
+                        eval_key_d90 = f"{norm_organ} D90"
+                        row_d90['Constraint Status'] = constraint_eval.get(eval_key_d90, {}).get("EQD2_status_D90", "N/A")
+                        restructured_target_data.append(row_d90)
+
+                        # --- Process D98 ---
+                        row_d98 = {**base_row, 'Dose Metric': 'D98', 'Structure': '', 'Volume (cc)': ''}
+                        
+                        hist_d98 = get_historical_doses(organ, 'd98_gy_per_fraction')
+                        curr_d98 = metrics.get('d98_gy_per_fraction', 0)
+                        
+                        padding_len = max(0, previous_fractions - len(hist_d98))
+                        full_d98 = hist_d98 + ([None] * padding_len) + ([curr_d98] * num_new_fractions)
+
+                        for idx, header in enumerate(fraction_headers):
+                            if idx < len(full_d98):
+                                val = full_d98[idx]
+                                row_d98[header] = f"{val:.2f}" if val is not None else "-"
+                            else:
+                                row_d98[header] = "-"
+
+                        row_d98['EQD2 (Gy)'] = f"{metrics.get('eqd2_d98', 0):.2f}"
+
+                        eval_key_d98 = f"{norm_organ} D98"
+                        if eval_key_d98 in constraint_eval:
+                            status_d98 = constraint_eval[eval_key_d98].get("EQD2_status_D98", "N/A")
+                        else:
+                            status_d98 = "N/A"
+                        row_d98['Constraint Status'] = status_d98
+
+                        restructured_target_data.append(row_d98)
+
+                    final_target_df = pd.DataFrame(restructured_target_data)
+                    
+                    # Reorder columns
+                    cols = ['Structure', 'Volume (cc)', 'Dose Metric'] + fraction_headers + ['EQD2 (Gy)', 'Constraint Status']
+                    final_target_df = final_target_df[cols]
+
+                    # Style function
+                    def style_target_rows(row):
+                        status = row['Constraint Status']
+                        if status == 'Met':
+                            return ['background-color: rgba(40, 167, 69, 0.2)'] * len(row)
+                        elif status == 'NOT Met':
+                            return ['background-color: rgba(220, 53, 69, 0.2)'] * len(row)
+                        return [''] * len(row)
+
+                    st.dataframe(final_target_df.style.apply(style_target_rows, axis=1), use_container_width=True, hide_index=True)
+                else:
+                    st.info("No Target DVH data to display. Check structure mappings.")
+
+                st.markdown("---")
+                
+                st.markdown("##### **Point Dose Results**")
+                if point_dose_results:
+                    st.dataframe(pd.DataFrame(point_dose_results), use_container_width=True, hide_index=True)
+                else:
+                    st.info("No Dose Point data to display.")
+    
+    # ==============================================================================
+    # TAB 3: PRINT PLAN
+    # ==============================================================================
+    with print_plan_tab:
+        st.header("Step 3: Generate and Download Reports")
+
+        if 'results' not in st.session_state:
+            st.info("Please run an analysis on the 'Plan Analysis' tab to generate reports.")
+        else:
+            results = st.session_state.results
+            patient_name = results.get('patient_name', 'N/A').replace('^', '_')
+            plan_name = results.get('plan_name', 'plan')
+            
+            st.markdown("---")
+            st.subheader("Download Dose Summary (PDF)")
+            st.markdown("This will generate a clean, printable PDF of the dose summary, suitable for export.")
+            
+            # --- PDF Download Button ---
+            try:
+                # 1. Re-generate the HTML content using the function from main.py
+                # We use the data stored in session_state from the analysis run
+                html_content = generate_html_report(
+                    patient_name=results.get('patient_name', 'N/A'),
+                    patient_mrn=results.get('patient_mrn', 'N/A'),
+                    plan_name=results.get('plan_name', 'N/A'),
+                    plan_date=results.get('plan_date', 'N/A'),
+                    plan_time=results.get('plan_time', 'N/A'),
+                    source_info=results.get('source_info', 'N/A'),
+                    brachy_dose_per_fraction=results.get('brachy_dose_per_fraction', 0),
+                    number_of_fractions=results.get('calculation_number_of_fractions', 1),
                     ebrt_dose=st.session_state.ebrt_total_dose,
                     ebrt_fractions=st.session_state.ebrt_num_fractions,
-                    previous_brachy_data=previous_brachy_data,
-                    output_html=os.path.join(tmpdir_analysis, "report.html"),
-                    alpha_beta_ratios=ab_ratios,
-                    selected_point_names=st.session_state.selected_point_names,
-                    custom_constraints=templates[st.session_state.current_template_name],
-                )
-                
-                # Corrected the function call to include missing arguments
-                results = run_analysis(
-                    args, 
-                    structure_data, 
-                    plan_data, 
-                    selected_point_names=st.session_state.selected_point_names, 
-                    dose_point_mapping=manual_dose_point_mapping, 
-                    custom_constraints=st.session_state.custom_constraints, 
-                    num_fractions_delivered=num_fractions_delivered, 
-                    ebrt_fractions=st.session_state.ebrt_num_fractions, 
-                    structure_mapping=st.session_state.structure_mapping, 
-                    confirmed_structure_mapping=st.session_state.get('confirmed_structure_mapping', {})
+                    dvh_results=results.get('dvh_results', {}),
+                    constraint_evaluation=results.get('constraint_evaluation', {}),
+                    dose_references=[], # Not needed for this report
+                    point_dose_results=results.get('point_dose_results', []),
+                    output_path=None, # We're not saving it to a file here
+                    alpha_beta_ratios=st.session_state.ab_ratios,
+                    previous_brachy_data=st.session_state.get('json_content', {})
                 )
 
-                if results and 'error' in results:
-                    st.error(results['error'])
-                else:
-                    # Store results in session state to persist them across reruns
-                    st.session_state.results = results
-            else:
-                st.error("Please upload all required DICOM files (RTDOSE, RTSTRUCT, RTPLAN).")
-        else:
-            st.error("Please upload DICOM files.")
-    
-    # --- Display results if they exist in session state ---
-    if 'results' in st.session_state:
-        results = st.session_state.results
-        if results and 'error' not in results:
-            # --- Start Channel Mapping Validation ---
-            if selected_template_name in ["Cervix HDR - EMBRACE II", "Cervix HDR - ABS/GEC-Estro"]:
-                channel_mapping_data = results.get('channel_mapping', [])
-                num_channels = len(channel_mapping_data)
-
-                if num_channels == 3: # Tandem and Ovoid
-                    expected_mapping = { '1': '1', '2': '3', '3': '5' }
-                    all_mappings_correct = True
-                    for ch_num, tt_num in expected_mapping.items():
-                        if not any(channel.get('channel_number') == ch_num and channel.get('transfer_tube_number') == tt_num for channel in channel_mapping_data):
-                            all_mappings_correct = False
-                            break
-                    if not all_mappings_correct:
-                        st.warning("Warning: Incorrect channel mapping for Tandem and Ovoid plan. Expected: Channel 1 to Transfer Tube 1, Channel 2 to Transfer Tube 3, Channel 3 to Transfer Tube 5.")
-
-                elif num_channels == 2: # Tandem and Ring
-                    expected_mapping = { '1': '1', '2': '5' }
-                    all_mappings_correct = True
-                    for ch_num, tt_num in expected_mapping.items():
-                        if not any(channel.get('channel_number') == ch_num and channel.get('transfer_tube_number') == tt_num for channel in channel_mapping_data):
-                            all_mappings_correct = False
-                            break
-                    if not all_mappings_correct:
-                        st.warning("Warning: Incorrect channel mapping for Tandem and Ring plan. Expected: Channel 1 to Transfer Tube 1, Channel 2 to Transfer Tube 5.")
-
-            elif selected_template_name == "Cylinder HDR":
-                channel_mapping_data = results.get('channel_mapping', [])
-                is_catheter_1_mapped_to_channel_5 = False
-                for channel in channel_mapping_data:
-                    if channel.get('channel_number') == '1' and channel.get('transfer_tube_number') == '5':
-                        is_catheter_1_mapped_to_channel_5 = True
-                        break
+                # 2. Convert the HTML string to a PDF in a temporary file
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
+                    convert_html_to_pdf(html_content, tmp_pdf.name)
+                    
+                    # 3. Read the generated PDF back into memory
+                    with open(tmp_pdf.name, "rb") as f:
+                        pdf_bytes = f.read()
                 
-                if not is_catheter_1_mapped_to_channel_5:
-                    st.warning("Warning: For 'Cylinder HDR' template, expected channel mapping is Catheter 1 to Channel 5. Please verify your channel mapping.")
-            # --- End Channel Mapping Validation ---
+                # 4. Offer the PDF bytes via the download button
+                st.download_button(
+                    label="Download PDF Report",
+                    data=pdf_bytes,
+                    file_name=f"Dose_Summary_{patient_name}_{plan_name}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True,
+                    type="primary"
+                )
+            except Exception as e:
+                st.error(f"Could not generate PDF: {e}")
+                st.error("Please ensure 'wkhtmltopdf' is correctly installed and accessible by the application.")
 
-            with st.container():
-                st.header("Results")
+            
+            st.markdown("---")
+            st.subheader("Download Cumulative Brachy Data (JSON)")
+            st.markdown("Save the cumulative dose data (previous fractions + this plan) to a new JSON file. This file can be uploaded for future treatment analysis.")
 
-                col_summary_left, col_summary_right = st.columns([0.7, 0.3])
-
-                with col_summary_left:
-                    st.write(f"**Patient Name:** {results['patient_name']}")
-                    st.write(f"**Patient MRN:** {results['patient_mrn']}")
-                    st.write(f"**Plan Name:** {results['plan_name']}")
-                    st.write(f"**Plan Date:** {results['plan_date']}")
-                    st.write(f"**Plan Time:** {results['plan_time']}")
-                    if results.get("plan_time_warning"):
-                        st.warning(results["plan_time_warning"])
-                    st.write(f"**Brachytherapy Dose per Fraction:** {results['brachy_dose_per_fraction']:.2f} Gy")
-                    st.write(f"**Number of Fractions Used for Calculations:** {results['calculation_number_of_fractions']}")
-                    st.write(f"**Number of Planned Fractions:** {results['planned_number_of_fractions']}")
+            # --- Cumulative JSON Download Button ---
+            def create_cumulative_json():
+                try:
+                    # 1. Get old JSON and new results
+                    old_json = st.session_state.get('json_content', {})
+                    new_results = st.session_state.results
                     
-                    # --- ADDED WARNING ---
-                    if results['calculation_number_of_fractions'] != results['planned_number_of_fractions']:
-                        st.warning("Warning: The planned number of fractions and the number of fractions used for EQD2 calculations differ.")
-                    # --- END WARNING ---
+                    # Create a deep copy to avoid modifying session state
+                    new_cumulative_data = json.loads(json.dumps(old_json))
+                    if "dvh_results" not in new_cumulative_data:
+                        new_cumulative_data["dvh_results"] = {}
+                    if "point_dose_results" not in new_cumulative_data:
+                        new_cumulative_data["point_dose_results"] = {}
 
-                with col_summary_right:
-                    st.subheader("Channel Mapping")
-                    if results.get('channel_mapping'):
-                        # Group channels by ChannelNumber (for Cath) and TransferTubeNumber (for Chan)
-                        channel_info_display = {}
-                        for channel in results['channel_mapping']:
-                            cath_num = channel.get('channel_number', 'N/A')
-                            chan_num = channel.get('transfer_tube_number', 'N/A')
-                            
-                            if cath_num not in channel_info_display:
-                                channel_info_display[cath_num] = []
-                            channel_info_display[cath_num].append(chan_num)
+                    new_dvh = new_results.get('dvh_results', {})
+                    num_new_fractions = new_results.get('calculation_number_of_fractions', 1)
+
+                    # 2. Process DVH Results
+                    for organ_name, new_data in new_dvh.items():
+                        # Find matching organ key in the cumulative data (case/hyphen insensitive)
+                        target_key = None
+                        search_term = organ_name.lower().replace("-", "").replace("_", "")
+                        for key in new_cumulative_data['dvh_results'].keys():
+                            if key.lower().replace("-", "").replace("_", "") == search_term:
+                                target_key = key
+                                break
                         
-                        for cath_num, chan_nums in channel_info_display.items():
-                            st.write(f"**Cath {cath_num}** - Chan {', '.join(map(str, sorted(chan_nums)))}")
-                    else:
-                        st.info("No channel mapping data available.")
-
-                tab1, tab2, tab3 = st.tabs(["DVH Results", "Point Dose Results", "Report"])
-
-                with tab1:
-                    st.subheader("Target Volume DVH Results")
-                    target_dvh_data = []
-                    oar_dvh_data = []
-
-                    # Create a case-insensitive version of the alpha/beta ratios dictionary
-                    ab_ratios_lower = {k.lower(): v for k, v in ab_ratios.items()}
-
-                    for organ, data in results["dvh_results"].items():
-                        # Use the lowercase version for lookup
-                        alpha_beta = ab_ratios_lower.get(organ.lower(), ab_ratios.get("Default"))
+                        if not target_key: # Organ wasn't in the old file, add it
+                            target_key = organ_name 
                         
-                        # Use structure_mapping if available, otherwise fall back to old logic
-                        is_target = False
-                        if 'structure_mapping' in st.session_state and organ in st.session_state.structure_mapping:
-                            if st.session_state.structure_mapping[organ] == "TARGET":
-                                is_target = True
-                        else:
-                            # Fallback logic if structure_mapping is not available
-                            if "ctv" in organ.lower() or "gtv" in organ.lower() or alpha_beta == 10:
-                                is_target = True
+                        if target_key not in new_cumulative_data['dvh_results']:
+                            new_cumulative_data['dvh_results'][target_key] = {"dose_fx": {}}
+                        if "dose_fx" not in new_cumulative_data['dvh_results'][target_key]:
+                             new_cumulative_data['dvh_results'][target_key]["dose_fx"] = {}
                         
-                        if is_target:
-                            # D98 row
-                            target_dvh_data.append({
-                                "Organ": organ,
-                                "Volume (cc)": data.get("volume_cc"),
-                                "Dose Metric": "D98",
-                                "Dose (Gy)": data.get("d98_gy_per_fraction"),
-                                "EQD2 (Gy)": data.get("eqd2_d98")
-                            })
-                            # D90 row
-                            target_dvh_data.append({
-                                "Organ": organ,
-                                "Volume (cc)": None,
-                                "Dose Metric": "D90",
-                                "Dose (Gy)": data.get("d90_gy_per_fraction"),
-                                "EQD2 (Gy)": data.get("eqd2_d90")
-                            })
-                        else:
-                            constraint_status = "N/A"
-                            dose_to_meet = "N/A"
-                            if organ in results["constraint_evaluation"] and "EQD2_met" in results["constraint_evaluation"][organ]:
-                                constraint_status = "Met" if results["constraint_evaluation"][organ]["EQD2_met"] == "True" else "NOT Met"
-                                dose_to_meet = data.get("dose_to_meet_constraint", "N/A")
+                        dose_fx_map = new_cumulative_data['dvh_results'][target_key]["dose_fx"]
 
-                            # D0.1cc row
-                            oar_dvh_data.append({
-                                "Organ": organ,
-                                "Volume (cc)": data["volume_cc"],
-                                "Dose Metric": "D0.1cc",
-                                "Dose (Gy)": data["d0_1cc_gy_per_fraction"],
-                                "EQD2 (Gy)": data["eqd2_d0_1cc"],
-                                "Dose to Meet Constraint (Gy)": "",
-                                "Constraint Status": constraint_status
-                            })
-                            # D1cc row
-                            oar_dvh_data.append({
-                                "Organ": organ,
-                                "Volume (cc)": None,
-                                "Dose Metric": "D1cc",
-                                "Dose (Gy)": data["d1cc_gy_per_fraction"],
-                                "EQD2 (Gy)": data["eqd2_d1cc"],
-                                "Dose to Meet Constraint (Gy)": "",
-                                "Constraint Status": constraint_status
-                            })
-                            # D2cc row
-                            oar_dvh_data.append({
-                                "Organ": organ,
-                                "Volume (cc)": None,
-                                "Dose Metric": "D2cc",
-                                "Dose (Gy)": data["d2cc_gy_per_fraction"],
-                                "EQD2 (Gy)": data["eqd2_d2cc"],
-                                "Dose to Meet Constraint (Gy)": dose_to_meet,
-                                "Constraint Status": constraint_status
-                            })
+                        # Define all metrics to update
+                        metric_keys = ['d0_1cc_gy_per_fraction', 'd1cc_gy_per_fraction', 'd2cc_gy_per_fraction',
+                                       'd90_gy_per_fraction', 'd98_gy_per_fraction', 'd95_gy_per_fraction',
+                                       'max_dose_gy_per_fraction', 'mean_dose_gy_per_fraction', 'min_dose_gy_per_fraction']
+                        
+                        for key in metric_keys:
+                            old_list = dose_fx_map.get(key, [])
+                            new_dose = new_data.get(key, 0.0) # Get the new dose from results
+                            dose_fx_map[key] = old_list + ([new_dose] * num_new_fractions)
                     
-                    # Calculate fraction counts once for both tables
-                    previous_brachy_json = st.session_state.get('previous_brachy_json', {})
-                    num_json_fractions = 0
-                    if previous_brachy_json:
-                        max_len = 0
-                        # Check DVH results for longest list of fractions
-                        for organ_data in previous_brachy_json.get("dvh_results", {}).values():
-                            for dose_value in organ_data.get("dose_fx", {}).values():
-                                if isinstance(dose_value, list):
-                                    max_len = max(max_len, len(dose_value))
-                                elif isinstance(dose_value, (int, float)):
-                                    max_len = max(max_len, 1)
-                        # Check point dose results for longest list of fractions
-                        for point_data in previous_brachy_json.get("point_dose_results", []):
-                            dose_value = point_data.get("dose_fx")
-                            if dose_value:
-                                if isinstance(dose_value, list):
-                                    max_len = max(max_len, len(dose_value))
-                                elif isinstance(dose_value, (int, float)):
-                                    max_len = max(max_len, 1)
-                            # Handle old format where 'dose_fx' is missing but 'dose' exists
-                            elif 'dose' in point_data:
-                                max_len = max(max_len, 1)
-                        num_json_fractions = max_len
-                    num_current_fractions = results.get('calculation_number_of_fractions', 1)
+                    # 3. Process Point Dose Results
+                    new_points = new_results.get('point_dose_results', [])
+                    for point in new_points:
+                        point_name = point.get('name')
+                        if not point_name: continue
 
-                    # --- New Target Table Display Logic ---
-                    if target_dvh_data:
-                        temp_target_df = pd.DataFrame(target_dvh_data)
+                        if point_name not in new_cumulative_data['point_dose_results']:
+                            new_cumulative_data['point_dose_results'][point_name] = {"dose_fx": []}
                         
-                        target_all_columns = ["Organ", "Volume (cc)", "Dose Metric"]
-                        for i in range(num_json_fractions + num_current_fractions):
-                            target_all_columns.append(f"Fx {i+1} Dose (Gy)")
-                        target_all_columns.extend(["EQD2 (Gy)"])
+                        old_list = new_cumulative_data['point_dose_results'][point_name].get('dose_fx', [])
+                        new_dose = point.get('dose', 0.0) # This is dose_per_fraction
+                        new_cumulative_data['point_dose_results'][point_name]['dose_fx'] = old_list + ([new_dose] * num_new_fractions)
 
-                        target_restructured_data = []
-                        for organ_name in temp_target_df['Organ'].unique():
-                            organ_group = temp_target_df[temp_target_df['Organ'] == organ_name]
-                            
-                            for dose_metric in ['D98', 'D90']:
-                                metric_row_df = organ_group[organ_group['Dose Metric'] == dose_metric]
-                                if not metric_row_df.empty:
-                                    row_data = metric_row_df.iloc[0].to_dict()
-                                    
-                                    new_row = {
-                                        "Organ": organ_name,
-                                        "Volume (cc)": row_data["Volume (cc)"] if dose_metric == 'D98' else None,
-                                        "Dose Metric": dose_metric,
-                                        "EQD2 (Gy)": row_data["EQD2 (Gy)"],
-                                    }
+                    # 4. Convert to string
+                    return json.dumps(new_cumulative_data, indent=2)
+                
+                except Exception as e:
+                    st.error(f"Error creating cumulative JSON: {e}")
+                    return "{}"
 
-                                    json_doses = []
-                                    if previous_brachy_json:
-                                        mapped_organ_name = organ_name
-                                        if 'confirmed_structure_mapping' in st.session_state:
-                                            for key, value in st.session_state.confirmed_structure_mapping.items():
-                                                if key == organ_name: mapped_organ_name = value; break
-                                        
-                                        json_doses_raw = previous_brachy_json.get("dvh_results", {}).get(mapped_organ_name, {}).get("dose_fx", {}).get(f"{dose_metric.lower()}_gy_per_fraction")
-                                        if json_doses_raw is not None:
-                                            json_doses = json_doses_raw if isinstance(json_doses_raw, list) else [json_doses_raw]
-
-                                    for i, dose in enumerate(json_doses):
-                                        new_row[f"Fx {i+1} Dose (Gy)"] = dose
-                                    
-                                    current_dose = row_data["Dose (Gy)"]
-                                    for i in range(num_current_fractions):
-                                        new_row[f"Fx {num_json_fractions + i + 1} Dose (Gy)"] = current_dose
-
-                                    target_restructured_data.append(new_row)
-
-                        if target_restructured_data:
-                            final_target_df = pd.DataFrame(target_restructured_data, columns=target_all_columns)
-                            
-                            target_column_config = {
-                                "Volume (cc)": st.column_config.NumberColumn(format="%.2f"),
-                                "EQD2 (Gy)": st.column_config.NumberColumn(format="%.2f"),
-                            }
-                            for col in final_target_df.columns:
-                                if col.startswith("Fx ") and col.endswith(" Dose (Gy)"):
-                                    target_column_config[col] = st.column_config.NumberColumn(format="%.2f")
-                            
-                            st.dataframe(final_target_df, column_config=target_column_config)
-                        else:
-                            st.info("No target volume DVH data available to display.")
-                    else:
-                        st.info("No target volume DVH data available.")
-                    
-                    st.subheader("OAR DVH Results")
-                    if oar_dvh_data:
-                        temp_oar_df = pd.DataFrame(oar_dvh_data)
-                        
-                        all_columns = ["Organ", "Volume (cc)", "Dose Metric"]
-                        for i in range(num_json_fractions + num_current_fractions):
-                            all_columns.append(f"Fx {i+1} Dose (Gy)")
-                        all_columns.extend(["EQD2 (Gy)", "Dose to Meet Constraint (Gy)", "Constraint Status"])
-
-                        restructured_data = []
-                        for organ_name in temp_oar_df['Organ'].unique():
-                            organ_group = temp_oar_df[temp_oar_df['Organ'] == organ_name]
-                            
-                            for dose_metric in ['D0.1cc', 'D1cc', 'D2cc']:
-                                metric_row_df = organ_group[organ_group['Dose Metric'] == dose_metric]
-                                if not metric_row_df.empty:
-                                    row_data = metric_row_df.iloc[0].to_dict()
-                                    
-                                    new_row = {
-                                        "Organ": organ_name,
-                                        "Volume (cc)": row_data["Volume (cc)"] if dose_metric == 'D0.1cc' else None,
-                                        "Dose Metric": dose_metric,
-                                        "EQD2 (Gy)": row_data["EQD2 (Gy)"],
-                                        "Dose to Meet Constraint (Gy)": row_data["Dose to Meet Constraint (Gy)"] if dose_metric == 'D2cc' else "",
-                                        "Constraint Status": row_data["Constraint Status"]
-                                    }
-
-                                    json_doses = []
-                                    if previous_brachy_json:
-                                        mapped_organ_name = organ_name
-                                        if 'confirmed_structure_mapping' in st.session_state:
-                                            for key, value in st.session_state.confirmed_structure_mapping.items():
-                                                if key == organ_name: mapped_organ_name = value; break
-                                        
-                                        json_doses_raw = previous_brachy_json.get("dvh_results", {}).get(mapped_organ_name, {}).get("dose_fx", {}).get(f"{dose_metric.lower()}_gy_per_fraction")
-                                        if json_doses_raw is not None:
-                                            json_doses = json_doses_raw if isinstance(json_doses_raw, list) else [json_doses_raw]
-
-                                    for i, dose in enumerate(json_doses):
-                                        new_row[f"Fx {i+1} Dose (Gy)"] = dose
-                                    
-                                    current_dose = row_data["Dose (Gy)"]
-                                    for i in range(num_current_fractions):
-                                        new_row[f"Fx {num_json_fractions + i + 1} Dose (Gy)"] = current_dose
-
-                                    restructured_data.append(new_row)
-
-                        if restructured_data:
-                            final_oar_df = pd.DataFrame(restructured_data, columns=all_columns)
-                            
-                            def style_oar_rows(df):
-                                styles = pd.DataFrame('', index=df.index, columns=df.columns)
-                                organ_groups = df['Organ'].ffill()
-                                current_constraints = st.session_state.custom_constraints
-
-                                for organ_name in organ_groups.unique():
-                                    group_indices = df[organ_groups == organ_name].index
-                                    d2cc_row_df = df.loc[group_indices]
-                                    d2cc_row_df = d2cc_row_df[d2cc_row_df['Dose Metric'] == 'D2cc']
-                                    
-                                    if not d2cc_row_df.empty:
-                                        d2cc_index = d2cc_row_df.index[0]
-                                        eqd2_value = d2cc_row_df['EQD2 (Gy)'].iloc[0]
-
-                                        oar_constraints = current_constraints.get('oar_constraints', {})
-                                        if pd.notna(eqd2_value) and organ_name in oar_constraints and "D2cc" in oar_constraints[organ_name]:
-                                            constraint_data = oar_constraints[organ_name]['D2cc']
-                                            max_val = constraint_data['max']
-                                            warn_val = constraint_data.get('warning')
-                                            
-                                            style_str = ''
-                                            if eqd2_value > max_val:
-                                                style_str = 'background-color: #dc3545; color: white'
-                                            elif warn_val is not None and eqd2_value >= warn_val:
-                                                style_str = 'background-color: #ffc107; color: black'
-                                            else:
-                                                style_str = 'background-color: #28a745; color: white'
-                                            
-                                            styles.loc[d2cc_index] = style_str
-                                return styles
-
-                            oar_column_config = {
-                                "Volume (cc)": st.column_config.NumberColumn(format="%.2f"),
-                                "EQD2 (Gy)": st.column_config.NumberColumn(format="%.2f"),
-                                "Dose to Meet Constraint (Gy)": st.column_config.NumberColumn(format="%.2f"),
-                            }
-                            for col in final_oar_df.columns:
-                                if col.startswith("Fx ") and col.endswith(" Dose (Gy)"):
-                                    oar_column_config[col] = st.column_config.NumberColumn(format="%.2f")
-                            
-                            st.dataframe(final_oar_df.style.apply(style_oar_rows, axis=None), column_config=oar_column_config)
-
-                        else:
-                            st.info("No OAR DVH data available.")
-
-                    with tab2:
-                        st.subheader("Point Dose Results")
-                        
-                        previous_brachy_json = st.session_state.get('previous_brachy_json', {})
-                        
-                        # Use the same robust counting logic as the OAR table for consistency
-                        num_json_fractions = 0
-                        if previous_brachy_json:
-                            max_len = 0
-                            for point_data in previous_brachy_json.get("point_dose_results", []):
-                                dose_value = point_data.get("dose_fx")
-                                if dose_value:
-                                    if isinstance(dose_value, list): max_len = max(max_len, len(dose_value))
-                                    elif isinstance(dose_value, (int, float)): max_len = max(max_len, 1)
-                                elif 'dose' in point_data:
-                                    max_len = max(max_len, 1)
-                            num_json_fractions = max_len
-
-                        num_current_fractions = results.get('calculation_number_of_fractions', 1)
-                        
-                        all_columns = ["name"]
-                        for i in range(num_json_fractions + num_current_fractions):
-                            all_columns.append(f"Fx {i+1} Dose (Gy)")
-                        all_columns.extend(["total_dose", "BED_this_plan", "BED_previous_brachy", "BED_EBRT", "EQD2", "Constraint Status"])
-
-                        point_dose_data = []
-                        for point_result in results["point_dose_results"]:
-                            new_row = {
-                                "name": point_result["name"],
-                                "total_dose": point_result["total_dose"],
-                                "BED_this_plan": point_result["BED_this_plan"],
-                                "BED_previous_brachy": point_result["BED_previous_brachy"],
-                                "BED_EBRT": point_result["BED_EBRT"],
-                                "EQD2": point_result["EQD2"],
-                                "Constraint Status": point_result["Constraint Status"]
-                            }
-
-                            json_doses = []
-                            if previous_brachy_json:
-                                for prev_point in previous_brachy_json.get("point_dose_results", []):
-                                    if prev_point["name"] == point_result["name"]:
-                                        if "dose_fx" in prev_point:
-                                            json_doses_raw = prev_point.get("dose_fx", [])
-                                            json_doses = json_doses_raw if isinstance(json_doses_raw, list) else [json_doses_raw]
-                                        elif "dose" in prev_point: # Handle old format
-                                            json_doses = [prev_point.get("dose", 0)]
-                                        break
-                            
-                            for i, dose in enumerate(json_doses):
-                                new_row[f"Fx {i+1} Dose (Gy)"] = dose
-
-                            current_dose = point_result["dose"]
-                            for i in range(num_current_fractions):
-                                new_row[f"Fx {num_json_fractions + i + 1} Dose (Gy)"] = current_dose
-
-                            point_dose_data.append(new_row)
-
-                        if point_dose_data:
-                            point_dose_df = pd.DataFrame(point_dose_data, columns=all_columns)
-
-                            def style_point_dose_rows(row):
-                                style = [''] * len(row)
-                                if 'Constraint Status' in row and row['Constraint Status'] == 'Pass':
-                                    style = ['background-color: #28a745; color: white'] * len(row)
-                                elif 'Constraint Status' in row and row['Constraint Status'] == 'Fail':
-                                    style = ['background-color: #dc3545; color: white'] * len(row)
-                                return style
-
-                            point_dose_column_config = {
-                                "total_dose": st.column_config.NumberColumn(format="%.2f"),
-                                "BED_this_plan": st.column_config.NumberColumn(format="%.2f"),
-                                "BED_previous_brachy": st.column_config.NumberColumn(format="%.2f"),
-                                "BED_EBRT": st.column_config.NumberColumn(format="%.2f"),
-                                "EQD2": st.column_config.NumberColumn(format="%.2f"),
-                            }
-                            for col in point_dose_df.columns:
-                                if col.startswith("Fx ") and col.endswith(" Dose (Gy)"):
-                                    point_dose_column_config[col] = st.column_config.NumberColumn(format="%.2f")
-
-                            st.dataframe(point_dose_df.style.apply(style_point_dose_rows, axis=1), column_config=point_dose_column_config)
-
-                        else:
-                            st.info("No point dose data available.")
-                    
-                    with tab3:
-                        st.subheader("Report")
-                        html_report = results.get('html_report', '')
-                        if html_report:
-                            st.components.v1.html(html_report, height=600, scrolling=True)
-                            
-                            dvh_export_data = {}
-                            for k, v in results["dvh_results"].items():
-                                dvh_export_data[k] = {
-                                    'bed_brachy_d2cc': v.get('bed_brachy_d2cc', 0),
-                                    'bed_brachy_d1cc': v.get('bed_brachy_d1cc', 0),
-                                    'bed_brachy_d0_1cc': v.get('bed_brachy_d0_1cc', 0),
-                                    'dose_fx': {
-                                        'd2cc_gy_per_fraction': [v.get('d2cc_gy_per_fraction', 0)] * results.get('calculation_number_of_fractions', 1),
-                                        'd1cc_gy_per_fraction': [v.get('d1cc_gy_per_fraction', 0)] * results.get('calculation_number_of_fractions', 1),
-                                        'd0_1cc_gy_per_fraction': [v.get('d0_1cc_gy_per_fraction', 0)] * results.get('calculation_number_of_fractions', 1),
-                                    }
-                                }
-
-                            point_dose_export_data = []
-                            for point in results["point_dose_results"]:
-                                point_dose_export_data.append({
-                                    "name": point["name"],
-                                    "dose_fx": [point["dose"]] * results.get('calculation_number_of_fractions', 1),
-                                    "BED_this_plan": point["BED_this_plan"]
-                                })
-
-                            export_data = {
-                                "patient_name": results["patient_name"],
-                                "patient_mrn": results["patient_mrn"],
-                                "plan_date": results["plan_date"],
-                                "plan_time": results["plan_time"],
-                                "source_info": results["source_info"],
-                                "ebrt_summary": {
-                                    "total_dose": st.session_state.ebrt_total_dose,
-                                    "number_of_fractions": st.session_state.ebrt_num_fractions,
-                                    "dose_per_fraction": st.session_state.ebrt_fraction_dose
-                                },
-                                "dvh_results": dvh_export_data,
-                                "point_dose_results": point_dose_export_data
-                            }
-                            json_export_str = json.dumps(export_data, indent=4)
-
-                            st.download_button(
-                                label="Download Brachy Data (JSON)",
-                                data=json_export_str,
-                                file_name="brachy_data.json",
-                                mime="application/json"
-                            )
-
-                            try:
-                                if 'tmpdir_analysis' in st.session_state:
-                                    pdf_path = os.path.join(st.session_state.tmpdir_analysis, "report.pdf")
-                                    convert_html_to_pdf(html_report, pdf_path)
-
-                                    with open(pdf_path, "rb") as f:
-                                        pdf_bytes = f.read()
-                                    
-                                    st.download_button(
-                                        label="Download PDF",
-                                        data=pdf_bytes,
-                                        file_name="report.pdf",
-                                        mime="application/pdf"
-                                    )
-                                else:
-                                    st.warning("Could not find temporary directory to generate PDF.")
-                            except IOError as e:
-                                st.error(f"Could not generate PDF. {e}")
-                        else:
-                            st.warning("Could not generate HTML report.")
-
+            cumulative_json_str = create_cumulative_json()
+            
+            st.download_button(
+                label="Download Cumulative JSON",
+                data=cumulative_json_str,
+                file_name=f"Cumulative_Brachy_Data_{patient_name}.json",
+                mime="application/json",
+                use_container_width=True,
+                type="primary"
+            )
 if __name__ == "__main__":
     main()

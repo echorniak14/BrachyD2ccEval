@@ -25,7 +25,7 @@ templates = {
                 "Bladder": {"D2cc": {"max": 80.0, "unit": "Gy"}},
                 "Rectum": {"D2cc": {"warning": 65.0, "max": 70.0, "unit": "Gy"}},
                 "Sigmoid": {"D2cc": {"warning": 65.0, "max": 70.0, "unit": "Gy"}},
-                "Bowel": {"D2cc": {"warning": 65.0, "max": 70.0, "unit": "Gy"}}
+                "Bowel": {"D2cc": {"max": 65.0, "unit": "Gy"}}
             }
         },
         "point_dose_constraints": {
