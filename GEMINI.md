@@ -127,6 +127,12 @@ This file is for internal use by the Gemini CLI agent to track project progress,
     - Fixed "alpha/beta symbol" in `src/templates/report_template.html`.
     - Added "Total Planned Dose" column to Target Volume DVH Results table in `src/templates/report_template.html` and `src/main.py`.
 
+- **Architectural Refactoring and Documentation Update:**
+    - Created a new branch `feature/validation-separation` to begin transitioning the project to a new version.
+    - Created `src/dvh_parser.py` to extract DVH metrics from the planning system.
+    - Created `src/validators.py` to compare recomputed values with planning system values.
+    - Updated `README.md` and `User_Manual.md` to reflect the new architecture and validation process.
+
 ## Next Steps:
 - **Previous Brachytherapy Data Integration:**
     - Implemented functionality to incorporate previous brachytherapy EQD2 data from HTML reports, allowing for organ-specific dose accumulation.

@@ -10,6 +10,7 @@ The BrachyD2ccEval tool is a software application designed to streamline the eva
 *   Calculation of critical DVH metrics, including D2cc, D1cc, and D0.1cc.
 *   Integration of External Beam Radiation Therapy (EBRT) and previous brachytherapy doses.
 *   Evaluation of treatment plans against predefined constraints (based on EMBRACE II).
+*   **DVH Metric Validation:** Compares recomputed dose-volume metrics against the values from the treatment planning system to ensure accuracy. A warning is flagged if the discrepancy is greater than a defined tolerance.
 *   **Plan Type-Based Constraint Management:** Dynamically manages and applies constraints based on predefined plan types, allowing for flexible and accurate evaluation across different treatment scenarios.
 *   **Interactive Dose Point Mapping:** Provides a user-friendly interface to manually map DICOM RT Plan points to clinical constraints using dropdown menus, offering greater control and flexibility over the evaluation process, now enhanced with automatic pre-selection for cylinder plan prescription points.
 *   **Automatic Prescription Point Mapping (Cylinder Plans):** Automatically identifies and maps specific prescription points (e.g., 'Tip', 'Shoulder', '3cm') in cylinder brachytherapy plans based on DICOM tags (`ApplicationSetupType`). These points are automatically pre-selected in the Streamlit GUI's dose point mapping section.
@@ -86,6 +87,8 @@ This table displays the following metrics for each organ at risk (OAR):
 *   **EQD2 (Gy):** The Equivalent Dose in 2 Gy fractions, which allows for the comparison of different fractionation schedules.
 *   **Constraint Status:** For OARs, this indicates whether the calculated EQD2 meets the predefined constraint. The table rows will be color-coded (green for met, yellow for warning, red for not met) based on the constraint status.
 *   **Dose to Meet Constraint (Gy):** If the EQD2 constraint is not met, this value indicates the dose per fraction that would be required to meet the constraint.
+
+**Note on Validation:** A warning will be displayed in the report if the re-calculated DVH metrics (e.g., D2cc) differ significantly from the values provided by the treatment planning system. This may indicate a need to review the plan data.
 
 ## 6. Troubleshooting
 

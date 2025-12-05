@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-This project aims to automate and streamline the evaluation process for HDR brachytherapy plans, specifically for cases planned using Oncentra. It processes DICOM RT Dose, RT Structure Set, and RT Plan files to calculate various dose-volume metrics, including D0.1cc, D1cc, D2cc, Biologically Effective Dose (BED), and Equivalent Dose in 2 Gy fractions (EQD2). The tool also integrates External Beam Radiation Therapy (EBRT) doses into the calculations and provides a user-friendly Streamlit graphical interface for interactive analysis and report generation.
+This project aims to automate and streamline the evaluation process for HDR brachytherapy plans, specifically for cases planned using Oncentra. It processes DICOM RT Dose, RT Structure Set, and RT Plan files to calculate various dose-volume metrics, including D0.1cc, D1cc, D2cc, Biologically Effective Dose (BED), and Equivalent Dose in 2 Gy fractions (EQD2). The tool also integrates External Beam Radiation Therapy (EBRT) doses into the calculations and provides a user-friendly Streamlit graphical interface for interactive analysis and report generation. A key feature is a validation layer that compares recomputed dose-volume metrics against the values from the treatment planning system to ensure accuracy.
 
 ## Features
 
@@ -12,6 +12,7 @@ This project aims to automate and streamline the evaluation process for HDR brac
 - **Plan Time Warning:** Displays a warning if the planned treatment time is outside of normal business hours (7am-5pm).
 - **Patient Consistency Verification:** Ensures all input DICOM files belong to the same patient.
 - **Dose Metric Calculation (D0.1cc, D1cc, D2cc):** Calculates the minimum dose to 0.1, 1, and 2 cubic centimeters of the most irradiated volume of an organ, utilizing the `dicompyler-core` library for accurate Dose-Volume Histogram (DVH) analysis.
+- **DVH Metric Validation:** Compares recomputed dose-volume metrics against the values from the treatment planning system to ensure accuracy. A warning is flagged if the discrepancy is greater than a defined tolerance (e.g., 5 Gy).
 - **BED/EQD2 Calculation:** Computes Biologically Effective Dose (BED) and Equivalent Dose in 2 Gy fractions (EQD2) for various organs, incorporating user-defined alpha/beta ratios and optional EBRT doses.
 - **Constraint Evaluation:** Evaluates calculated doses against EMBRACE II constraints, with visual indicators (red/green) in the GUI and reports.
 - **Point Dose Conditional Formatting:** Displays point dose results with visual indicators (green for 'Pass', red for 'Fail') based on their constraint status, providing immediate feedback on adherence to planning objectives.
@@ -56,24 +57,35 @@ In short, `dicom_parser.py` acts as an information gatherer, and the heavy lifti
 
 ### Dosimetric Calculations
 
-The `calculations.py` file contains the core logic for all dosimetric calculations.
+The `calculations.py` file, along with the new `dvh_parser.py` and `validators.py` files, contains the core logic for all dosimetric calculations and validations.
 
-*   **DVH and Dose-Volume Metric Calculation (D0.1cc, D1cc, D2cc, D90, D98, Max, Mean, Min):**
-    *   The `get_dvh` function uses the `dvhcalc.get_dvh` function from the `dicompyler-core` library to compute Dose-Volume Histograms.
-    *   It takes the RTSTRUCT and RTDOSE file paths and the ROI number for a specific structure.
-    *   For each structure, it extracts key dose-volume metrics such as D0.1cc, D1cc, D2cc (minimum dose to 0.1, 1, and 2 cubic centimeters of the most irradiated volume), D90, D98 (dose covering 90% and 98% of the volume), and Max, Mean, Min doses. These are returned as dose per fraction.
-*   **BED and EQD2 Calculation:**
+*   **DVH Metric Extraction (`dvh_parser.py`):**
+    *   This new module is responsible for parsing the DICOM RT Dose file to extract key dose-volume histogram (DVH) metrics, such as D0.1cc, D1cc, D2cc, D90, and D98, as calculated by the treatment planning system (TPS).
+
+*   **Volume Calculation and DVH Re-calculation (`calculations.py`):**
+    *   The `get_dvh` function in this module uses the `dicompyler-core` library to compute Dose-Volume Histograms from scratch, based on the raw DICOM data.
+    *   It calculates the volume of each structure and re-calculates the DVH metrics (D0.1cc, D1cc, D2cc, etc.). These re-calculated values are used for validation against the TPS-generated values.
+
+*   **Validation (`validators.py`):**
+    *   This module compares the DVH metrics extracted by `dvh_parser.py` with the metrics re-calculated by `calculations.py`.
+    *   It flags any significant discrepancies (e.g., > 5 Gy difference) between the two sets of values, alerting the user to potential issues in the treatment planning system's calculations.
+
+*   **BED and EQD2 Calculation (`calculations.py`):**
     *   The `calculate_bed_and_eqd2` function computes the Biologically Effective Dose (BED) and Equivalent Dose in 2 Gy fractions (EQD2).
+    *   It now primarily uses the DVH metrics extracted from the planning system (via `dvh_parser.py`) for these calculations.
     *   It takes the total dose, dose per fraction, organ name, and optional EBRT dose and previous brachytherapy EQD2 as input.
     *   The alpha/beta ratio for the organ is retrieved from the `config.py` file.
     *   The BED for the current brachytherapy plan, EBRT, and any previous brachytherapy fractions are calculated and summed to determine the total accumulated BED.
     *   The total BED is then used to calculate the final accumulated EQD2 value.
-*   **Dose at Specific Points:**
+
+*   **Dose at Specific Points (`calculations.py`):**
     *   The `get_dose_at_point` function calculates the dose at a given 3D coordinate within the dose grid. This is used for evaluating prescription points in cylinder plans.
-*   **Constraint Evaluation:**
+
+*   **Constraint Evaluation (`calculations.py`):**
     *   The `evaluate_constraints` function compares the calculated EQD2 values against the constraints defined in `config.py` (or user-defined constraints from the GUI).
     *   It returns a dictionary indicating whether the constraints for each organ have been met.
-*   **Dose to Meet Constraint Calculation:**
+
+*   **Dose to Meet Constraint Calculation (`calculations.py`):**
     *   For any organ that fails to meet its EQD2 constraint, the `calculate_dose_to_meet_constraint` function determines the highest fractional brachytherapy dose required to meet that constraint exactly.
     *   This calculation involves converting the EQD2 constraint back to a total BED target, accounting for any EBRT dose and previous brachytherapy fractions, and then solving a quadratic equation to find the necessary brachytherapy dose per fraction.
     *   This provides actionable feedback for plan optimization, indicating what dose adjustment might be needed to satisfy the constraint.
