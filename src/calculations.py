@@ -5,6 +5,7 @@ from dicompylercore import dvhcalc
 import os
 import contextlib
 import re
+from src.dvh_parser import get_dose_at_volume, get_dose_at_percent_volume
 
 def get_alpha_beta(organ_name, alpha_beta_ratios):
     """Performs a case-insensitive lookup to find the correct alpha/beta ratio."""
@@ -236,6 +237,66 @@ def get_dvh(rtss_file, rtdose_file, structure_data, number_of_fractions, ebrt_do
             'd98_gy_per_fraction': d98_gy_per_fraction,
             'd90_gy_per_fraction': d90_gy_per_fraction,
             'previous_brachy_bed': previous_bed_data # Use the result from our new logic
+        }
+        
+    return dvh_results
+
+def get_dvh_metrics_from_text(parsed_dvh_data, structure_mapping, number_of_fractions, previous_brachy_bed_per_organ=None):
+    """
+    Calculates DVH metrics using parsed text data instead of DICOM voxels.
+    """
+    if previous_brachy_bed_per_organ is None:
+        previous_brachy_bed_per_organ = {}
+        
+    dvh_results = {}
+
+    for struct_name, data in parsed_dvh_data.items():
+        normalized_name = normalize_structure_name(struct_name)
+        
+        # Determine standard name via mapping
+        standardized_name = normalized_name 
+        if structure_mapping:
+            # Case-insensitive lookup in the mapping
+            for map_key, map_val in structure_mapping.items():
+                if map_key.lower() == struct_name.lower():
+                    standardized_name = map_val
+                    break
+
+        # Calculate Metrics using Interpolation (The "Source of Truth")
+        d2cc_gy_per_fraction = get_dose_at_volume(data, 2.0)
+        d1cc_gy_per_fraction = get_dose_at_volume(data, 1.0)
+        d0_1cc_gy_per_fraction = get_dose_at_volume(data, 0.1)
+        
+        # Calculate Percentage Metrics
+        d90_gy_per_fraction = get_dose_at_percent_volume(data, 90.0)
+        d98_gy_per_fraction = get_dose_at_percent_volume(data, 98.0)
+        d95_gy_per_fraction = get_dose_at_percent_volume(data, 95.0)
+        
+        max_dose_gy_per_fraction = float(np.max(data["dose_axis"]))
+        min_dose_gy_per_fraction = float(np.min(data["dose_axis"]))
+        mean_dose_gy_per_fraction = 0.0 # Not typically available in this simple parsing
+
+        # Retrieve Historical Data
+        previous_bed_data = {}
+        if standardized_name and standardized_name != "Ignore":
+             for history_key, history_value in previous_brachy_bed_per_organ.items():
+                if history_key.lower() == standardized_name.lower():
+                    previous_bed_data = history_value
+                    break
+
+        # Result Dictionary
+        dvh_results[normalized_name] = {
+            'volume_cc': data['volume_cc'],
+            'd2cc_gy_per_fraction': d2cc_gy_per_fraction,
+            'd1cc_gy_per_fraction': d1cc_gy_per_fraction,
+            'd0_1cc_gy_per_fraction': d0_1cc_gy_per_fraction,
+            'max_dose_gy_per_fraction': max_dose_gy_per_fraction,
+            'mean_dose_gy_per_fraction': mean_dose_gy_per_fraction,
+            'min_dose_gy_per_fraction': min_dose_gy_per_fraction,
+            'd95_gy_per_fraction': d95_gy_per_fraction,
+            'd98_gy_per_fraction': d98_gy_per_fraction,
+            'd90_gy_per_fraction': d90_gy_per_fraction,
+            'previous_brachy_bed': previous_bed_data
         }
         
     return dvh_results

@@ -16,9 +16,16 @@ from src.dicom_parser import get_plan_data, get_dose_point_mapping, get_structur
 from src.main import main as run_analysis
 from src.config import templates
 from src.calculations import calculate_optimization_goal
+from src.validators import (
+    validate_patient_ids, 
+    validate_file_completeness, 
+    check_plan_time, 
+    validate_channel_mapping,
+    check_fraction_count
+)
 
 def main():
-    st.set_page_config(layout="wide")
+    st.set_page_config(layout="wide", page_title="ECHO")
     
     # --- 👇 PASTE THE CSS BLOCK HERE 👇 ---
     # Injected CSS
@@ -183,7 +190,8 @@ def main():
         st.button("Clear Results", on_click=clear_results, use_container_width=True)
 
     # --- Main Page Content ---
-    st.title("Brachytherapy Evaluation and Analysis Module")
+    st.title("ECHO: A HDR Evaluation and Analysis Tool")
+    st.subheader("A true reflection for clinical clarity.")
 
     pre_planning_tab, plan_analysis_tab, print_plan_tab = st.tabs([
         "📝 Pre-Planning", "🔬 Plan Analysis", "📄 Print Plan"

@@ -1,0 +1,11 @@
+backend/
+├── src/
+│   ├── api/
+│   │   └── routes.py          # FastAPI endpoints (The "Controller")
+│   ├── core/
+│   │   ├── calculations.py    # Your existing physics engine
+│   │   └── validators.py      # Your new safety logic
+│   ├── services/
+│   │   ├── optimization_service.py  # Logic from 'update_optimization_goals'
+│   │   └── parser_service.py        # Logic from 'process_json_upload'
+│   └── main.py                # App entry point
