@@ -238,7 +238,31 @@ def main():
 
         if st.session_state.current_template_name == "Custom":
             with st.expander("Customize Template", expanded=True):
-                st.write("Edit values in session state directly via inputs above if implemented.")
+                c_col1, c_col2 = st.columns(2)
+                
+                # --- Editable Target Constraints ---
+                with c_col1:
+                    st.markdown("#### Target Constraints")
+                    t_cons_custom = st.session_state.custom_constraints["constraints"]["target_constraints"]
+                    for t_name, t_vals in t_cons_custom.items():
+                        st.caption(f"**{t_name}**")
+                        if "min" in t_vals:
+                            t_vals["min"] = st.number_input(f"{t_name} Min (Gy)", value=float(t_vals["min"]), step=0.5, key=f"cust_t_min_{t_name}")
+                        if "max" in t_vals:
+                            t_vals["max"] = st.number_input(f"{t_name} Max (Gy)", value=float(t_vals["max"]), step=0.5, key=f"cust_t_max_{t_name}")
+
+                # --- Editable OAR Constraints ---
+                with c_col2:
+                    st.markdown("#### OAR Constraints")
+                    o_cons_custom = st.session_state.custom_constraints["constraints"]["oar_constraints"]
+                    for o_name, o_metrics in o_cons_custom.items():
+                        st.caption(f"**{o_name}**")
+                        # Usually D2cc, but iterate just in case
+                        for m_type, m_vals in o_metrics.items():
+                            if "max" in m_vals:
+                                m_vals["max"] = st.number_input(f"{o_name} {m_type} Max (Gy)", value=float(m_vals["max"]), step=0.5, key=f"cust_o_max_{o_name}_{m_type}")
+                            if "warning" in m_vals:
+                                m_vals["warning"] = st.number_input(f"{o_name} {m_type} Warning (Gy)", value=float(m_vals["warning"]), step=0.5, key=f"cust_o_warn_{o_name}_{m_type}")
 
         st.subheader("Previous Brachytherapy Data")
         st.file_uploader("Upload previous brachy data (optional .json)", type=["json"], key="prev_brachy_uploader", on_change=process_json_upload)
@@ -551,20 +575,53 @@ def main():
             val_data = results.get("validation_df")
             val_df = pd.DataFrame(val_data) if val_data else pd.DataFrame()
             if not val_df.empty:
-                with st.expander("TPS vs DICOM Comparison", expanded=False):
-                    def hl(val): return f'color: {"red" if abs(val)>2.0 else "green"}'
-                    st.dataframe(val_df.style.map(hl, subset=['Pct_Diff']), use_container_width=True)
+                # Filter for significant differences (> 5%) AND clinically relevant metrics
+                # OARs: Rectum, Sigmoid, Bowel, Bladder -> D2cc, D1cc, D0.1cc
+                # Targets: GTV, HRCTV -> D90, D98
+                
+                def is_clinically_relevant(row):
+                    s_name = str(row['Structure']).upper()
+                    metric = str(row['Metric']).upper()
                     
-                    if st.button("Add to Feasibility Study"):
-                        path = os.path.join(project_root, "feasibility_study.csv")
-                        hdr = not os.path.exists(path)
-                        try:
-                            val_df.to_csv(path, mode='a', header=hdr, index=False)
-                            st.success("Saved to feasibility study.")
-                        except PermissionError:
-                            st.error(f"Permission denied: Could not save to '{path}'. Please close the file if it is open in Excel or another program.")
-                        except Exception as e:
-                            st.error(f"Error saving to feasibility study: {e}")
+                    if 'VOLUME' in metric: return True
+
+                    is_oar = any(x in s_name for x in ['RECTUM', 'SIGMOID', 'BOWEL', 'BLADDER'])
+                    is_target = any(x in s_name for x in ['GTV', 'HRCTV'])
+                    
+                    if is_oar and metric in ['D2CC', 'D1CC', 'D0.1CC']: return True
+                    if is_target and metric in ['D90', 'D98']: return True
+                    return False
+
+                # Apply filters: > 5% diff AND clinically relevant
+                sig_diff_df = val_df[
+                    (val_df['Pct_Diff'].abs() > 5.0) & 
+                    (val_df.apply(is_clinically_relevant, axis=1))
+                ]
+                
+                def hl(val): return f'color: {"red" if abs(val)>5.0 else "green"}'
+
+                if not sig_diff_df.empty:
+                    st.error("### ⚠️ Significant Discrepancies Detected (> 5%)")
+                    st.dataframe(sig_diff_df.style.map(hl, subset=['Pct_Diff']), use_container_width=True)
+                    
+                    with st.expander("View Full Verification Table"):
+                         st.dataframe(val_df.style.map(hl, subset=['Pct_Diff']), use_container_width=True)
+                else:
+                    st.success("✅ TPS vs DICOM Verification: All clinically relevant values match within 5% tolerance.")
+                    with st.expander("View Full Verification Table (All Pass)"):
+                         st.dataframe(val_df.style.map(hl, subset=['Pct_Diff']), use_container_width=True)
+
+                # Feasibility study button (available in all cases if val_df exists)
+                if st.button("Add to Feasibility Study"):
+                    path = os.path.join(project_root, "feasibility_study.csv")
+                    hdr = not os.path.exists(path)
+                    try:
+                        val_df.to_csv(path, mode='a', header=hdr, index=False)
+                        st.success("Saved to feasibility study.")
+                    except PermissionError:
+                        st.error(f"Permission denied: Could not save to '{path}'. Please close the file if it is open in Excel or another program.")
+                    except Exception as e:
+                        st.error(f"Error saving to feasibility study: {e}")
 
             # Main Results Display (Simplified for brevity - assumes standard tables)
             # You can paste your detailed OAR/Target table generation code here
