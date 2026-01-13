@@ -14,6 +14,17 @@ sys.path.insert(0, project_root)
 
 # Import templates from the new backend location
 from backend.src.config import templates 
+import importlib
+import backend.src.core.validators
+importlib.reload(backend.src.core.validators)
+from backend.src.core.validators import (
+    validate_patient_ids, 
+    validate_file_completeness,
+    check_plan_time,
+    validate_channel_mapping,
+    check_dwell_times,
+    check_fraction_count
+) 
 
 # Define the FastAPI backend URL
 API_BASE_URL = "http://localhost:8000"
@@ -213,12 +224,15 @@ def main():
                 st.subheader("Target Volumes")
                 t_cons = st.session_state.custom_constraints.get("constraints", {}).get("target_constraints", {})
                 for k, v in t_cons.items():
-                    st.markdown(f"**{k}**: {', '.join([f'{sk}: {sv}' for sk, sv in v.items() if sk != 'unit'])}")
+                    s_name = k.split(' ')[0]
+                    ab_val = st.session_state.ab_ratios.get(s_name, st.session_state.ab_ratios.get("Default", 3))
+                    st.markdown(f"**{k}** (α/β: {ab_val}): {', '.join([f'{sk}: {sv}' for sk, sv in v.items() if sk != 'unit'])}")
             with o_col:
                 st.subheader("Organs at Risk")
                 o_cons = st.session_state.custom_constraints.get("constraints", {}).get("oar_constraints", {})
                 for k, v in o_cons.items():
-                    st.markdown(f"**{k}**")
+                    ab_val = st.session_state.ab_ratios.get(k, st.session_state.ab_ratios.get("Default", 3))
+                    st.markdown(f"**{k}** (α/β: {ab_val})")
                     for m, vals in v.items():
                         st.markdown(f"- {m}: {', '.join([f'{sk}: {sv}' for sk, sv in vals.items() if sk != 'unit'])}")
 
@@ -254,13 +268,17 @@ def main():
                 curr_names = list(st.session_state['structure_data'].keys())
                 
                 from fuzzywuzzy import process
-                for c_name in curr_names:
-                    match, score = process.extractOne(c_name, json_names)
+                if json_names:
+                    for c_name in curr_names:
+                        match, score = process.extractOne(c_name, json_names)
                     default = match if score > 70 else "Ignore"
                     st.session_state.confirmed_structure_mapping[c_name] = st.selectbox(f"'{c_name}' maps to:", ["Ignore"] + json_names, index=(["Ignore"] + json_names).index(default) if default in (["Ignore"] + json_names) else 0, key=f"cmap_{c_name}")
 
         elif 'json_content' in st.session_state:
             st.info("Previous data loaded. Upload DICOMs in Plan Analysis to map structures.")
+
+        if st.button("Calculate Optimization Goals", type="primary", use_container_width=True):
+            update_optimization_goals()
 
         st.markdown("---")
         if 'optimization_goals' in st.session_state and st.session_state.optimization_goals:
@@ -273,10 +291,10 @@ def main():
         st.header("Step 2: Upload and Analyze")
         col_up1, col_up2 = st.columns(2)
         with col_up1:
-            st.subheader("1. DICOM Files (Required)")
+            st.subheader("1. DICOM Files")
             uploaded_files = st.file_uploader("Upload RTDOSE, RTSTRUCT, RTPLAN", type=["dcm", "DCM"], accept_multiple_files=True, key=f"dicom_{st.session_state.widget_key_suffix}", on_change=clear_results)
         with col_up2:
-            st.subheader("2. DVH Text File (Optional)")
+            st.subheader("2. DVH Text File")
             dvh_text_file = st.file_uploader("Upload export (.txt)", type=["txt"], key="dvh_txt")
 
         # --- Local Pre-processing ---
@@ -322,6 +340,123 @@ def main():
                 except Exception as e: 
                      # st.warning(f"Could not parse file: {e}") 
                      pass
+        
+        if uploaded_files:
+            with st.spinner("Validating Data Integrity..."):
+                val_datasets = [] # Tuple list: (ds, filename)
+                val_types = []
+                
+                # Re-read for validation (headers only is fast)
+                for f in uploaded_files:
+                    f.seek(0)
+                    try:
+                        ds = pydicom.dcmread(f, stop_before_pixels=True, force=True)
+                        val_datasets.append((ds, f.name)) # Tuple with filename
+                        if ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.481.5': val_types.append('RTPLAN')
+                        elif ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.481.2': val_types.append('RTDOSE')
+                        elif ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.481.3': val_types.append('RTSTRUCT')
+                        else: val_types.append('Unknown')
+                    except:
+                        pass
+                
+                # Check 1: File Completeness & Duplicates
+                completeness_errors = validate_file_completeness(val_types)
+                
+                # Check 2: Patient ID Consistency
+                json_hist = st.session_state.get('json_content')
+                id_errors = validate_patient_ids(val_datasets, json_history=json_hist)
+                
+                # Check 3: DVH Text File ID Consistency (Immediate)
+                text_id_errors = []
+                if dvh_text_file:
+                    dvh_text_file.seek(0)
+                    content = dvh_text_file.read().decode('utf-8')
+                    # Local regex extraction (lightweight)
+                    pat_id_match = re.search(r"Patient Id[:\s]+(.*?)(?:\r|\n|$)", content, re.IGNORECASE)
+                    text_pat_id = pat_id_match.group(1).strip() if pat_id_match else None
+                    
+                    if text_pat_id and val_datasets:
+                        # Compare with first DICOM (ref_ds)
+                        ref_ds, _ = val_datasets[0]
+                        dicom_id = str(ref_ds.PatientID).strip()
+                        
+                        # Normalize
+                        norm_text = text_pat_id.replace(' ', '').replace('-', '').lower()
+                        norm_dicom = dicom_id.replace(' ', '').replace('-', '').lower()
+                        
+                        if norm_text != norm_dicom:
+                            text_id_errors.append(f"CRITICAL: Patient ID Mismatch! Text File ID '{text_pat_id}' != DICOM ID '{dicom_id}'.")
+                
+                all_integrity_errors = completeness_errors + id_errors + text_id_errors
+                
+                if all_integrity_errors:
+                    st.error("### 🛑 Data Integrity Issues Detected")
+                    for err in all_integrity_errors:
+                        st.error(err, icon="🚫")
+                    st.warning("Please correct these issues before running the analysis.")
+                    # Optionally disable the button or just verify user sees this
+                
+                # --- Clinical Logic Checks (Warnings) ---
+                else: # Only run if integrity passed
+                    clinical_warnings = []
+                    rtplan_ds = None
+                    
+                    # Find RTPLAN
+                    for ds, _ in val_datasets:
+                        if ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.481.5':
+                            rtplan_ds = ds
+                            break
+                    
+                    if rtplan_ds:
+                        # 1. Plan Time
+                        plan_time = getattr(rtplan_ds, 'RTPlanTime', '')
+                        clinical_warnings.extend(check_plan_time(plan_time))
+                        
+                        # 2. Fraction Count
+                        # Compare DICOM planned vs User Input (proposed_brachy_num_fx)
+                        if hasattr(rtplan_ds, 'FractionGroupSequence') and rtplan_ds.FractionGroupSequence:
+                            planned_fx = rtplan_ds.FractionGroupSequence[0].NumberOfFractionsPlanned
+                            clinical_warnings.extend(check_fraction_count(planned_fx, st.session_state.proposed_brachy_num_fx))
+
+                        # 3. Channel Mapping & Dwell Times
+                        # Determine applicator type from template name
+                        app_type = "Tandem and Ovoid" # Default
+                        tmpl = st.session_state.current_template_name
+                        if "Cylinder" in tmpl: app_type = "Cylinder"
+                        elif "Ring" in tmpl: app_type = "Tandem and Ring"
+                        
+                        # Extract Channels & Dwells
+                        channels_map = []
+                        dwells = []
+                        
+                        app_setup = rtplan_ds.get((0x300a, 0x0230)) # ApplicationSetupSequence
+                        if app_setup and hasattr(app_setup[0], 'ChannelSequence'):
+                            for ch in app_setup[0].ChannelSequence:
+                                # Channel Mapping
+                                ch_num = str(ch.ChannelNumber) if hasattr(ch, 'ChannelNumber') else '0'
+                                tube_num = str(ch.TransferTubeNumber) if hasattr(ch, 'TransferTubeNumber') else '0'
+                                channels_map.append({'channel_number': ch_num, 'transfer_tube_number': tube_num})
+                                
+                                # Dwell Times extraction
+                                total_time = float(ch.ChannelTotalTime) if hasattr(ch, 'ChannelTotalTime') else 0.0
+                                final_weight = float(ch.FinalCumulativeTimeWeight) if hasattr(ch, 'FinalCumulativeTimeWeight') else 0.0
+                                
+                                if final_weight > 0 and hasattr(ch, 'BrachyControlPointSequence'):
+                                    cps = ch.BrachyControlPointSequence
+                                    for i in range(1, len(cps)):
+                                        w = float(cps[i].CumulativeTimeWeight) - float(cps[i-1].CumulativeTimeWeight)
+                                        if w > 0:
+                                            dt = w * total_time / final_weight
+                                            dwells.append(dt)
+                                            
+                        clinical_warnings.extend(validate_channel_mapping(channels_map, app_type))
+                        clinical_warnings.extend(check_dwell_times(dwells))
+
+                    if clinical_warnings:
+                        with st.expander("⚠️ Clinical Warnings (Please Review)", expanded=True):
+                            for w in clinical_warnings:
+                                st.warning(w, icon="⚠️")
+
 
         # 2. Text File Structures (Using new helper)
         if dvh_text_file:
@@ -363,6 +498,7 @@ def main():
                 
                 if len(ids) > 1: st.error(f"Multiple Patient IDs found: {ids}"); st.stop()
                 if not all(f_map.values()): st.error("Missing required DICOM files."); st.stop()
+                if not dvh_text_file: st.error("Missing DVH Text File."); st.stop()
 
                 # Prepare Payload
                 files = {
@@ -400,8 +536,16 @@ def main():
             # Validation Warnings
             warns = results.get('tps_validation_warnings', [])
             if warns:
-                st.error("⚠️ Validation Warnings Detected")
-                for w in warns: st.write(f"**{w}**" if "CRITICAL" in w else w)
+                errors = [w for w in warns if "CRITICAL" in w]
+                warnings = [w for w in warns if "CRITICAL" not in w]
+                
+                if errors:
+                    st.error("### 🛑 CRITICAL Validation Errors")
+                    for e in errors: st.error(e, icon="🚫")
+                
+                if warnings:
+                    st.warning("### ⚠️ QA Warnings (Dose Discrepancies)")
+                    for w in warnings: st.warning(w, icon="⚠️")
             
             # Validation Table
             val_data = results.get("validation_df")

@@ -2,27 +2,31 @@ from datetime import datetime
 import pandas as pd
 import os
 
-def validate_patient_ids(dicom_datasets, json_history=None):
+def validate_patient_ids(dicom_data_tuples, json_history=None):
     """
     Checks if PatientIDs match across all DICOM files and optional JSON history.
+    dicom_data_tuples: List of (pydicom.Dataset, filename/modality_string)
     Returns: List of error messages.
     """
     errors = []
-    if not dicom_datasets:
+    if not dicom_data_tuples:
         return errors
 
     # 1. Check DICOM consistency
-    reference_id = str(dicom_datasets[0].PatientID).strip()
-    for ds in dicom_datasets[1:]:
+    # ref_ds is the first dataset
+    ref_ds, ref_name = dicom_data_tuples[0]
+    reference_id = str(ref_ds.PatientID).strip()
+    
+    for ds, fname in dicom_data_tuples[1:]:
         current_id = str(ds.PatientID).strip()
         if current_id != reference_id:
-            errors.append(f"CRITICAL: Patient ID Mismatch. Found {reference_id} and {current_id} in DICOM files.")
+            errors.append(f"CRITICAL: Patient ID Mismatch. File '{fname}' has ID '{current_id}', but '{ref_name}' has '{reference_id}'.")
 
     # 2. Check JSON consistency
     if json_history:
         json_id = str(json_history.get("patient_mrn", "")).strip()
         if json_id and json_id != reference_id:
-            errors.append(f"CRITICAL: History Mismatch. Current Plan: {reference_id}, History JSON: {json_id}.")
+            errors.append(f"CRITICAL: History Mismatch. Current Plan ({reference_id}) does not match History JSON ({json_id}).")
             
     return errors
 
