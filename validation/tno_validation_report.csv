@@ -1,0 +1,17 @@
+PatientID,Structure,ECHO_EQD2,Excel_EQD2,Diff_Pct,Status
+Andrea Atkins,Bladder,72.12,72.12,0.0,PASS
+Andrea Atkins,Rectum,58.59,58.59,0.0,PASS
+Andrea Atkins,Sigmoid,80.02,80.02,-0.0,PASS
+Andrea Atkins,Bowel,67.57,67.57,0.0,PASS
+Becky Amman,Bladder,78.37,78.39,-0.03,PASS
+Becky Amman,Rectum,55.89,55.9,-0.0,PASS
+Becky Amman,Sigmoid,53.87,53.88,-0.03,PASS
+Becky Amman,Bowel,67.79,67.77,0.03,PASS
+Michelle Baker,Bladder,64.24,83.29,-22.87,FAIL
+Michelle Baker,Rectum,54.97,63.55,-13.5,FAIL
+Michelle Baker,Sigmoid,51.78,61.73,-16.12,FAIL
+Michelle Baker,Bowel,47.78,52.6,-9.16,FAIL
+Robin Adams,Bladder,56.56,68.69,-17.66,FAIL
+Robin Adams,Rectum,52.55,61.26,-14.22,FAIL
+Robin Adams,Sigmoid,56.48,70.01,-19.33,FAIL
+Robin Adams,Bowel,51.55,60.91,-15.37,FAIL

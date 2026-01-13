@@ -1,0 +1,170 @@
+{
+    "patient_name": "Amman^Becky^Rossa^^",
+    "patient_mrn": "A235393",
+    "plan_date": "2023-09-28",
+    "plan_time": "16:00:00",
+    "source_info": "28199.38 cGy cm^2/hr",
+    "ebrt_summary": {
+        "total_dose": 45.0,
+        "number_of_fractions": 25,
+        "dose_per_fraction": 1.8
+    },
+    "dvh_results": {
+        "Bladder": {
+            "bed_brachy_d2cc": 31.63,
+            "bed_brachy_d1cc": 36.2,
+            "bed_brachy_d0_1cc": 47.69,
+            "dose_fx": {
+                "d2cc_gy_per_fraction": [
+                    5.55,
+                    5.55
+                ],
+                "d1cc_gy_per_fraction": [
+                    6.02,
+                    6.02
+                ],
+                "d0_1cc_gy_per_fraction": [
+                    7.09,
+                    7.09
+                ]
+            }
+        },
+        "Rectum": {
+            "bed_brachy_d2cc": 12.12,
+            "bed_brachy_d1cc": 15.03,
+            "bed_brachy_d0_1cc": 22.57,
+            "dose_fx": {
+                "d2cc_gy_per_fraction": [
+                    3.02,
+                    3.02
+                ],
+                "d1cc_gy_per_fraction": [
+                    3.48,
+                    3.48
+                ],
+                "d0_1cc_gy_per_fraction": [
+                    4.5089999999999995,
+                    4.5089999999999995
+                ]
+            }
+        },
+        "Sigmoid": {
+            "bed_brachy_d2cc": 9.93,
+            "bed_brachy_d1cc": 11.47,
+            "bed_brachy_d0_1cc": 15.72,
+            "dose_fx": {
+                "d2cc_gy_per_fraction": [
+                    2.64,
+                    2.64
+                ],
+                "d1cc_gy_per_fraction": [
+                    2.91,
+                    2.91
+                ],
+                "d0_1cc_gy_per_fraction": [
+                    3.5816666666666666,
+                    3.5816666666666666
+                ]
+            }
+        },
+        "Bowel": {
+            "bed_brachy_d2cc": 20.01,
+            "bed_brachy_d1cc": 23.14,
+            "bed_brachy_d0_1cc": 30.66,
+            "dose_fx": {
+                "d2cc_gy_per_fraction": [
+                    4.18,
+                    4.18
+                ],
+                "d1cc_gy_per_fraction": [
+                    4.58,
+                    4.58
+                ],
+                "d0_1cc_gy_per_fraction": [
+                    5.445,
+                    5.445
+                ]
+            }
+        },
+        "Hr-ctv": {
+            "bed_brachy_d2cc": 202.2,
+            "bed_brachy_d1cc": 386.03,
+            "bed_brachy_d0_1cc": 0.0,
+            "dose_fx": {
+                "d2cc_gy_per_fraction": [
+                    15.98,
+                    15.98
+                ],
+                "d1cc_gy_per_fraction": [
+                    22.61,
+                    22.61
+                ],
+                "d0_1cc_gy_per_fraction": [
+                    0.0,
+                    0.0
+                ]
+            }
+        },
+        "Ln_iliac": {
+            "bed_brachy_d2cc": 8.28,
+            "bed_brachy_d1cc": 9.11,
+            "bed_brachy_d0_1cc": 10.78,
+            "dose_fx": {
+                "d2cc_gy_per_fraction": [
+                    2.33,
+                    2.33
+                ],
+                "d1cc_gy_per_fraction": [
+                    2.49,
+                    2.49
+                ],
+                "d0_1cc_gy_per_fraction": [
+                    2.7916295426675664,
+                    2.7916295426675664
+                ]
+            }
+        }
+    },
+    "point_dose_results": [
+        {
+            "name": "A_Rt",
+            "dose_fx": [
+                4.419116,
+                4.419116
+            ],
+            "BED_this_plan": 21.86
+        },
+        {
+            "name": "A_Lt",
+            "dose_fx": [
+                4.326114,
+                4.326114
+            ],
+            "BED_this_plan": 21.13
+        },
+        {
+            "name": "RV",
+            "dose_fx": [
+                3.532056,
+                3.532056
+            ],
+            "BED_this_plan": 15.38
+        },
+        {
+            "name": "A1",
+            "dose_fx": [
+                4.40841,
+                4.40841
+            ],
+            "BED_this_plan": 21.77
+        },
+        {
+            "name": "A2",
+            "dose_fx": [
+                4.325988,
+                4.325988
+            ],
+            "BED_this_plan": 21.13
+        }
+    ]
+}

@@ -7,3 +7,4 @@ dicompyler-core
 pdfkit
 fuzzywuzzy
 beautifulsoup4
+python-Levenshtein
