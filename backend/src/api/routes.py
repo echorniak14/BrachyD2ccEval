@@ -213,12 +213,21 @@ async def process_plan(
                     alpha_beta = calculations.get_alpha_beta(organ, ab_ratios)
                     total_brachy_bed = sum(d * (1 + d / alpha_beta) for d in new_dose_history if d is not None)
                     
-                    bed_ebrt = 0
+                    # 1. Historical EBRT BED (from JSON)
+                    bed_ebrt_hist = 0
+                    hist_ebrt_dose = float(prev_data.get('ebrt_dose_input', 0.0))
+                    hist_ebrt_fx = int(prev_data.get('ebrt_fractions_input', 1))
+                    if hist_ebrt_dose > 0 and hist_ebrt_fx > 0:
+                        hist_fx_dose = hist_ebrt_dose / hist_ebrt_fx
+                        bed_ebrt_hist = hist_ebrt_dose * (1 + (hist_fx_dose / alpha_beta))
+                    
+                    # 2. Current/Additional EBRT BED (from Sidebar)
+                    bed_ebrt_curr = 0
                     if ebrt_dose > 0 and ebrt_fractions > 0:
                         ebrt_dose_per_fraction = ebrt_dose / ebrt_fractions
-                        bed_ebrt = ebrt_dose * (1 + (ebrt_dose_per_fraction / alpha_beta))
+                        bed_ebrt_curr = ebrt_dose * (1 + (ebrt_dose_per_fraction / alpha_beta))
 
-                    total_bed = total_brachy_bed + bed_ebrt
+                    total_bed = total_brachy_bed + bed_ebrt_hist + bed_ebrt_curr
                     eqd2 = total_bed / (1 + (2 / alpha_beta))
                     
                     final_dvh[organ][f"bed_{m}"] = round(total_bed, 2)

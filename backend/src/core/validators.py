@@ -107,12 +107,34 @@ def check_dwell_times(dwell_times):
             break # One warning is enough
     return warnings
 
-def check_fraction_count(planned, calculated):
+def check_fraction_count(planned_fractions, proposed_fractions):
     """Compares DICOM planned fractions vs User input."""
     warnings = []
-    if int(planned) != int(calculated):
-        warnings.append(f"Warning: DICOM plans for {planned} fractions, but calculation uses {calculated}.")
+    if planned_fractions != proposed_fractions:
+        warnings.append(f"Fraction count mismatch: Planned {planned_fractions} vs Proposed {proposed_fractions}. Calculation will use {proposed_fractions} fractions **for this plan** (plus any historical fractions).")
     return warnings
+
+def check_dose_grid(rtdose_ds):
+    """
+    Checks if the RTDOSE file actually contains dose data.
+    """
+    errors = []
+    import numpy as np
+    
+    if not hasattr(rtdose_ds, 'PixelData'):
+        errors.append("CRITICAL: RTDOSE file has no PixelData.")
+        return errors
+
+    if not hasattr(rtdose_ds, 'DoseGridScaling'):
+        errors.append("CRITICAL: RTDOSE file missing DoseGridScaling.")
+        return errors
+
+    # Check max value
+    arr = rtdose_ds.pixel_array
+    if np.max(arr) <= 0:
+        errors.append("CRITICAL: RTDOSE grid is empty (Max pixel value <= 0).")
+        
+    return errors
 
 def validate_tps_import(calculated_dvh, reported_dvh, dicom_patient_id, text_metadata, tolerance_gy=5.0):
     """

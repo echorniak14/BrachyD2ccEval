@@ -23,7 +23,8 @@ from backend.src.core.validators import (
     check_plan_time,
     validate_channel_mapping,
     check_dwell_times,
-    check_fraction_count
+    check_fraction_count,
+    check_dose_grid
 ) 
 
 # Define the FastAPI backend URL
@@ -71,17 +72,41 @@ def main():
         previous_brachy_bed_per_organ = {}
         if 'json_content' in st.session_state and st.session_state.json_content:
             json_content = st.session_state.json_content
-            # Use the full history from the doses_per_fraction dict
-            for organ, data in json_content.get("dvh_results", {}).items():
-                alpha_beta = st.session_state.ab_ratios.get(organ, 3.0)
+            
+            # Map JSON keys to Standard Constraint Names
+            # Constraints keys: "Rectum", "Bladder", "Sigmoid", "Bowel" (Capitalized)
+            standard_oars = list(oar_constraints.keys())
+            
+            for json_organ, data in json_content.get("dvh_results", {}).items():
+                # Find matching standard name
+                matched_name = None
+                for std in standard_oars:
+                    if std.lower() == json_organ.lower():
+                        matched_name = std
+                        break
                 
-                # Get the list of historical doses for the d2cc metric
-                dose_history = data.get("doses_per_fraction", {}).get("d2cc", [])
-                
-                if dose_history:
-                    # Calculate the total brachy BED from this history
-                    total_prev_bed = sum(d * (1 + d / alpha_beta) for d in dose_history)
-                    previous_brachy_bed_per_organ[organ] = total_prev_bed
+                if matched_name:
+                    alpha_beta = st.session_state.ab_ratios.get(matched_name, 3.0)
+                    
+                    # Get the list of historical doses for the d2cc metric
+                    dose_history = data.get("doses_per_fraction", {}).get("d2cc", [])
+                    
+                    if dose_history:
+                        # Calculate the total brachy BED from this history
+                        total_prev_bed = sum(d * (1 + d / alpha_beta) for d in dose_history)
+                        
+                        # Fix: Add Historical EBRT BED (Additive Logic)
+                        bed_ebrt_hist = 0.0
+                        hist_ebrt_dose = float(st.session_state.json_content.get("ebrt_dose_input", 0.0))
+                        hist_ebrt_fx = int(st.session_state.json_content.get("ebrt_fractions_input", 1))
+                        
+                        if hist_ebrt_dose > 0 and hist_ebrt_fx > 0:
+                            hist_fx_dose = hist_ebrt_dose / hist_ebrt_fx
+                            bed_ebrt_hist = hist_ebrt_dose * (1 + (hist_fx_dose / alpha_beta))
+                        
+                        total_prev_bed += bed_ebrt_hist
+                        
+                        previous_brachy_bed_per_organ[matched_name] = total_prev_bed
         # --- END NEW LOGIC ---
         
         # Prepare Batch Payload
@@ -126,7 +151,19 @@ def main():
             try:
                 prev_brachy_file.seek(0)
                 st.session_state.json_content = json.loads(prev_brachy_file.read().decode("utf-8"))
+                
+                # Extract EBRT info if available
+                if "ebrt_dose_input" in st.session_state.json_content:
+                    st.session_state.ebrt_total_dose = float(st.session_state.json_content["ebrt_dose_input"])
+                if "ebrt_fractions_input" in st.session_state.json_content:
+                    st.session_state.ebrt_num_fractions = int(st.session_state.json_content["ebrt_fractions_input"])
+                
+                # Recalculate fraction dose
+                if st.session_state.ebrt_num_fractions > 0:
+                     st.session_state.ebrt_fraction_dose = st.session_state.ebrt_total_dose / st.session_state.ebrt_num_fractions
+                
                 update_optimization_goals() 
+                clear_results() 
             except Exception as e:
                 st.error(f"Error reading JSON: {e}")
                 if 'json_content' in st.session_state: del st.session_state.json_content
@@ -150,10 +187,12 @@ def main():
         else:
             st.session_state.ebrt_fraction_dose = 0.0
         update_optimization_goals()
+        clear_results()
 
     def calculate_total_dose():
         st.session_state.ebrt_total_dose = st.session_state.ebrt_fraction_dose * st.session_state.ebrt_num_fractions
         update_optimization_goals()
+        clear_results()
 
     def reset_doses_to_default():
         template_name = st.session_state.get("template_selector", st.session_state.current_template_name)
@@ -199,6 +238,14 @@ def main():
         st.subheader("Proposed Brachytherapy")
         st.number_input("Dose per Fraction (Gy)", min_value=0.0, step=0.5, key='proposed_brachy_dose_fx', on_change=update_optimization_goals)
         st.number_input("Number of Fractions", min_value=1, step=1, key='proposed_brachy_num_fx', on_change=update_optimization_goals)
+        
+        # Calculate and display total fractions
+        num_hist = 0
+        if 'json_content' in st.session_state and st.session_state.json_content:
+             num_hist = int(st.session_state.json_content.get("number_of_fractions_delivered", 0))
+        total_eval_fx = num_hist + st.session_state.proposed_brachy_num_fx
+        st.info(f"Total Fractions in Evaluation: {total_eval_fx}")
+
         st.caption("Enter fractions for the CURRENT plan only. Previous plan fractions are read from the uploaded JSON.")
         st.markdown("---")
         st.button("Reset Doses to Default", on_click=reset_doses_to_default, use_container_width=True)
@@ -311,20 +358,44 @@ def main():
             st.dataframe(df_goals.style.format({"Total EQD2 Constraint (Gy)": "{:.1f}", "Max D2cc per Fraction (Gy)": "{:.2f}"}), use_container_width=True)
 
     # === TAB 2: ANALYSIS ===
+    # === TAB 2: PLAN ANALYSIS ===
     with plan_analysis_tab:
         st.header("Step 2: Upload and Analyze")
-        col_up1, col_up2 = st.columns(2)
-        with col_up1:
-            st.subheader("1. DICOM Files")
-            uploaded_files = st.file_uploader("Upload RTDOSE, RTSTRUCT, RTPLAN", type=["dcm", "DCM"], accept_multiple_files=True, key=f"dicom_{st.session_state.widget_key_suffix}", on_change=clear_results)
-        with col_up2:
-            st.subheader("2. DVH Text File")
-            dvh_text_file = st.file_uploader("Upload export (.txt)", type=["txt"], key="dvh_txt")
+        
+        # 2-Column Layout
+        c1, c2 = st.columns([1, 1])
+        
+        # --- Column 1: Files & Processing ---
+        with c1:
+            with st.expander("📂 File Uploads", expanded=True):
+                uploaded_all = st.file_uploader(
+                    "Upload Plan Files (DICOM & Text)", 
+                    type=["dcm", "DCM", "txt"], 
+                    accept_multiple_files=True, 
+                    key=f"all_files_{st.session_state.widget_key_suffix}",
+                    on_change=clear_results
+                )
+                
+                # Logic to separate files
+                uploaded_files = [] # Renamed to match downstream expectation for DICOMs
+                dvh_text_file = None
+                
+                if uploaded_all:
+                    for f in uploaded_all:
+                        if f.name.lower().endswith('.txt'):
+                            if dvh_text_file is None:
+                                dvh_text_file = f
+                            else:
+                                st.warning(f"Multiple text files detected. Using: {dvh_text_file.name}")
+                        else:
+                            uploaded_files.append(f)
 
-        # --- Local Pre-processing ---
+        
+        # --- Local Pre-processing (Moved Up) ---
+        detected_plan_details = None
         available_structure_names = set()
         
-        # 1. DICOM Structures
+        # 1. Structure & Metadata Scan
         if uploaded_files:
             for up_file in uploaded_files:
                 up_file.seek(0)
@@ -338,9 +409,9 @@ def main():
                         st.session_state['structure_data'] = local_structs
                         available_structure_names.update(local_structs.keys())
                     
-                    # --- NEW: Extract and Display Plan Details ---
+                    # Extract Plan Details
                     if ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.481.5': # RTPLAN
-                        plan_details = {
+                        detected_plan_details = {
                             "Patient Name": str(getattr(ds, 'PatientName', 'Unknown')),
                             "Patient ID": str(getattr(ds, 'PatientID', 'Unknown')),
                             "Plan Date": str(getattr(ds, 'RTPlanDate', 'Unknown')),
@@ -350,20 +421,43 @@ def main():
                         # Attempt to get Fraction Group info
                         if hasattr(ds, 'FractionGroupSequence') and ds.FractionGroupSequence:
                             fg = ds.FractionGroupSequence[0]
-                            plan_details["Fractions Planned"] = getattr(fg, 'NumberOfFractionsPlanned', 'Unknown')
-                            
-                        # Display immediately
-                        st.success(f"Loaded Plan: **{plan_details['Plan Name']}**")
-                        st.markdown(f"""
-                            - **Patient:** {plan_details['Patient Name']} ({plan_details['Patient ID']})
-                            - **Date:** {plan_details['Plan Date']}
-                            - **Fractions Planned:** `{plan_details['Fractions Planned']}`
-                        """)
-                    # ---------------------------------------------
+                            detected_plan_details["Fractions Planned"] = getattr(fg, 'NumberOfFractionsPlanned', 'Unknown')
                         
                 except Exception as e: 
-                     # st.warning(f"Could not parse file: {e}") 
                      pass
+
+        # --- Column 2: Patient Context ---
+        with c2:
+            with st.expander("👤 Patient Information", expanded=True):
+                if 'results' in st.session_state and 'patient_name' in st.session_state.results:
+                    res = st.session_state.results
+                    st.success(f"**Analysis Complete: {res.get('plan_name', 'Unknown')}**")
+                    
+                    num_curr = res.get('number_of_fractions_delivered', 0)
+                    # Try to deduce history fractions from session state (since backend might not echo it explicit separate field)
+                    num_hist = 0
+                    if 'json_content' in st.session_state and st.session_state.json_content:
+                        num_hist = int(st.session_state.json_content.get("number_of_fractions_delivered", 0))
+                    
+                    total = num_curr + num_hist
+                    display_fx = f"{num_curr} (Current) + {num_hist} (History) = {total} Total"
+                    
+                    st.markdown(f"**Patient:** {res.get('patient_name', 'Unknown')}")
+                    st.markdown(f"**MRN:** {res.get('patient_mrn', 'Unknown')}")
+                    st.markdown(f"**Fractions:** {display_fx}")
+                
+                elif detected_plan_details:
+                    # Show immediate metadata
+                    st.info(f"""
+                        **Loaded Plan: {detected_plan_details['Plan Name']}**
+                        
+                        * **Patient:** {detected_plan_details['Patient Name']} ({detected_plan_details['Patient ID']})
+                        * **Date:** {detected_plan_details['Plan Date']}
+                        * **Fractions Planned:** `{detected_plan_details['Fractions Planned']}`
+                    """)
+                    
+                else:
+                    st.info("Upload and process files to see patient details.")
         
         if uploaded_files:
             with st.spinner("Validating Data Integrity..."):
@@ -411,7 +505,14 @@ def main():
                         if norm_text != norm_dicom:
                             text_id_errors.append(f"CRITICAL: Patient ID Mismatch! Text File ID '{text_pat_id}' != DICOM ID '{dicom_id}'.")
                 
-                all_integrity_errors = completeness_errors + id_errors + text_id_errors
+                # Check 4: RTDOSE Grid Validation
+                dose_errors = []
+                for ds, _ in val_datasets:
+                    if ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.481.2': # RTDOSE
+                        dose_errors = check_dose_grid(ds)
+                        if dose_errors: break # Found errors
+
+                all_integrity_errors = completeness_errors + id_errors + text_id_errors + dose_errors
                 
                 if all_integrity_errors:
                     st.error("### 🛑 Data Integrity Issues Detected")
@@ -623,9 +724,178 @@ def main():
                     except Exception as e:
                         st.error(f"Error saving to feasibility study: {e}")
 
-            # Main Results Display (Simplified for brevity - assumes standard tables)
-            # You can paste your detailed OAR/Target table generation code here
-            st.json(results.get("constraint_evaluation"))
+            # Main Results Display
+            st.markdown("### Clinical Evaluation")
+            
+            # --- 1. Prepare Data for Table ---
+            table_rows = []
+            
+            # Helper to get history dose list
+            def get_history_doses(struct_name, metric_key, json_data):
+                if not json_data or "dvh_results" not in json_data: return []
+                # Try simple match first
+                s_data = json_data["dvh_results"].get(struct_name)
+                if not s_data:
+                    # Try mapping
+                    mapping = st.session_state.get('confirmed_structure_mapping', {})
+                    for curr_s, hist_s in mapping.items():
+                        if curr_s == struct_name and hist_s in json_data["dvh_results"]:
+                             s_data = json_data["dvh_results"][hist_s]
+                             break
+                if s_data and "doses_per_fraction" in s_data:
+                    # metric_key map: 'd2cc_gy_per_fraction' -> 'd2cc'
+                    short_key = metric_key.replace('_gy_per_fraction', '')
+                    return s_data["doses_per_fraction"].get(short_key, [])
+                return []
+
+            # Define rows based on constraints to ensure we show what matters
+            # OARs
+            oar_cons = st.session_state.custom_constraints.get("constraints", {}).get("oar_constraints", {})
+            for oar, cons in oar_cons.items():
+                # Check D2cc
+                if "D2cc" in cons:
+                    # Get result data
+                    res_data = results.get("dvh_results", {}).get(oar, {})
+                    eval_data = results.get("constraint_evaluation", {}).get(oar, {})
+                    
+                    hist_doses = get_history_doses(oar, "d2cc_gy_per_fraction", st.session_state.get('json_content'))
+                    
+                    # FIX: Extract current dose from the 'doses_per_fraction' list (last element)
+                    # The backend structure is final_dvh[organ]["doses_per_fraction"]["d2cc"]
+                    doses_list = res_data.get("doses_per_fraction", {}).get("d2cc", [])
+                    curr_dose = doses_list[-1] if doses_list else 0.0
+                    
+                    row = {
+                        "Structure": oar,
+                        "Metric": "D2cc",
+                        "Status": eval_data.get("EQD2_status", "N/A"),
+                        "EQD2 Total": eval_data.get("EQD2_value", 0.0),
+                        "Limit": eval_data.get("EQD2_max", "-"),
+                        "History": hist_doses,
+                        "Current": curr_dose
+                    }
+                    table_rows.append(row)
+
+            # Targets
+            tgt_cons = st.session_state.custom_constraints.get("constraints", {}).get("target_constraints", {})
+            # Group by organ to avoid dupes if multiple metrics
+            # Actually iterate constraints keys directly e.g. "Hrctv D90"
+            for key, val in tgt_cons.items():
+                parts = key.split(' ')
+                organ = parts[0]
+                metric = parts[1] # D90, D98
+                
+                res_data = results.get("dvh_results", {}).get(organ, {})
+                eval_data = results.get("constraint_evaluation", {}).get(key, {})
+                
+                # Metric key mapping
+                m_key = f"{metric.lower()}_gy_per_fraction"
+                hist_doses = get_history_doses(organ, m_key, st.session_state.get('json_content'))
+                
+                # FIX: Extract from doses_per_fraction
+                doses_list = res_data.get("doses_per_fraction", {}).get(metric.lower(), [])
+                curr_dose = doses_list[-1] if doses_list else 0.0
+                
+                # For targets, status key has metric suffix in evaluation
+                status = eval_data.get(f"EQD2_status_{metric}", "N/A")
+                eqd2 = eval_data.get(f"EQD2_value_{metric}", 0.0)
+                # Limits
+                lim_str = f"> {eval_data.get(f'EQD2_min_{metric}', '-')}"
+                if eval_data.get(f"EQD2_max_{metric}"):
+                    lim_str += f", < {eval_data.get(f'EQD2_max_{metric}')}"
+
+                row = {
+                    "Structure": organ,
+                    "Metric": metric,
+                    "Status": status,
+                    "EQD2 Total": eqd2,
+                    "Limit": lim_str,
+                    "History": hist_doses,
+                    "Current": curr_dose
+                }
+                table_rows.append(row)
+
+            if table_rows:
+                # --- 2. Build Dynamic DataFrame ---
+                # Determine max fractions
+                max_hist = 0
+                for r in table_rows:
+                   max_hist = max(max_hist, len(r["History"]))
+                
+                # Total fractions = history + proposed
+                proposed_fx = st.session_state.proposed_brachy_num_fx
+                # We assume the user wants to see [Hist1, Hist2, ..., Curr1, Curr2...]
+                # But typically 'proposed_brachy_num_fx' is the number of NEW fractions to ADD.
+                # The user said: "if a JSON file is put in and records dose for two fractions, the new plan data should fill in for fraction 3 until the total number of fractions is met."
+                # This implies Total = Hist + Proposed.
+                
+                total_cols = max_hist + proposed_fx
+                
+                # Prepare column names
+                fx_cols = [f"Fx {i+1}" for i in range(total_cols)]
+                final_data = []
+                
+                for r in table_rows:
+                    d = {
+                        "Structure": r["Structure"],
+                        "Metric": r["Metric"],
+                        "Limit": r["Limit"],
+                        "EQD2 Total": r["EQD2 Total"],
+                        "Status": r["Status"] # Hidden for styling logic, or kept?
+                    }
+                    
+                    # Fill Doses
+                    hist = r["History"]
+                    curr = r["Current"]
+                    
+                    for i in range(total_cols):
+                        col_name = f"Fx {i+1}"
+                        if i < len(hist):
+                            d[col_name] = hist[i]
+                        else:
+                            d[col_name] = curr # Fill remaining with current plan dose
+                            
+                    final_data.append(d)
+                
+                df_res = pd.DataFrame(final_data)
+                
+                # Reorder columns
+                base_cols = ["Structure", "Metric"]
+                end_cols = ["EQD2 Total", "Limit", "Status"]
+                cols = base_cols + fx_cols + end_cols
+                df_res = df_res[cols]
+                
+                # --- 3. Apply Styling ---
+                def style_rows(row):
+                    status = row["Status"]
+                    color = ''
+                    if status == "NOT Met":
+                        color = 'background-color: rgba(255, 75, 75, 0.2)' # Red with low opacity
+                    elif status == "Warning":
+                        color = 'background-color: rgba(255, 170, 0, 0.2)' # Orange/Yellow with low opacity
+                    # Met = no color
+                    
+                    # Apply to specific columns (Metric onwards)
+                    styles = [''] * len(row)
+                    if color:
+                        # Find indices to color
+                        # Pandas Styler passes the Series. We index by label.
+                        # But style_rows returns a list of strings matching the index.
+                        for i, idx in enumerate(row.index):
+                            if idx not in ["Structure"]: # Highlight everything except Structure? Or start at Metric?
+                                # "Highlight a row, starting at the metric"
+                                if idx == "Structure": continue
+                                styles[i] = color
+                    return styles
+
+                st.dataframe(
+                    df_res.style.apply(style_rows, axis=1)
+                          .format(precision=2), 
+                    use_container_width=True,
+                    column_config={
+                        "Status": st.column_config.TextColumn() # removed invalid hidden arg
+                    }
+                )
 
             # Add a download button for the full JSON results
             st.download_button(

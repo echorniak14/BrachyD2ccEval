@@ -227,15 +227,14 @@ def get_dvh(rtss_file, rtdose_file, structure_data, number_of_fractions, ebrt_do
     try:
         if isinstance(rtss_file, (pydicom.dataset.FileDataset, pydicom.dataset.Dataset)):
             fd, path = tempfile.mkstemp(suffix=".dcm")
-            os.close(fd)
-            # Use dcmwrite to save
+            os.close(fd) # CRITICAL for Windows: Close handle so dcmwrite can open it
             pydicom.dcmwrite(path, rtss_file)
             rtss_path = path
             temp_files_to_cleanup.append(path)
         
         if isinstance(rtdose_file, (pydicom.dataset.FileDataset, pydicom.dataset.Dataset)):
             fd, path = tempfile.mkstemp(suffix=".dcm")
-            os.close(fd)
+            os.close(fd) # CRITICAL for Windows
             pydicom.dcmwrite(path, rtdose_file)
             rtdose_path = path
             temp_files_to_cleanup.append(path)
@@ -248,7 +247,13 @@ def get_dvh(rtss_file, rtdose_file, structure_data, number_of_fractions, ebrt_do
             roi_number = data["ROINumber"]
             try:
                 # Pass the file paths 
+                print(f"[DEBUG] Calculating DVH for ROI: {roi_number} ({name})...")
                 dvh = dvhcalc.get_dvh(rtss_path, rtdose_path, roi_number)
+
+                if dvh:
+                    print(f"[DEBUG] -> SUCCESS {name}: Vol={dvh.volume}cc, Max={dvh.max}, D2cc={getattr(dvh, 'D2cc', 'N/A')}")
+                else:
+                    print(f"[DEBUG] -> FAILED {name}: dvh object is None/Empty")
 
                 d2cc_gy_per_fraction = getattr(dvh, 'D2cc', 0.0).value if hasattr(getattr(dvh, 'D2cc', 0.0), 'value') else getattr(dvh, 'D2cc', 0.0)
                 d1cc_gy_per_fraction = getattr(dvh, 'D1cc', 0.0).value if hasattr(getattr(dvh, 'D1cc', 0.0), 'value') else getattr(dvh, 'D1cc', 0.0)
@@ -261,27 +266,36 @@ def get_dvh(rtss_file, rtdose_file, structure_data, number_of_fractions, ebrt_do
                 d90_gy_per_fraction = getattr(dvh, 'D90', 0.0).value if hasattr(getattr(dvh, 'D90', 0.0), 'value') else getattr(dvh, 'D90', 0.0)
 
             except Exception as e:
-                # print(f"Error calculating DVH for {name}: {e}")
-                # traceback.print_exc() 
+                print(f"[ERROR] Calculating DVH for {name} (ROI {roi_number}): {e}")
+                import traceback
+                traceback.print_exc() 
                 d2cc_gy_per_fraction, d1cc_gy_per_fraction, d0_1cc_gy_per_fraction, max_dose_gy_per_fraction, mean_dose_gy_per_fraction, min_dose_gy_per_fraction, d95_gy_per_fraction, d98_gy_per_fraction, d90_gy_per_fraction = (0.0,) * 9
             
-            # --- START: New Robust Historical Dose Lookup ---
-            
-            standardized_name = None
+            # --- START: Standardized Naming Logic ---
+            standardized_name = normalized_name
             previous_bed_data = {}
 
+            # 1. Resolve Standard Name from Mapping
+            # The mapping is {OriginalName: StandardName}
+            # We look for 'name' (original DICOM name) in the mapping keys
             for dicom_name_from_map, std_name in confirmed_structure_mapping.items():
                 if dicom_name_from_map.lower() == name.lower():
                     standardized_name = std_name
                     break
+            
+            # If mapped to "Ignore", skip purely or just don't add? 
+            # Usually we want to ignore it in results if explicitly ignored.
+            if standardized_name == "Ignore":
+                continue
 
-            if standardized_name and standardized_name != "Ignore":
-                for history_key, history_value in previous_brachy_bed_per_organ.items():
-                    if history_key.lower() == standardized_name.lower():
-                        previous_bed_data = history_value
-                        break
+            # 2. Lookup Previous History using Standard Name
+            for history_key, history_value in previous_brachy_bed_per_organ.items():
+                if history_key.lower() == standardized_name.lower():
+                    previous_bed_data = history_value
+                    break
 
-            dvh_results[normalized_name] = {
+            # 3. Use Standard Name as Key
+            dvh_results[standardized_name] = {  # <-- CHANGED from normalized_name
                 'volume_cc': organ_volume_cc,
                 'd2cc_gy_per_fraction': d2cc_gy_per_fraction,
                 'd1cc_gy_per_fraction': d1cc_gy_per_fraction,
@@ -325,6 +339,9 @@ def get_dvh_metrics_from_text(parsed_dvh_data, structure_mapping, number_of_frac
                 if map_key.lower() == struct_name.lower():
                     standardized_name = map_val
                     break
+        
+        if standardized_name == "Ignore":
+            continue
 
         # Calculate Metrics using Interpolation (The "Source of Truth")
         d2cc_gy_per_fraction = get_dose_at_volume(data, 2.0)
@@ -342,14 +359,13 @@ def get_dvh_metrics_from_text(parsed_dvh_data, structure_mapping, number_of_frac
 
         # Retrieve Historical Data
         previous_bed_data = {}
-        if standardized_name and standardized_name != "Ignore":
-             for history_key, history_value in previous_brachy_bed_per_organ.items():
-                if history_key.lower() == standardized_name.lower():
-                    previous_bed_data = history_value
-                    break
-
-        # Result Dictionary
-        dvh_results[normalized_name] = {
+        for history_key, history_value in previous_brachy_bed_per_organ.items():
+            if history_key.lower() == standardized_name.lower():
+                previous_bed_data = history_value
+                break
+        
+        # Result Dictionary using Standard Name
+        dvh_results[standardized_name] = { # <-- CHANGED from normalized_name
             'volume_cc': data['volume_cc'],
             'd2cc_gy_per_fraction': d2cc_gy_per_fraction,
             'd1cc_gy_per_fraction': d1cc_gy_per_fraction,
