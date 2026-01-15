@@ -787,6 +787,23 @@ def main():
                     return s_data["doses_per_fraction"].get(short_key, [])
                 return []
 
+            # Helper for robust lookup (ignoring case/hyphens)
+            def find_result_data_fuzzy(target_name, dvh_results_dict):
+                if not dvh_results_dict: return {}, None
+                
+                # 1. Exact match
+                if target_name in dvh_results_dict:
+                    return dvh_results_dict[target_name], target_name
+                
+                # 2. Normalized match (strip non-alnum)
+                target_clean = re.sub(r'[^a-zA-Z0-9]', '', target_name).lower()
+                
+                for k, v in dvh_results_dict.items():
+                    k_clean = re.sub(r'[^a-zA-Z0-9]', '', k).lower()
+                    if k_clean == target_clean:
+                        return v, k
+                return {}, None
+
             # Define rows based on constraints to ensure we show what matters
             # OARs
             oar_cons = st.session_state.custom_constraints.get("constraints", {}).get("oar_constraints", {})
@@ -816,22 +833,7 @@ def main():
                     }
                     table_rows.append(row)
 
-            # Helper for robust lookup (ignoring case/hyphens)
-            def find_result_data_fuzzy(target_name, dvh_results_dict):
-                if not dvh_results_dict: return {}, None
-                
-                # 1. Exact match
-                if target_name in dvh_results_dict:
-                    return dvh_results_dict[target_name], target_name
-                
-                # 2. Normalized match (strip non-alnum)
-                target_clean = re.sub(r'[^a-zA-Z0-9]', '', target_name).lower()
-                
-                for k, v in dvh_results_dict.items():
-                    k_clean = re.sub(r'[^a-zA-Z0-9]', '', k).lower()
-                    if k_clean == target_clean:
-                        return v, k
-                return {}, None
+
 
             # Targets
             tgt_cons = st.session_state.custom_constraints.get("constraints", {}).get("target_constraints", {})
