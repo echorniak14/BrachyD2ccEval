@@ -44,7 +44,8 @@ This will open the main interface in your web browser. The UI is organized into 
 
 The sidebar on the left is used to define the dose parameters for the entire treatment course.
 
--   **EBRT Dose:** Enter the total dose and number of fractions for the external beam portion of the treatment. The application correctly handles this dose, ensuring it is only counted **once** in a cumulative plan.
+-   **EBRT Dose:** Enter total EBRT dose and fractions **only if you want to add NEW EBRT dose**.
+    -   *Note:* This input is **ADDITIVE**. If your uploaded History JSON already contains 45 Gy EBRT, and you enter 0 here, the total will be 45 Gy. If you enter 0 here, it will just use the history. If you enter 5 Gy here, it will be 45 + 5 = 50 Gy.
 -   **Proposed Brachytherapy:**
     -   **Dose per Fraction:** The prescribed dose for the current brachytherapy plan.
     -   **Number of Fractions:** The number of fractions for the **current plan being uploaded only**.
@@ -156,6 +157,7 @@ The main tables display the following metrics for each organ, calculated from th
 ## 6. Troubleshooting
 
 -   **"Missing required files" error:** Ensure you have uploaded one of each: RTDOSE, RTSTRUCT, and RTPLAN.
+-   **"CRITICAL: RTDOSE grid is empty" error:** The uploaded RTDOSE file has a maximum pixel value <= 0. This sometimes happens with corrupt exports or if the dose wasn't calculated before export. Please re-export from the TPS.
 -   **"CRITICAL: Patient ID Mismatch" warning:** Verify you have uploaded the correct DICOM and text files for the same patient.
 -   **PDF Generation Fails:** Ensure the application has access to the `wkhtmltopdf.exe` executable located in the `src/vendor` directory.
 

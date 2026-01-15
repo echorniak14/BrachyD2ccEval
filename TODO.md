@@ -2,21 +2,21 @@
 
 ### User Interface & Experience
 - [x] simplified structure mapping list: bladder, rectum, sigmoid, bowel, gtv, hrctv, ignore
-- [ ] dynamic fractional updates in the DVH statisitcs section using previous brachy data for early fractions and new data for current fractions
-- [ ] auto-update the proposed brachy fraction number after dicom upload from rt plan file
+- [x] dynamic fractional updates in the DVH statisitcs section using previous brachy data for early fractions and new data for current fractions
+- [x] auto-update the proposed brachy fraction number after dicom upload from rt plan file
 - [ ] final report can use patient schedule for each fraction or list treatment date range at the top
 
 ### Backend & Calculation Engine
-- [ ] DVH calculation Integration
+- [x] DVH calculation Integration
     stopped at updating UI to accept DVH.txt files
-- [ ] Separate all backend, calculation, validation checks and helper functions into separate files
-- [ ] Update file format structure to align with recommendation from gemini (be consistent with proposed structure.txt)
+- [x] Separate all backend, calculation, validation checks and helper functions into separate files
+- [x] Update file format structure to align with recommendation from gemini (be consistent with proposed structure.txt)
 - [ ] update all file calls in other front end (GUI) and main scripts
-- [ ] ECHO vs TPS calc comparison and warning
+- [x] ECHO vs TPS calc comparison and warning
 - [ ] combine bowel 1 and bowel 2 contours into bowel contour + warning to the user
 - [ ] Dwell time decay dwell position flexibility -> dwell position = index length - 1000.
 - [ ] Auto save excel file and pdf and pull up print option
-- [ ] Use provided previous brachy dose to give optimzation goals to user to achieve ALARA
+- [x] Use provided previous brachy dose to give optimzation goals to user to achieve ALARA
 
 ### Deployment & Integration
 - [ ] Web Application Deployment

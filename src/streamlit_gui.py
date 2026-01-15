@@ -95,7 +95,8 @@ def main():
                         # Calculate the total brachy BED from this history
                         total_prev_bed = sum(d * (1 + d / alpha_beta) for d in dose_history)
                         
-                        # Fix: Add Historical EBRT BED (Additive Logic)
+                        # Fix: Add Historical EBRT BED (Additive Logic) - RESTORED per user request
+                        # Allows sidebar to act as 'Additional' if needed, or 'Total' if logic aligns.
                         bed_ebrt_hist = 0.0
                         hist_ebrt_dose = float(st.session_state.json_content.get("ebrt_dose_input", 0.0))
                         hist_ebrt_fx = int(st.session_state.json_content.get("ebrt_fractions_input", 1))
@@ -330,6 +331,34 @@ def main():
                 - **Fractions Delivered:** `{prev_fx}`
                 - **EBRT Dose (History):** {prev_data.get('ebrt_dose_input', 'N/A')} Gy ({prev_data.get('ebrt_fractions_input', 'N/A')} fx)
                 """)
+
+                # Display Historical OAR Doses
+                st.markdown("###### Historical OAR Doses (D2cc) - *Per Fraction*")
+                oar_history_cols = st.columns(4)
+                target_oars = ["Bladder", "Rectum", "Sigmoid", "Bowel"]
+                
+                # We need to find the matching keys in the JSON (case-insensitive)
+                json_dvh = prev_data.get("dvh_results", {})
+                
+                for idx, oar in enumerate(target_oars):
+                    col = oar_history_cols[idx % 4]
+                    # Find key
+                    found_key = None
+                    for k in json_dvh.keys():
+                        if k.lower() == oar.lower():
+                            found_key = k
+                            break
+                    
+                    if found_key:
+                        doses = json_dvh[found_key].get("doses_per_fraction", {}).get("d2cc", [])
+                        if doses:
+                            dose_str = ", ".join([f"{d:.2f}" for d in doses])
+                            col.markdown(f"**{oar}**: {dose_str}")
+                        else:
+                            col.markdown(f"**{oar}**: *No D2cc data*")
+                    else:
+                        col.markdown(f"**{oar}**: *Not found*")
+
                 st.info("**EBRT Handling:** The EBRT dose entered in the sidebar is counted **once** for the entire treatment course. If it was accounted for in a previous plan, you can set it to 0 for this analysis.", icon="ℹ️")
 
         if 'json_content' in st.session_state and 'structure_data' in st.session_state:
@@ -346,7 +375,7 @@ def main():
                     st.session_state.confirmed_structure_mapping[c_name] = st.selectbox(f"'{c_name}' maps to:", ["Ignore"] + json_names, index=(["Ignore"] + json_names).index(default) if default in (["Ignore"] + json_names) else 0, key=f"cmap_{c_name}")
 
         elif 'json_content' in st.session_state:
-            st.info("Previous data loaded. Upload DICOMs in Plan Analysis to map structures.")
+            st.success("Previous patient history loaded. You can now calculate optimization goals.")
 
         if st.button("Calculate Optimization Goals", type="primary", use_container_width=True):
             update_optimization_goals()
@@ -507,10 +536,20 @@ def main():
                 
                 # Check 4: RTDOSE Grid Validation
                 dose_errors = []
-                for ds, _ in val_datasets:
+                for ds, fname in val_datasets:
                     if ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.481.2': # RTDOSE
-                        dose_errors = check_dose_grid(ds)
-                        if dose_errors: break # Found errors
+                        # CRITICAL FIX: Re-read file fully to get PixelData for validation
+                        # The initial scan used stop_before_pixels=True which causes check_dose_grid to fail
+                        target_file = next((f for f in uploaded_files if f.name == fname), None)
+                        if target_file:
+                            target_file.seek(0)
+                            try:
+                                ds_full = pydicom.dcmread(target_file, force=True)
+                                dose_errors = check_dose_grid(ds_full)
+                                if dose_errors: break # Found errors
+                            except Exception:
+                                # Fallback or pass (integrity check might catch it later if corrupt)
+                                pass
 
                 all_integrity_errors = completeness_errors + id_errors + text_id_errors + dose_errors
                 

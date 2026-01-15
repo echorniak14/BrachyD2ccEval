@@ -84,11 +84,20 @@ This hybrid model provides confidence in the final results by ensuring they matc
 
 ### Usage
 
-To run the Streamlit GUI application (recommended):
+This application uses a Client-Server architecture. You must start both the backend API and the frontend GUI.
 
-```bash
-streamlit run src/streamlit_gui.py
-```
+1.  **Start the Backend Server:**
+    Open a terminal in the project root and run:
+    ```bash
+    uvicorn backend.src.main:app --reload
+    ```
+    The API will start at `http://localhost:8000`.
+
+2.  **Start the Frontend Application:**
+    Open a **new** terminal window and run:
+    ```bash
+    streamlit run src/streamlit_gui.py
+    ```
 
 This will open the application in your web browser. From there, you can:
 1.  Upload the DICOM files (RTPLAN, RTSTRUCT, RTDOSE).

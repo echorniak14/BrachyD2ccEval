@@ -6,7 +6,7 @@ This file is for internal use by the Gemini CLI agent to track project progress,
 - **Operating System:** Windows
 
 ## Current Task:
-- Debug and fix PDF generator path issues.
+- Documentation updates and User Verification of recent fixes.
 
 ## DICOM Parsing Verification:
 - **Dwell Time Extraction:**
@@ -31,7 +31,7 @@ This file is for internal use by the Gemini CLI agent to track project progress,
 - **Goal:** Automate and streamline the evaluation process for HDR brachytherapy plans, specifically for cases planned using Oncentra.
 - **Input:** DICOM RT Dose and RT Structure Set files.
 - **Output:** BED/EQD2 calculations, EBRT integration, constraint evaluation, and a clear report similar to the current 'dose summary' spreadsheet.
-- **Key Libraries:** `pydicom`, `pandas`, `numpy`, `openpyxl`, `scikit-image`, `dicompyler-core`.
+- **Key Libraries:** `pydicom`, `pandas`, `numpy`, `openpyxl`, `scikit-image`, `dicompyler-core`, `fastapi`, `streamlit`.
 - **Configuration:** `config.py` for alpha/beta ratios and EMBRACE II constraints.
 
 ## Progress Update (Current Session):
@@ -40,8 +40,17 @@ This file is for internal use by the Gemini CLI agent to track project progress,
     - Created the new `backend/` directory structure: `backend/src/api`, `backend/src/core`, `backend/src/services`.
     - Moved `src/calculations.py` to `backend/src/core/calculations.py`.
     - Moved `src/validators.py` to `backend/src/core/validators.py`.
-    - Created placeholder files: `backend/src/main.py`, `backend/src/api/routes.py`, `backend/src/services/parser_service.py`, and `backend/src/services/optimization_service.py`.
-- **Committed architectural refactoring:** Successfully transitioned to a client-server architecture with a FastAPI backend and Streamlit frontend. This involved moving core logic, implementing an API layer, creating dedicated services, and updating the frontend to communicate via API requests.
+    - Transitioned to a client-server architecture with a FastAPI backend and Streamlit frontend.
+- **UI Refinements:**
+    - **Unified File Uploader:** Replaced multiple uploaders with a single dropzone for DICOM and Text files.
+    - **Layout:** Implemented a cleaner 2-column layout for the Plan Analysis tab.
+    - **Immediate Feedback:** Instant display of Patient/Plan metadata (Fractions, MRN) upon file upload.
+    - **Fraction Logic:** Explicitly displaying "Current + History = Total" to resolve user confusion.
+- **Critical Bug Fixes:**
+    - **Zero Dose Fix:** Patched `calculations.py` to properly handle temporary file inputs on Windows (closing file handles before reading).
+    - **Empty Dose Grid:** Added `check_dose_grid` in validator to flag RTDOSE files with no pixel data.
+    - **Additive EBRT:** Updated logic to sum Historical EBRT (from JSON) + Sidebar Input EBRT for both Analysis and Optimization goals.
 
 ## Next Steps:
-- **Fix PDF Generator:** Debug the path issues for `WKHTMLTOPDF` to enable report downloads.
+- **User Verification:** Confirm all fixes with the user.
+- **PDF Generator:** Revisit `WKHTMLTOPDF` path issues if they persist.
