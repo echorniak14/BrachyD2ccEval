@@ -181,6 +181,49 @@ async def process_plan(
             else:
                 tps_warnings.append("Could not parse uploaded DVH Text File.")
 
+        # 3b. SPECIAL MERGING LOGIC: Bowel 1 + Bowel 2 -> Bowel
+        # We do this on 'source_of_truth_dvh' BEFORE standardization/mapping
+        
+        # Check if both exist (using normalized keys usually, but let's check robustly)
+        bowel1_key = next((k for k in source_of_truth_dvh.keys() if calculations.normalize_structure_name(k) == "Bowel1"), None)
+        bowel2_key = next((k for k in source_of_truth_dvh.keys() if calculations.normalize_structure_name(k) == "Bowel2"), None)
+        
+        if bowel1_key and bowel2_key:
+            try:
+                # Merge
+                merged_dvh_data = calculations.merge_dvh_data([
+                    source_of_truth_dvh[bowel1_key], 
+                    source_of_truth_dvh[bowel2_key]
+                ])
+                
+                if merged_dvh_data:
+                    # Calculate stats for the new merged structure
+                    # We need to re-run get_dvh_metrics_from_text style logic or manual calc
+                    # Because merge_dvh_data only returns axes and volume.
+                    
+                    merged_result_struct = {
+                        'volume_cc': merged_dvh_data['volume_cc'],
+                        # Delegate to core calculation helpers using the new axes
+                        'd2cc_gy_per_fraction': calculations.get_dose_at_volume(merged_dvh_data, 2.0),
+                        'd1cc_gy_per_fraction': calculations.get_dose_at_volume(merged_dvh_data, 1.0),
+                        'd0_1cc_gy_per_fraction': calculations.get_dose_at_volume(merged_dvh_data, 0.1),
+                        'max_dose_gy_per_fraction': float(np.max(merged_dvh_data['dose_axis'])), # Approximation
+                        'mean_dose_gy_per_fraction': 0.0,
+                        'min_dose_gy_per_fraction': float(np.min(merged_dvh_data['dose_axis'])),
+                        'd95_gy_per_fraction': calculations.get_dose_at_percent_volume(merged_dvh_data, 95.0),
+                        'd98_gy_per_fraction': calculations.get_dose_at_percent_volume(merged_dvh_data, 98.0),
+                        'd90_gy_per_fraction': calculations.get_dose_at_percent_volume(merged_dvh_data, 90.0),
+                        'previous_brachy_bed': {} # Will be filled in Summation step if "Bowel" matches history
+                    }
+                    
+                    # Insert "Bowel" into source_of_truth
+                    source_of_truth_dvh["Bowel"] = merged_result_struct
+                    
+                    # Add warning
+                    tps_warnings.append("Note: Merged 'Bowel 1' and 'Bowel 2' volumes into a single 'Bowel' structure.")
+            except Exception as e:
+                tps_warnings.append(f"Warning: Failed to merge Bowel 1 & 2: {e}")
+
         # 4. Standardize Structure Names for the source of truth
         mapped_source_dvh = {}
         # Use confirmed_structure_mapping_json which is the one from the UI

@@ -793,11 +793,12 @@ def main():
             for oar, cons in oar_cons.items():
                 # Check D2cc
                 if "D2cc" in cons:
-                    # Get result data
-                    res_data = results.get("dvh_results", {}).get(oar, {})
+                    # Use fuzzy lookup here too for OARs (just in case)
+                    res_data, found_name = find_result_data_fuzzy(oar, results.get("dvh_results", {}))
                     eval_data = results.get("constraint_evaluation", {}).get(oar, {})
                     
-                    hist_doses = get_history_doses(oar, "d2cc_gy_per_fraction", st.session_state.get('json_content'))
+                    search_name = found_name if found_name else oar
+                    hist_doses = get_history_doses(search_name, "d2cc_gy_per_fraction", st.session_state.get('json_content'))
                     
                     # FIX: Extract current dose from the 'doses_per_fraction' list (last element)
                     # The backend structure is final_dvh[organ]["doses_per_fraction"]["d2cc"]
@@ -815,21 +816,43 @@ def main():
                     }
                     table_rows.append(row)
 
+            # Helper for robust lookup (ignoring case/hyphens)
+            def find_result_data_fuzzy(target_name, dvh_results_dict):
+                if not dvh_results_dict: return {}, None
+                
+                # 1. Exact match
+                if target_name in dvh_results_dict:
+                    return dvh_results_dict[target_name], target_name
+                
+                # 2. Normalized match (strip non-alnum)
+                target_clean = re.sub(r'[^a-zA-Z0-9]', '', target_name).lower()
+                
+                for k, v in dvh_results_dict.items():
+                    k_clean = re.sub(r'[^a-zA-Z0-9]', '', k).lower()
+                    if k_clean == target_clean:
+                        return v, k
+                return {}, None
+
             # Targets
             tgt_cons = st.session_state.custom_constraints.get("constraints", {}).get("target_constraints", {})
-            # Group by organ to avoid dupes if multiple metrics
-            # Actually iterate constraints keys directly e.g. "Hrctv D90"
+            
             for key, val in tgt_cons.items():
                 parts = key.split(' ')
                 organ = parts[0]
                 metric = parts[1] # D90, D98
                 
-                res_data = results.get("dvh_results", {}).get(organ, {})
+                # Use fuzzy lookup for "Hrctv" vs "HR-CTV"
+                res_data, found_name = find_result_data_fuzzy(organ, results.get("dvh_results", {}))
+                
                 eval_data = results.get("constraint_evaluation", {}).get(key, {})
                 
                 # Metric key mapping
                 m_key = f"{metric.lower()}_gy_per_fraction"
-                hist_doses = get_history_doses(organ, m_key, st.session_state.get('json_content'))
+                
+                # For history, we need to pass the ACTUAL name found in results, 
+                # because get_history_doses tries to match that against the mapping/json.
+                search_name = found_name if found_name else organ
+                hist_doses = get_history_doses(search_name, m_key, st.session_state.get('json_content'))
                 
                 # FIX: Extract from doses_per_fraction
                 doses_list = res_data.get("doses_per_fraction", {}).get(metric.lower(), [])

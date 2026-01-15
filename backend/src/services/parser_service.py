@@ -271,7 +271,9 @@ class ParserService:
                 'd2cc_gy_per_fraction': d2cc, 'd1cc_gy_per_fraction': d1cc, 'd0_1cc_gy_per_fraction': d0_1cc,
                 'max_dose_gy_per_fraction': max_dose, 'mean_dose_gy_per_fraction': 0.0, 'min_dose_gy_per_fraction': min_dose,
                 'd95_gy_per_fraction': d95, 'd98_gy_per_fraction': d98, 'd90_gy_per_fraction': d90,
-                'previous_brachy_bed': previous_bed_data
+                'previous_brachy_bed': previous_bed_data,
+                'dose_axis': data['dose_axis'],
+                'vol_axis': data['vol_axis']
             }
         return dvh_results
 

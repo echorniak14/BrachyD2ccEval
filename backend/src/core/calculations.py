@@ -5,6 +5,56 @@ from dicompylercore import dicomparser
 from ..config import templates # Moved to backend/src/config.py
 import re
 import traceback
+from scipy.interpolate import interp1d
+
+def merge_dvh_data(dvh_data_list):
+    """
+    Merges multiple DVH dictionaries by summing their volumes at common dose intervals.
+    Input: list of dicts {'vol_axis': np.array, 'dose_axis': np.array}
+    Output: single dict {'vol_axis': np.array, 'dose_axis': np.array, 'volume_cc': float}
+    """
+    if not dvh_data_list:
+        return None
+    
+    # 1. Identity common dose axis (interpolating to the finest resolution or the first one)
+    # Using the union of all dose points would be ideal but complex. 
+    # Let's use the dose axis of the first DVH as the reference grid if reasonable, 
+    # or create a high-resolution grid covering the full range.
+    
+    # Simple approach: Find global min/max dose and create a standard grid relative to highest resolution
+    all_doses = np.concatenate([d['dose_axis'] for d in dvh_data_list])
+    min_dose, max_dose = np.min(all_doses), np.max(all_doses)
+    
+    # Create a reference dose axis (e.g. 1000 bins or 0.01 Gy steps)
+    # Using 1000 points is usually sufficient for accurate interpolation
+    ref_dose_axis = np.linspace(min_dose, max_dose, 1000)
+    
+    total_vol_at_ref = np.zeros_like(ref_dose_axis)
+    
+    for dvh in dvh_data_list:
+        doses = dvh['dose_axis']
+        vols = dvh['vol_axis']
+        
+        if len(doses) < 2: continue # Skip invalid
+        
+        # Create interpolator: Volume(Dose)
+        # Handle bounds: assume 0 volume outside measured high dose, and max volume below min dose?
+        # DVHs are cumulative Volume(Dose >= X).
+        # Actually standard: Volume where Dose >= D.
+        # So Volume(Dose < Min) = Max Volume. Volume(Dose > Max) = 0.
+        
+        # Note: interp1d expects x to be sorted. doses usually sorted ascending.
+        # But DVH volumes are monotonic descending (cumulative).
+        f_vol = interp1d(doses, vols, kind='linear', bounds_error=False, fill_value=(np.max(vols), 0.0))
+        
+        interpolated_vols = f_vol(ref_dose_axis)
+        total_vol_at_ref += interpolated_vols
+        
+    return {
+        'dose_axis': ref_dose_axis,
+        'vol_axis': total_vol_at_ref,
+        'volume_cc': np.max(total_vol_at_ref)
+    }
 
 def get_alpha_beta(organ_name, alpha_beta_ratios):
     """Performs a case-insensitive lookup to find the correct alpha/beta ratio."""
@@ -295,7 +345,7 @@ def get_dvh(rtss_file, rtdose_file, structure_data, number_of_fractions, ebrt_do
                     break
 
             # 3. Use Standard Name as Key
-            dvh_results[standardized_name] = {  # <-- CHANGED from normalized_name
+                dvh_results[standardized_name] = {  # <-- CHANGED from normalized_name
                 'volume_cc': organ_volume_cc,
                 'd2cc_gy_per_fraction': d2cc_gy_per_fraction,
                 'd1cc_gy_per_fraction': d1cc_gy_per_fraction,
@@ -306,7 +356,9 @@ def get_dvh(rtss_file, rtdose_file, structure_data, number_of_fractions, ebrt_do
                 'd95_gy_per_fraction': d95_gy_per_fraction,
                 'd98_gy_per_fraction': d98_gy_per_fraction,
                 'd90_gy_per_fraction': d90_gy_per_fraction,
-                'previous_brachy_bed': previous_bed_data 
+                'previous_brachy_bed': previous_bed_data,
+                'dose_axis': dvh.bincenters if dvh else np.array([]),
+                'vol_axis': dvh.cumulative.counts if dvh else np.array([]) 
             }
             
     finally:
