@@ -266,7 +266,7 @@ class ParserService:
                         previous_bed_data = history_value
                         break
 
-            dvh_results[normalized_name] = {
+            dvh_results[standardized_name] = {
                 'volume_cc': data['volume_cc'],
                 'd2cc_gy_per_fraction': d2cc, 'd1cc_gy_per_fraction': d1cc, 'd0_1cc_gy_per_fraction': d0_1cc,
                 'max_dose_gy_per_fraction': max_dose, 'mean_dose_gy_per_fraction': 0.0, 'min_dose_gy_per_fraction': min_dose,
