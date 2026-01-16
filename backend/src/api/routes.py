@@ -1,5 +1,5 @@
 from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from typing import List, Optional
 import json
 import pydicom
@@ -16,6 +16,7 @@ from ..services.parser_service import ParserService
 from ..services.dwell_time_service import generate_dwell_time_sheet
 from ..services.optimization_service import OptimizationService
 from ..services.report_generator import convert_html_to_pdf
+from ..services.file_service import FileService
 
 # Core
 from ..core import calculations, validators
@@ -28,6 +29,9 @@ def get_parser_service():
 def get_optimization_service():
     return OptimizationService()
 
+def get_file_service():
+    return FileService()
+
 class OptimizationGoalRequest(BaseModel):
     total_eqd2_constraint: float
     organ_name: str 
@@ -39,6 +43,8 @@ class OptimizationGoalRequest(BaseModel):
 
 class PdfGenerationRequest(BaseModel):
     html_content: str
+    patient_id: Optional[str] = "Unknown"
+    plan_name: Optional[str] = "Report"
 
 class BatchOptimizationGoalRequest(BaseModel):
     requests: List[OptimizationGoalRequest]
@@ -96,17 +102,72 @@ async def calculate_opt_goal_batch_endpoint(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.post("/generate_dwell_time_sheet")
+async def generate_dwell_time_sheet_endpoint(
+    rtplan_file: UploadFile = File(...),
+    schedule_file: Optional[UploadFile] = File(None),
+    file_service: FileService = Depends(get_file_service)
+):
+    try:
+        # Read files
+        rtplan_bytes = await rtplan_file.read()
+        schedule_bytes = await schedule_file.read() if schedule_file else None
+        
+        # 1. Parse for Filename Metadata (Basic parsing for saving)
+        # We rely on DwellTimeService to do the heavy lifting, but we need ID/Name for saving.
+        # Quick scan info for saving
+        try:
+            ds = pydicom.dcmread(io.BytesIO(rtplan_bytes), force=True)
+            p_id = str(getattr(ds, "PatientID", "Unknown"))
+            p_name = str(getattr(ds, "RTPlanLabel", "DwellSheet"))
+        except:
+            p_id = "Unknown"; p_name = "DwellSheet"
+
+        # 2. Save Inputs
+        file_service.save_input_file(rtplan_bytes, rtplan_file.filename, p_id, p_name)
+        if schedule_bytes and schedule_file:
+            file_service.save_input_file(schedule_bytes, schedule_file.filename, p_id, p_name)
+
+        # 3. Generate Sheet
+        dataset_bytes = generate_dwell_time_sheet(schedule_bytes, rtplan_bytes)
+        
+        if dataset_bytes is None:
+             raise HTTPException(status_code=400, detail="Failed to generate dwell time sheet. Check inputs.")
+
+        # 4. Save Output
+        filename = f"Dwell_Time_Sheet_{p_name}.xlsx"
+        file_service.save_derived_file(dataset_bytes, filename, p_id, p_name)
+
+        # 5. Return
+        return StreamingResponse(
+            io.BytesIO(dataset_bytes),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.post("/generate_pdf")
-async def generate_pdf_endpoint(request: PdfGenerationRequest):
+async def generate_pdf_endpoint(
+    request: PdfGenerationRequest,
+    file_service: FileService = Depends(get_file_service)
+    ):
     try:
         pdf_bytes = convert_html_to_pdf(request.html_content)
         if pdf_bytes is None:
             raise HTTPException(status_code=500, detail="Failed to generate PDF.")
         
+        # Save PDF
+        filename = f"Report_{request.plan_name}.pdf"
+        file_service.save_derived_file(pdf_bytes, filename, request.patient_id, request.plan_name)
+        
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",
-            headers={"Content-Disposition": "attachment; filename=report.pdf"}
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -126,13 +187,37 @@ async def process_plan(
     ebrt_fractions: int = Form(1),
     structure_mapping_json: Optional[str] = Form(None),
     confirmed_structure_mapping_json: Optional[str] = Form(None),
-    parser_service: ParserService = Depends(get_parser_service)
+    parser_service: ParserService = Depends(get_parser_service),
+    file_service: FileService = Depends(get_file_service)
 ):
     try:
         # 1. Read and Parse DICOMs and JSON inputs
-        rtplan = pydicom.dcmread(io.BytesIO(await rtplan_file.read()))
-        rtdose = pydicom.dcmread(io.BytesIO(await rtdose_file.read()))
-        rtstruct = pydicom.dcmread(io.BytesIO(await rtstruct_file.read()))
+        rtplan_bytes = await rtplan_file.read()
+        rtdose_bytes = await rtdose_file.read()
+        rtstruct_bytes = await rtstruct_file.read()
+
+        rtplan = pydicom.dcmread(io.BytesIO(rtplan_bytes))
+        rtdose = pydicom.dcmread(io.BytesIO(rtdose_bytes))
+        rtstruct = pydicom.dcmread(io.BytesIO(rtstruct_bytes))
+
+        # --- SAVE INPUT FILES ---
+        p_id = str(getattr(rtplan, "PatientID", "Unknown"))
+        # Fallback if RTPLAN doesn't have ID (unlikely)
+        if p_id == "Unknown" and hasattr(rtdose, "PatientID"): p_id = str(rtdose.PatientID)
+        
+        p_plan_label = getattr(rtplan, "RTPlanLabel", "Analysis")
+        
+        file_service.save_input_file(rtplan_bytes, rtplan_file.filename, p_id, p_plan_label)
+        file_service.save_input_file(rtdose_bytes, rtdose_file.filename, p_id, p_plan_label)
+        file_service.save_input_file(rtstruct_bytes, rtstruct_file.filename, p_id, p_plan_label)
+        
+        if dvh_text_file:
+             dvh_bytes = await dvh_text_file.read()
+             file_service.save_input_file(dvh_bytes, dvh_text_file.filename, p_id, p_plan_label)
+             # Reset cursor for processing!
+             await dvh_text_file.seek(0) 
+
+        # ------------------------
 
         plan_data = parser_service.get_plan_data(rtplan)
         structure_data = parser_service.get_structure_data(rtstruct)
@@ -286,6 +371,8 @@ async def process_plan(
             "patient_name": str(getattr(rtdose, 'PatientName', 'Unknown')),
             "patient_mrn": str(getattr(rtdose, 'PatientID', 'Unknown')),
             "plan_name": plan_data.get('plan_name', 'N/A'),
+            "plan_date": plan_data.get('plan_date', 'N/A'),
+            "plan_time": plan_data.get('plan_time', 'N/A'),
             "number_of_fractions_delivered": calc_fx,
             "ebrt_dose_input": ebrt_dose,
             "ebrt_fractions_input": ebrt_fractions,

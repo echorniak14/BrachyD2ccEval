@@ -73,6 +73,31 @@ def convert_html_to_pdf(html_content):
              )
         raise e
 
+        raise e
+
+def format_patient_name(raw_name):
+    """
+    Formats DICOM name (Family^Given^Middle) to 'Given Middle Family'.
+    Removes carets and extra spaces.
+    """
+    if not raw_name: return "Unknown"
+    # Replace double carets with single, then split
+    parts = str(raw_name).replace('^^', '^').split('^')
+    # Filter empty parts
+    parts = [p.strip() for p in parts if p.strip()]
+    
+    if not parts: return str(raw_name)
+    if len(parts) == 1: return parts[0]
+    
+    # Standard DICOM: Family^Given^Middle
+    family = parts[0]
+    given = parts[1] if len(parts) > 1 else ""
+    middle = parts[2] if len(parts) > 2 else ""
+    
+    # Return Given Middle Family
+    full_name = f"{given} {middle} {family}".strip()
+    return " ".join(full_name.split()) # Normalize whitespace
+
 def generate_html_report(patient_name, patient_mrn, plan_name, plan_date, plan_time, source_info, brachy_dose_per_fraction, number_of_fractions, ebrt_dose, ebrt_fractions, dvh_results, constraint_evaluation, dose_references, point_dose_results, alpha_beta_ratios, previous_brachy_data=None):
     """
     Generates the HTML report string.
@@ -109,13 +134,30 @@ def generate_html_report(patient_name, patient_mrn, plan_name, plan_date, plan_t
                         max_len = max(max_len, len(dose_list))
         previous_fractions = max_len
 
-    total_fractions = previous_fractions + number_of_fractions
+    # Calculate max length from unified lists in dvh_results
+    max_dvh_len = 0
+    if dvh_results:
+        for organ_data in dvh_results.values():
+            doses_map = organ_data.get("doses_per_fraction", {})
+            for d_list in doses_map.values():
+                if isinstance(d_list, list):
+                    max_dvh_len = max(max_dvh_len, len(d_list))
+
+    total_fractions = max(previous_fractions + number_of_fractions, max_dvh_len)
     fraction_headers = "".join([f"<th>Fx {i+1} Dose (Gy)</th>" for i in range(total_fractions)])
     target_volume_rows = ""
     oar_rows = ""
 
+    # Create case-insensitive lookup map for alpha/beta ratios
+    ab_lookup = {k.lower(): v for k, v in alpha_beta_ratios.items()}
+
     for organ, data in dvh_results.items():
-        alpha_beta = alpha_beta_ratios.get(organ, alpha_beta_ratios.get("Default", 3.0))
+        # Try exact match first, then case-insensitive, then Default
+        if organ in alpha_beta_ratios:
+            alpha_beta = alpha_beta_ratios[organ]
+        else:
+            alpha_beta = ab_lookup.get(organ.lower(), alpha_beta_ratios.get("Default", 3.0))
+            
         volume_cc = data.get("volume_cc", "N/A")
         if isinstance(volume_cc, (int, float)):
             volume_cc = f"{volume_cc:.2f}"
@@ -123,22 +165,31 @@ def generate_html_report(patient_name, patient_mrn, plan_name, plan_date, plan_t
         # Determine if target based on alpha/beta (Target=10)
         is_target = alpha_beta == 10
         
+        doses_per_fraction_map = data.get("doses_per_fraction", {})
+        
         if is_target:
             metrics = [
-                {'name': 'D98', 'dose_key': 'd98_gy_per_fraction', 'eqd2_key': 'eqd2_d98'},
-                {'name': 'D90', 'dose_key': 'd90_gy_per_fraction', 'eqd2_key': 'eqd2_d90'}
+                {'name': 'D98', 'dose_key': 'd98_gy_per_fraction', 'eqd2_key': 'eqd2_d98', 'list_key': 'd98'},
+                {'name': 'D90', 'dose_key': 'd90_gy_per_fraction', 'eqd2_key': 'eqd2_d90', 'list_key': 'd90'}
             ]
             html_rows_for_organ = []
             for i, metric in enumerate(metrics):
                 fx_doses_html = ""
-                if previous_brachy_data and isinstance(previous_brachy_data, dict):
-                    prev_doses = previous_brachy_data.get("dvh_results", {}).get(organ, {}).get("dose_fx", {})
-                    dose_list = prev_doses.get(metric['dose_key'], [])
-                    if isinstance(dose_list, list):
-                        fx_doses_html += "".join([f"<td>{dose:.2f}</td>" for dose in dose_list])
                 
-                current_dose = data.get(metric['dose_key'], 0)
-                fx_doses_html += f'<td>{current_dose:.2f}</td>' * number_of_fractions
+                # Check for unified list first
+                if metric['list_key'] in doses_per_fraction_map:
+                    dose_list = doses_per_fraction_map[metric['list_key']]
+                    fx_doses_html += "".join([f"<td>{dose:.2f}</td>" for dose in dose_list])
+                else:
+                    # Fallback to old logic
+                    if previous_brachy_data and isinstance(previous_brachy_data, dict):
+                        prev_doses = previous_brachy_data.get("dvh_results", {}).get(organ, {}).get("dose_fx", {})
+                        dose_list = prev_doses.get(metric['dose_key'], [])
+                        if isinstance(dose_list, list):
+                            fx_doses_html += "".join([f"<td>{dose:.2f}</td>" for dose in dose_list])
+                    current_dose = data.get(metric['dose_key'], 0)
+                    fx_doses_html += f'<td>{current_dose:.2f}</td>' * number_of_fractions
+
                 eqd2_val = data.get(metric['eqd2_key'], 0)
                 
                 row_start = f'<td rowspan="{len(metrics)}">{organ}</td><td rowspan="{len(metrics)}">{alpha_beta}</td><td rowspan="{len(metrics)}">{volume_cc}</td>' if i == 0 else ''
@@ -148,21 +199,27 @@ def generate_html_report(patient_name, patient_mrn, plan_name, plan_date, plan_t
             target_volume_rows += "".join(html_rows_for_organ)
         else:
             metrics = [
-                {'name': 'D0.1cc', 'dose_key': 'd0_1cc_gy_per_fraction', 'eqd2_key': 'eqd2_d0_1cc'},
-                {'name': 'D1cc', 'dose_key': 'd1cc_gy_per_fraction', 'eqd2_key': 'eqd2_d1cc'},
-                {'name': 'D2cc', 'dose_key': 'd2cc_gy_per_fraction', 'eqd2_key': 'eqd2_d2cc'}
+                {'name': 'D0.1cc', 'dose_key': 'd0_1cc_gy_per_fraction', 'eqd2_key': 'eqd2_d0_1cc', 'list_key': 'd0_1cc'},
+                {'name': 'D1cc', 'dose_key': 'd1cc_gy_per_fraction', 'eqd2_key': 'eqd2_d1cc', 'list_key': 'd1cc'},
+                {'name': 'D2cc', 'dose_key': 'd2cc_gy_per_fraction', 'eqd2_key': 'eqd2_d2cc', 'list_key': 'd2cc'}
             ]
             html_rows_for_organ = []
             for i, metric in enumerate(metrics):
                 fx_doses_html = ""
-                if previous_brachy_data and isinstance(previous_brachy_data, dict):
-                    prev_doses = previous_brachy_data.get("dvh_results", {}).get(organ, {}).get("dose_fx", {})
-                    dose_list = prev_doses.get(metric['dose_key'], [])
-                    if isinstance(dose_list, list):
-                        fx_doses_html += "".join([f"<td>{dose:.2f}</td>" for dose in dose_list])
                 
-                current_dose = data.get(metric['dose_key'], 0)
-                fx_doses_html += f'<td>{current_dose:.2f}</td>' * number_of_fractions
+                # Check for unified list first
+                if metric['list_key'] in doses_per_fraction_map:
+                    dose_list = doses_per_fraction_map[metric['list_key']]
+                    fx_doses_html += "".join([f"<td>{dose:.2f}</td>" for dose in dose_list])
+                else:
+                    if previous_brachy_data and isinstance(previous_brachy_data, dict):
+                        prev_doses = previous_brachy_data.get("dvh_results", {}).get(organ, {}).get("dose_fx", {})
+                        dose_list = prev_doses.get(metric['dose_key'], [])
+                        if isinstance(dose_list, list):
+                            fx_doses_html += "".join([f"<td>{dose:.2f}</td>" for dose in dose_list])
+                    current_dose = data.get(metric['dose_key'], 0)
+                    fx_doses_html += f'<td>{current_dose:.2f}</td>' * number_of_fractions
+                
                 eqd2_val = data.get(metric['eqd2_key'], 0)
                 
                 row_start = f'<td rowspan="{len(metrics)}">{organ}</td><td rowspan="{len(metrics)}">{alpha_beta}</td><td rowspan="{len(metrics)}">{volume_cc}</td>' if i == 0 else ''
@@ -194,7 +251,7 @@ def generate_html_report(patient_name, patient_mrn, plan_name, plan_date, plan_t
             f'</tr>'
         )
 
-    html_content = template.replace("{{ patient_name }}", str(patient_name))
+    html_content = template.replace("{{ patient_name }}", str(format_patient_name(patient_name)))
     html_content = html_content.replace("{{ patient_mrn }}", str(patient_mrn))
     html_content = html_content.replace("{{ plan_name }}", str(plan_name))
     html_content = html_content.replace("{{ plan_date }}", str(plan_date))

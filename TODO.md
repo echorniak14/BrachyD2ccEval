@@ -13,9 +13,10 @@
 - [x] Update file format structure to align with recommendation from gemini (be consistent with proposed structure.txt)
 - [ ] update all file calls in other front end (GUI) and main scripts
 - [x] ECHO vs TPS calc comparison and warning
-- [ ] combine bowel 1 and bowel 2 contours into bowel contour + warning to the user
+- [x] combine bowel 1 and bowel 2 contours into bowel contour + warning to the user
 - [ ] Dwell time decay dwell position flexibility -> dwell position = index length - 1000.
 - [ ] Auto save excel file and pdf and pull up print option
+- [ ] Save all uploaded data (DICOM, JSON) and generated outputs (Excel, PDF) to a specific common folder
 - [x] Use provided previous brachy dose to give optimzation goals to user to achieve ALARA
 
 ### Deployment & Integration

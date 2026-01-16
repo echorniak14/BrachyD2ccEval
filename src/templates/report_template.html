@@ -3,75 +3,76 @@
 <head>
     <title>Brachytherapy Evaluation Report</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; color: #333; background-color: #fff; }
-        .logo { float: right; max-height: 80px; }
-        h1 {
-            color: #2a7ae2;
-            border-bottom: 2px solid #1e5aab;
-            padding-bottom: 10px;
-            margin-bottom: 30px;
-            font-size: 28px;
-        }
-        h2 {
-            color: #2a7ae2;
-            border-bottom: 1px solid #ddd;
-            padding-bottom: 5px;
-            margin-top: 40px;
-            font-size: 22px;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-        }
-        th, td {
-            border: 1px solid #ddd;
-            padding: 12px 15px;
-            text-align: left;
-        }
-        th {
-            background-color: #2a7ae2;
-            color: white;
-            font-weight: bold;
-            text-transform: uppercase;
-        }
-        .no-transform {
-            text-transform: none;
-        }
-        tbody tr:nth-child(even) { background-color: #eaf2fa; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; margin: 30px; color: #333; background-color: #fff; }
+        
+        /* Header Section */
+        .header { display: flex; align-items: center; justify-content: space-between; border-bottom: 3px solid #1e5aab; padding-bottom: 10px; margin-bottom: 20px; }
+        .header h1 { color: #1e5aab; margin: 0; font-size: 32px; font-weight: bold; }
+        .logo { max-height: 70px; }
+
+        /* Patient Info Section */
+        .patient-info { text-align: left; margin-bottom: 30px; padding: 10px 0; border-bottom: 1px solid #ddd; }
+        .patient-info h2 { font-size: 28px; margin: 0; color: #222; font-weight: bold; }
+        .patient-info h3 { font-size: 20px; margin: 5px 0 0 0; color: #555; font-weight: normal; }
+
+        /* Summary Boxes (Flexbox) */
+        .summary-container { display: flex; gap: 20px; margin-bottom: 40px; }
+        .summary-box { flex: 1; background-color: #f4f8fc; border: 1px solid #cce0f5; border-radius: 8px; padding: 20px; }
+        .summary-box h3 { margin-top: 0; color: #1e5aab; border-bottom: 2px solid #aecbeb; padding-bottom: 10px; margin-bottom: 15px; font-size: 18px; }
+        .summary-item { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; border-bottom: 1px dotted #e1e1e1; padding-bottom: 2px; }
+        .summary-item:last-child { border-bottom: none; }
+        .summary-item strong { color: #444; font-weight: 600; }
+
+        /* Section Titles */
+        h2.section-title { color: #1e5aab; border-bottom: 1px solid #ddd; padding-bottom: 5px; margin-top: 40px; font-size: 22px; }
+
+        /* Tables */
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 13px; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: center; }
+        th { background-color: #1e5aab; color: white; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+        th.no-transform { text-transform: none; }
+        th:first-child, td:first-child { text-align: left; font-weight: 600; color: #333; }
+        tbody tr:nth-child(even) { background-color: #f9fbfd; }
     </style>
 </head>
 <body>
-    <img src="{{ logo_base64 }}" alt="Institution Logo" class="logo">
-    <h1>Dose Summary</h1>
-    <table style="width:100%; border: none; box-shadow: none;">
-        <tr style="border: none;">
-            <td style="width:50%; border: none; vertical-align: top;">
-                <p><strong>Patient Name:</strong> {{ patient_name }}</p>
-                <p><strong>Patient MRN:</strong> {{ patient_mrn }}</p>
-                <br><br><br>
-                <p><strong>EBRT Dose:</strong> {{ ebrt_dose }} Gy</p>
-                <p><strong>EBRT Fractions:</strong> {{ ebrt_fractions }}</p>
-            </td>
-            <td style="width:50%; border: none; vertical-align: top; text-align: right;">
-                <p><strong>Plan Name:</strong> {{ plan_name }}</p>
-                <p><strong>Plan Date:</strong> {{ plan_date }}</p>
-                <p><strong>Plan Time:</strong> {{ plan_time }}</p>
-                <p><strong>Planned Source AKS:</strong> {{ source_info }}</p>
-                <p><strong>Planned Dose per Fraction:</strong> {{ brachy_dose_per_fraction }} Gy</p>
-                <p><strong>Number of Fractions:</strong> {{ number_of_fractions }}</p>
-            </td>
-        </tr>
-    </table>
+    <div class="header">
+        <h1>Dose Summary</h1>
+        <img src="{{ logo_base64 }}" alt="Logo" class="logo">
+    </div>
 
-    <h2>Target Volume DVH Results</h2>
+    <div class="patient-info">
+        <h2>{{ patient_name }}</h2>
+        <h3>MRN: {{ patient_mrn }}</h3>
+    </div>
+
+    <div class="summary-container">
+        <div class="summary-box">
+            <h3>External Beam</h3>
+            <div class="summary-item"><strong>Dose:</strong> <span>{{ ebrt_dose }} Gy</span></div>
+            <div class="summary-item"><strong>Fractions:</strong> <span>{{ ebrt_fractions }}</span></div>
+            <div class="summary-item"><strong>Method:</strong> <span>User Input</span></div>
+        </div>
+        <div class="summary-box">
+            <h3>Brachytherapy</h3>
+            <div class="summary-item"><strong>Total Fractions:</strong> <span>{{ number_of_fractions }}</span></div>
+            <div class="summary-item"><strong>Rx Dose:</strong> <span>{{ brachy_dose_per_fraction }} Gy / fx</span></div>
+            <br>
+            <div class="summary-item"><strong>Current Plan:</strong> <span>{{ plan_name }}</span></div>
+            <div class="summary-item"><strong>Plan Date:</strong> <span>{{ plan_date }}</span></div>
+            <div class="summary-item"><strong>Plan Time:</strong> <span>{{ plan_time }}</span></div>
+            <div class="summary-item"><strong>Source Strength:</strong> <span>{{ source_info }}</span></div>
+        </div>
+    </div>
+
+    <h2 class="section-title">Target Volume DVH Results</h2>
     <table>
         <thead>
             <tr>
                 <th>Structure</th>
                 <th class="no-transform">&#x3B1;/&#x3B2;</th>
                 <th>Volume (cc)</th>
-                <th>Dose Metric</th>
+                <th>Metric</th>
                 {{ fraction_headers }}
                 <th>EQD2 (Gy)</th>
             </tr>
@@ -81,14 +82,14 @@
         </tbody>
     </table>
 
-    <h2>OAR DVH Results</h2>
+    <h2 class="section-title">OAR DVH Results</h2>
     <table>
         <thead>
             <tr>
                 <th>Structure</th>
                 <th class="no-transform">&#x3B1;/&#x3B2;</th>
                 <th>Volume (cc)</th>
-                <th>Dose Metric</th>
+                <th>Metric</th>
                 {{ fraction_headers }}
                 <th>EQD2 (Gy)</th>
             </tr>
@@ -98,7 +99,7 @@
         </tbody>
     </table>
 
-    <h2>Point Dose Results</h2>
+    <h2 class="section-title">Point Dose Results</h2>
     <table>
         <thead>
             <tr>

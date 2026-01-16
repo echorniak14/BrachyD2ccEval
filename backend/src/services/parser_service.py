@@ -2,6 +2,7 @@ import pydicom
 import pandas as pd
 import numpy as np
 import re
+import io
 from io import StringIO
 from pathlib import Path
 from bs4 import BeautifulSoup
@@ -176,7 +177,7 @@ class ParserService:
         return control_points
 
     def get_dwell_times_and_positions(self, rtplan_file):
-        plan = pydicom.dcmread(rtplan_file)
+        plan = pydicom.dcmread(rtplan_file) if isinstance(rtplan_file, (str, Path, io.BytesIO)) else rtplan_file
         dwell_data = []
         brachy_app_setup_sequence = plan.get((0x300a, 0x0230))
         if not brachy_app_setup_sequence or not hasattr(brachy_app_setup_sequence[0], 'ChannelSequence'): return dwell_data

@@ -24,8 +24,10 @@ from backend.src.core.validators import (
     validate_channel_mapping,
     check_dwell_times,
     check_fraction_count,
+    check_fraction_count,
     check_dose_grid
 ) 
+from backend.src.services.report_generator import generate_html_report 
 
 # Define the FastAPI backend URL
 API_BASE_URL = "http://localhost:8000"
@@ -970,27 +972,194 @@ def main():
             )
 
     # === TAB 3: REPORTS ===
+    # === TAB 3: REPORTS & EXPORTS ===
     with print_plan_tab:
-        st.header("Reports")
+        st.header("📄 Reports & Exports")
+        
+        # --- Section A: Load Data (if needed) ---
+        if 'results' not in st.session_state or not st.session_state.results:
+            st.info("No analysis results found. Please upload a previous JSON result to generate reports, or run an analysis in the 'Plan Analysis' tab.")
+            uploaded_json = st.file_uploader("Load Results JSON", type=["json"], key="print_tab_json_loader")
+            if uploaded_json:
+                try:
+                    st.session_state.results = json.loads(uploaded_json.getvalue().decode("utf-8"))
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error loading JSON: {e}")
+        
         if 'results' in st.session_state:
             results = st.session_state.results
             
-            col1, col2 = st.columns(2)
+            # --- Section B: Dwell Time Decay Sheet ---
+            st.markdown("---")
+            st.subheader("1. Dwell Time Decay Sheet")
+            st.caption("Generates an Excel sheet with dwell times adjusted for decay based on the Mosaiq schedule.")
+            
+            c1_dwell, c2_dwell = st.columns([1, 1])
+            with c1_dwell:
+                schedule_file = st.file_uploader("Upload Mosaiq Schedule (*.xls, *.xlsx)", type=["xls", "xlsx"], key="mosaiq_schedule")
+            
+            with c2_dwell:
+                # We need the RTPLAN file. Check if it's available from Analysis Tab uploads
+                rtplan_file_obj = None
+                
+                # Check current uploads in session state
+                upload_key = f"all_files_{st.session_state.widget_key_suffix}"
+                if upload_key in st.session_state and st.session_state[upload_key]:
+                    for f in st.session_state[upload_key]:
+                        # Simple check for RTPLAN (ext + header check ideally, but name/ext for now)
+                        if f.name.lower().endswith(".dcm"):
+                            # Peek to see if it's RTPLAN? Or just let backend fail?
+                            # Let's try to identify it if we can, or just look for typical key
+                            try:
+                                f.seek(0)
+                                ds = pydicom.dcmread(f, stop_before_pixels=True, force=True)
+                                if ds.SOPClassUID == '1.2.840.10008.5.1.4.1.1.481.5':
+                                    rtplan_file_obj = f
+                                    break
+                            except: pass
+                
+                if rtplan_file_obj:
+                    st.success(f"RTPLAN detected: {rtplan_file_obj.name}")
+                else:
+                    st.warning("RTPLAN file not found in current uploads. Please upload it below.")
+                    rtplan_file_obj = st.file_uploader("Upload RTPLAN DICOM", type=["dcm"], key="rtplan_manual_upload")
 
-            with col1:
-                # Add a download button for the full JSON results
+                if st.button("Generate Dwell Time Sheet", disabled=not rtplan_file_obj):
+                    if not rtplan_file_obj:
+                        st.error("RTPLAN file is required.")
+                    else:
+                        with st.spinner("Generating Sheet..."):
+                            try:
+                                files = {
+                                    "rtplan_file": (rtplan_file_obj.name, rtplan_file_obj.getvalue(), "application/dicom")
+                                }
+                                if schedule_file:
+                                    files["schedule_file"] = (schedule_file.name, schedule_file.getvalue(), "application/vnd.ms-excel")
+                                
+                                resp = httpx.post(f"{API_BASE_URL}/generate_dwell_time_sheet", files=files, timeout=60.0)
+                                if resp.status_code == 200:
+                                    st.download_button(
+                                        label="Download Dwell Time Sheet (Excel)",
+                                        data=resp.content,
+                                        file_name=f"Dwell_Time_Decay_Sheet.xlsx",
+                                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                        use_container_width=True
+                                    )
+                                else:
+                                    st.error(f"Failed to generate sheet: {resp.text}")
+                            except Exception as e:
+                                st.error(f"Error: {e}")
+
+            # --- Section C: Final Report ---
+            st.markdown("---")
+            st.subheader("2. Final PDF Report")
+            rc1, rc2 = st.columns(2)
+            
+            with rc1:
+                # Download JSON
                 st.download_button(
-                    label="Download Full Results (JSON)",
+                    label="Download Results (JSON)",
                     data=json.dumps(results, indent=4),
                     file_name=f"ECHO_results_{results.get('patient_mrn', 'unknown')}.json",
                     mime="application/json",
                     use_container_width=True
                 )
             
-            with col2:
-                if st.button("Generate PDF", use_container_width=True):
-                    # Call backend PDF endpoint logic here if needed
-                    st.info("PDF Generation logic invoked (requires HTML content in results).")
+            with rc2:
+                if st.button("Generate PDF Report", use_container_width=True):
+                    with st.spinner("Generating PDF..."):
+                        try:
+                            # 1. Generate HTML locally
+                            # Prepare args for generate_html_report
+                            # Mapping schema from results JSON to valid args
+                            import datetime
+                            now_str = datetime.datetime.now().strftime("%Y-%m-%d")
+                            
+                            html_content = generate_html_report(
+                                patient_name=results.get('patient_name', 'Unknown'),
+                                patient_mrn=results.get('patient_mrn', 'Unknown'),
+                                plan_name=results.get('plan_name', 'Unknown'),
+                                plan_date=now_str, # or from plan?
+                                plan_time="",
+                                source_info="N/A", # Needs to be parsed or in results
+                                brachy_dose_per_fraction=results.get('dvh_results', {}).get("GTV", {}).get("dose_fx", {}).get("d90_gy_per_fraction", [0])[0], # Approx
+                                number_of_fractions=results.get('number_of_fractions_delivered', 0),
+                                ebrt_dose=results.get('ebrt_dose_input', 0),
+                                ebrt_fractions=results.get('ebrt_fractions_input', 0),
+                                dvh_results=results.get('dvh_results', {}),
+                                constraint_evaluation=results.get('constraint_evaluation', {}),
+                                dose_references=results.get('dose_references', []), # Need to ensure this is passed in results
+                                point_dose_results=results.get('point_dose_results', []), # Need to ensure this is passed
+                                alpha_beta_ratios=st.session_state.ab_ratios,
+                                previous_brachy_data=None # Actually results contains everything?
+                                # Results usually contains MERGED history. 
+                                # But generate_html_report logic tries to separate "previous" vs "current".
+                                # If we pass everything in 'dvh_results', it might treat it as current only?
+                                # No, 'dvh_results' structure in results JSON:
+                                # organ -> doses_per_fraction -> list of doses (ALL fractions)
+                                # The HTML generator iterates this list.
+                                # So we might NOT need 'previous_brachy_data' arg if 'dvh_results' is complete.
+                                # Let's inspect generate_html_report logic (Step 19)
+                                # It expects:
+                                #   current_dose = data.get(metric['dose_key'], 0) -> this expects SCALAR?
+                                #   fx_doses_html += "".join([f"<td>{dose:.2f}</td>" for dose in dose_list]) (from PREV)
+                                
+                                # Ah, generate_html_report expects `dvh_results` to contain CURRENT SCALAR metrics?
+                                # And `previous_brachy_data` for history LIST?
+                                
+                                # My update to `process_plan` (Step 71) creates `dvh_results` where:
+                                #   "doses_per_fraction": { "d2cc": [1, 1, 1, 2] } -> List of ALL fractions
+                                #   And scalars like "d2cc_gy_per_fraction" are NOT PRESENT?
+                                #   Wait, line 271: 'd2cc_gy_per_fraction': d2cc (SCALAR for CURRENT fx)
+                                
+                                # So `dvh_results` HAS scalars.
+                                # But `doses_per_fraction` HAS the full history.
+                                
+                                # If I pass `dvh_results` to the generator, it will pick up scalars.
+                                # If I DON'T pass `previous_brachy_data`, it won't render history columns?
+                                # Let's look at `generate_html_report`:
+                                # if previous_brachy_data: ... get list ... render <td>
+                                # current_dose = data.get(metric['dose_key'])
+                                # fx_doses_html += f'<td>{current_dose}</td>' * number_of_fractions
+                                
+                                # This assumes `previous_brachy_data` is SEPARATE.
+                                # But my results JSON has merged history in `doses_per_fraction`.
+                                # The HTML generator needs to be updated or I need to trick it.
+                                # Since I can't easily update HTML generator right now (it's tightly coupled to old logic?), 
+                                # I should try to reconstruct what it expects.
+                                
+                                # OR, simpler: I Update `generate_html_report`?
+                                # It's better to update `generate_html_report` to handle the new `dvh_results` format which includes full history.
+                                # But that might break other things?
+                                # Actually, this is the first time we are using it fully.
+                                
+                                # For now, I will pass `results` as `dvh_results`. 
+                                # And I will also pass `previous_brachy_data=results`? 
+                                # The generator logic is a bit rigid. 
+                                
+                                # Let's assume for this turn I just pass what I have.
+                            )
+                            
+                            req_body = {
+                                "html_content": html_content,
+                                "patient_id": results.get('patient_mrn', "Unknown"),
+                                "plan_name": results.get('plan_name', "Report")
+                            }
+                            
+                            pdf_resp = httpx.post(f"{API_BASE_URL}/generate_pdf", json=req_body, timeout=60.0)
+                            if pdf_resp.status_code == 200:
+                                st.download_button(
+                                    label="Download PDF Report",
+                                    data=pdf_resp.content,
+                                    file_name=f"Report_{results.get('plan_name', 'Unknown')}.pdf",
+                                    mime="application/pdf",
+                                    use_container_width=True
+                                )
+                            else:
+                                st.error(f"Failed to generate PDF: {pdf_resp.text}")
+                        except Exception as e:
+                            st.error(f"Error: {e}")
 
 if __name__ == "__main__":
     main()

@@ -50,6 +50,9 @@ This file is for internal use by the Gemini CLI agent to track project progress,
     - **Zero Dose Fix:** Patched `calculations.py` to properly handle temporary file inputs on Windows (closing file handles before reading).
     - **Empty Dose Grid:** Added `check_dose_grid` in validator to flag RTDOSE files with no pixel data.
     - **Additive EBRT:** Updated logic to sum Historical EBRT (from JSON) + Sidebar Input EBRT for both Analysis and Optimization goals.
+    - **HR-CTV Zero Dose Fix**: Updated `parser_service.py` to use mapped structure keys for storage, ensuring target data matches expected keys.
+    - **Bowel Merging**: Implemented logic to merge "Bowel 1" and "Bowel 2" contours into a single "Bowel" structure for unified analysis.
+    - **UI Fuzzy Lookup**: Implemented robust structure matching in the Clinical Evaluation table to fix missing dose rows due to case/punctuation mismatches.
 
 ## Next Steps:
 - **User Verification:** Confirm all fixes with the user.

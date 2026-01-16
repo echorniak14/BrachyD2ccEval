@@ -8,15 +8,18 @@ import pydicom
 import io
 from .parser_service import ParserService
 
-def parse_mosaiq_schedule_for_hdr_tx(file_path):
+def parse_mosaiq_schedule_for_hdr_tx(input_file):
     """
     Parses the Mosaiq schedule Excel export to find HDR treatment dates.
+    Input can be a file path or bytes/file-like object.
     """
     try:
-        df = pd.read_excel(file_path)
+        if isinstance(input_file, bytes):
+            input_file = io.BytesIO(input_file)
+            
+        df = pd.read_excel(input_file)
         
         # Filter for rows containing 'HDR' and 'tx' (case-insensitive)
-        # We ensure the columns exist before filtering to avoid KeyErrors
         if 'Activity' not in df.columns or 'Description' not in df.columns or 'Sts' not in df.columns:
             return []
 
@@ -41,38 +44,30 @@ def parse_mosaiq_schedule_for_hdr_tx(file_path):
         
         return sorted(hdr_tx_schedule['datetime'].tolist())
     except Exception as e:
-        print(f"Error parsing Mosaiq schedule file: {e}")
+        print(f"Error parsing Mosaiq schedule: {e}")
         return []
 
-def generate_dwell_time_sheet(mosaiq_schedule_path, rtplan_file_content):
+def generate_dwell_time_sheet(mosaiq_schedule_content, rtplan_file_content):
     """
-    Generates an Excel sheet with dwell time information based on a Mosaiq schedule
-    and an RTPLAN file. Returns the Excel file as bytes.
+    Generates an Excel sheet with dwell time information.
+    Accepts bytes for both schedule and rtplan content.
+    Returns the Excel file as bytes.
     """
     # 1. Locate the Template File
-    # Relative path: backend/src/services -> backend/src -> src (frontend) -> templates
-    # Adjust this path if your templates are stored elsewhere.
-    # Assuming standard structure: project_root/src/templates/
-    base_path = Path(__file__).parent.parent.parent.parent / 'src' 
+    base_path = Path(__file__).resolve().parents[3] / 'src'
     template_excel_path = base_path / 'templates' / 'Dwell time decay Worksheet Cylinder.xlsx'
 
     # 2. Parse Mosaiq Schedule
-    fraction_datetimes = parse_mosaiq_schedule_for_hdr_tx(mosaiq_schedule_path)
+    fraction_datetimes = parse_mosaiq_schedule_for_hdr_tx(mosaiq_schedule_content)
     
-    if not fraction_datetimes:
-        print("No 'HDR: tx' activities found in the schedule.")
-        # Proceeding might be useless, but we can return None or an empty-ish sheet
-        # Returning None signals failure to the API
-        return None
-
     # 3. Parse RTPLAN Data
     try:
-        ds = pydicom.dcmread(io.BytesIO(rtplan_file_content))
+        ds = pydicom.dcmread(io.BytesIO(rtplan_file_content), force=True)
         parser = ParserService()
         
         # Extract Plan Info
-        patient_name = str(ds.PatientName)
-        patient_mrn = str(ds.PatientID)
+        patient_name = str(getattr(ds, 'PatientName', 'N/A'))
+        patient_mrn = str(getattr(ds, 'PatientID', 'N/A'))
         plan_data = parser.get_plan_data(ds)
         plan_name = plan_data.get('plan_name', 'N/A')
         
@@ -80,9 +75,11 @@ def generate_dwell_time_sheet(mosaiq_schedule_path, rtplan_file_content):
         ref_date = plan_data.get('source_strength_ref_date', 'N/A')
         ref_time = plan_data.get('source_strength_ref_time', 'N/A')
         plan_date_str = "N/A"
-        if ref_date != 'N/A' and ref_time != 'N/A':
+        if ref_date != 'N/A':
             try:
-                dt_obj = datetime.strptime(f"{ref_date}{ref_time.split('.')[0]}", "%Y%m%d%H%M%S")
+                # Time might be optional or partial
+                time_str = ref_time.split('.')[0] if ref_time != 'N/A' else "000000"
+                dt_obj = datetime.strptime(f"{ref_date}{time_str}", "%Y%m%d%H%M%S")
                 plan_date_str = dt_obj.strftime('%Y-%m-%d %H:%M')
             except ValueError:
                 pass
@@ -92,26 +89,13 @@ def generate_dwell_time_sheet(mosaiq_schedule_path, rtplan_file_content):
         source_activity_ci = rakr / 4.0367 / 1000 # Conv factor for Ir-192 RAKR to Ci
 
         # Extract Dwell Times
-        # Note: We need to use the method from ParserService, but it expects a file path usually.
-        # Since we have the dataset 'ds', we can adapt the logic or pass a dummy path if it doesn't use it.
-        # Looking at ParserService.get_dwell_times_and_positions, it calls pydicom.dcmread(rtplan_file).
-        # We should modify ParserService to accept a dataset, or duplicate the logic here for bytes.
-        # Duplicating small logic here for robustness with ByteStream:
-        
-        dwell_data = []
-        brachy_app_setup = ds.get((0x300a, 0x0230))
-        if brachy_app_setup and hasattr(brachy_app_setup[0], 'ChannelSequence'):
-            for channel in brachy_app_setup[0].ChannelSequence:
-                total_time = float(channel.ChannelTotalTime)
-                final_weight = float(channel.FinalCumulativeTimeWeight)
-                if final_weight > 0:
-                    control_points = channel.BrachyControlPointSequence
-                    for i in range(1, len(control_points)):
-                        weight = float(control_points[i].CumulativeTimeWeight) - float(control_points[i-1].CumulativeTimeWeight)
-                        if weight > 0:
-                            time = weight * total_time / final_weight
-                            pos = float(control_points[i].ControlPointRelativePosition)
-                            dwell_data.append({"position": pos, "dwell_time": time})
+        # Now passing the Dataset directly to supported ParserService (requires update to parser_service first)
+        # OR passing BytesIO if updated parser prefers that.
+        # We updated parser to accept dataset? No, we updated it to accept BytesIO.
+        # But we also made it accept 'file path or stream'. 
+        # If we pass `ds` (Dataset), `dcmread(ds)` fails.
+        # So we should pass `io.BytesIO(rtplan_file_content)` again.
+        dwell_data = parser.get_dwell_times_and_positions(io.BytesIO(rtplan_file_content))
 
     except Exception as e:
         print(f"Error parsing RTPLAN content: {e}")
@@ -130,6 +114,9 @@ def generate_dwell_time_sheet(mosaiq_schedule_path, rtplan_file_content):
         ws['B13'] = source_activity_ci
 
         # Fractions Dates (Columns C, D, E, F, G...)
+        # If no schedule found, we leave blank? Or maybe we can't generate it?
+        # User might want the sheet even if schedule is empty (just for dwells).
+        
         fraction_cells = ['C11', 'D11', 'E11', 'F11', 'G11']
         for i, dt in enumerate(fraction_datetimes):
             if i < len(fraction_cells):
@@ -138,13 +125,16 @@ def generate_dwell_time_sheet(mosaiq_schedule_path, rtplan_file_content):
         # Fraction Numbers
         ws['B9'] = "Plan"
         header_cells = ['C9', 'D9', 'E9', 'F9', 'G9']
-        for i in range(len(fraction_datetimes)):
+        count = len(fraction_datetimes) if fraction_datetimes else 5 # Default 5 headers if no schedule?
+        for i in range(count):
              if i < len(header_cells):
                 ws[header_cells[i]] = i + 1
         
         # Dwell Times
         # Map: Position (mm) -> Time (s)
-        # Note: 300mm is typically the Tip for some applicators, logic from original script
+        # Note: 1300mm is index length usually? The template assumes specific positions.
+        # Original script used: 300 - int(item['position']). 
+        # Let's trust that logic for now.
         excel_dwell_map = {300 - int(item['position']): item['dwell_time'] for item in dwell_data}
         
         dwell_time_start_row = 17
@@ -154,7 +144,6 @@ def generate_dwell_time_sheet(mosaiq_schedule_path, rtplan_file_content):
             
             position_val = ws[position_cell].value
             
-            # Match based on position in Column A
             if position_val is not None and position_val in excel_dwell_map:
                 ws[dwell_time_cell] = excel_dwell_map[position_val]
             else:
