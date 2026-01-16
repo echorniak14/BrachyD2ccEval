@@ -373,6 +373,8 @@ async def process_plan(
             "plan_name": plan_data.get('plan_name', 'N/A'),
             "plan_date": plan_data.get('plan_date', 'N/A'),
             "plan_time": plan_data.get('plan_time', 'N/A'),
+            "source_info": plan_data.get('source_info', 'N/A'),
+            "brachy_dose_rx": plan_data.get('brachy_dose_per_fraction', 0.0),
             "number_of_fractions_delivered": calc_fx,
             "ebrt_dose_input": ebrt_dose,
             "ebrt_fractions_input": ebrt_fractions,

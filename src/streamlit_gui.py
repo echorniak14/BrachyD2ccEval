@@ -1080,66 +1080,22 @@ def main():
                                 patient_name=results.get('patient_name', 'Unknown'),
                                 patient_mrn=results.get('patient_mrn', 'Unknown'),
                                 plan_name=results.get('plan_name', 'Unknown'),
-                                plan_date=now_str, # or from plan?
-                                plan_time="",
-                                source_info="N/A", # Needs to be parsed or in results
-                                brachy_dose_per_fraction=results.get('dvh_results', {}).get("GTV", {}).get("dose_fx", {}).get("d90_gy_per_fraction", [0])[0], # Approx
+                                plan_date=results.get('plan_date', now_str),
+                                plan_time=results.get('plan_time', ''),
+                                source_info=results.get('source_info', 'N/A'), # Requires adding source_info to JSON
+                                brachy_dose_per_fraction=results.get('brachy_dose_rx', 0.0), # Need to add this to JSON or finding better source
                                 number_of_fractions=results.get('number_of_fractions_delivered', 0),
-                                ebrt_dose=results.get('ebrt_dose_input', 0),
-                                ebrt_fractions=results.get('ebrt_fractions_input', 0),
+                                ebrt_dose=results.get('ebrt_dose_input', 0), # This is sidebar (current)
+                                ebrt_fractions=results.get('ebrt_fractions_input', 0), # This is sidebar (current)
                                 dvh_results=results.get('dvh_results', {}),
                                 constraint_evaluation=results.get('constraint_evaluation', {}),
-                                dose_references=results.get('dose_references', []), # Need to ensure this is passed in results
-                                point_dose_results=results.get('point_dose_results', []), # Need to ensure this is passed
+                                dose_references=results.get('dose_references', []),
+                                point_dose_results=results.get('point_dose_results', []), # Actually dict in results vs list?
                                 alpha_beta_ratios=st.session_state.ab_ratios,
-                                previous_brachy_data=None # Actually results contains everything?
-                                # Results usually contains MERGED history. 
-                                # But generate_html_report logic tries to separate "previous" vs "current".
-                                # If we pass everything in 'dvh_results', it might treat it as current only?
-                                # No, 'dvh_results' structure in results JSON:
-                                # organ -> doses_per_fraction -> list of doses (ALL fractions)
-                                # The HTML generator iterates this list.
-                                # So we might NOT need 'previous_brachy_data' arg if 'dvh_results' is complete.
-                                # Let's inspect generate_html_report logic (Step 19)
-                                # It expects:
-                                #   current_dose = data.get(metric['dose_key'], 0) -> this expects SCALAR?
-                                #   fx_doses_html += "".join([f"<td>{dose:.2f}</td>" for dose in dose_list]) (from PREV)
-                                
-                                # Ah, generate_html_report expects `dvh_results` to contain CURRENT SCALAR metrics?
-                                # And `previous_brachy_data` for history LIST?
-                                
-                                # My update to `process_plan` (Step 71) creates `dvh_results` where:
-                                #   "doses_per_fraction": { "d2cc": [1, 1, 1, 2] } -> List of ALL fractions
-                                #   And scalars like "d2cc_gy_per_fraction" are NOT PRESENT?
-                                #   Wait, line 271: 'd2cc_gy_per_fraction': d2cc (SCALAR for CURRENT fx)
-                                
-                                # So `dvh_results` HAS scalars.
-                                # But `doses_per_fraction` HAS the full history.
-                                
-                                # If I pass `dvh_results` to the generator, it will pick up scalars.
-                                # If I DON'T pass `previous_brachy_data`, it won't render history columns?
-                                # Let's look at `generate_html_report`:
-                                # if previous_brachy_data: ... get list ... render <td>
-                                # current_dose = data.get(metric['dose_key'])
-                                # fx_doses_html += f'<td>{current_dose}</td>' * number_of_fractions
-                                
-                                # This assumes `previous_brachy_data` is SEPARATE.
-                                # But my results JSON has merged history in `doses_per_fraction`.
-                                # The HTML generator needs to be updated or I need to trick it.
-                                # Since I can't easily update HTML generator right now (it's tightly coupled to old logic?), 
-                                # I should try to reconstruct what it expects.
-                                
-                                # OR, simpler: I Update `generate_html_report`?
-                                # It's better to update `generate_html_report` to handle the new `dvh_results` format which includes full history.
-                                # But that might break other things?
-                                # Actually, this is the first time we are using it fully.
-                                
-                                # For now, I will pass `results` as `dvh_results`. 
-                                # And I will also pass `previous_brachy_data=results`? 
-                                # The generator logic is a bit rigid. 
-                                
-                                # Let's assume for this turn I just pass what I have.
+                                previous_brachy_data=st.session_state.get('json_content', None) # Pass the original loaded JSON
                             )
+                                # The HTML generator iterates this list.
+
                             
                             req_body = {
                                 "html_content": html_content,

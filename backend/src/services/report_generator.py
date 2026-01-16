@@ -263,6 +263,20 @@ def generate_html_report(patient_name, patient_mrn, plan_name, plan_date, plan_t
             f'</tr>'
         )
 
+    # --- EBRT Data Logic ---
+    hist_ebrt_dose = 0.0
+    hist_ebrt_fx = 0
+    if previous_brachy_data and isinstance(previous_brachy_data, dict):
+        hist_ebrt_dose = float(previous_brachy_data.get('ebrt_dose_input', 0.0))
+        hist_ebrt_fx = int(previous_brachy_data.get('ebrt_fractions_input', 0))
+
+    # Current (Sidebar) Input
+    curr_ebrt_dose = float(ebrt_dose)
+    curr_ebrt_fx = int(ebrt_fractions)
+
+    total_ebrt_dose = hist_ebrt_dose + curr_ebrt_dose
+    total_ebrt_fx = hist_ebrt_fx + curr_ebrt_fx
+    
     html_content = template.replace("{{ patient_name }}", str(format_patient_name(patient_name)))
     html_content = html_content.replace("{{ patient_mrn }}", str(patient_mrn))
     html_content = html_content.replace("{{ plan_name }}", str(plan_name))
@@ -271,9 +285,16 @@ def generate_html_report(patient_name, patient_mrn, plan_name, plan_date, plan_t
     html_content = html_content.replace("{{ source_info }}", str(source_info))
     html_content = html_content.replace("{{ brachy_dose_per_fraction }}", str(brachy_dose_per_fraction))
     html_content = html_content.replace("{{ number_of_fractions }}", str(number_of_fractions))
-    html_content = html_content.replace("{{ ebrt_dose }}", str(ebrt_dose))
-    html_content = html_content.replace("{{ ebrt_fractions }}", str(ebrt_fractions))
+    
+    # EBRT Replacements
+    html_content = html_content.replace("{{ hist_ebrt_dose }}", f"{hist_ebrt_dose:.2f}")
+    html_content = html_content.replace("{{ hist_ebrt_fx }}", str(hist_ebrt_fx))
+    html_content = html_content.replace("{{ curr_ebrt_dose }}", f"{curr_ebrt_dose:.2f}")
+    html_content = html_content.replace("{{ curr_ebrt_fx }}", str(curr_ebrt_fx))
+    html_content = html_content.replace("{{ total_ebrt_dose }}", f"{total_ebrt_dose:.2f}")
+    
     html_content = html_content.replace("{{ target_volume_rows }}", target_volume_rows)
+
     html_content = html_content.replace("{{ oar_rows }}", oar_rows)
     html_content = html_content.replace("{{ logo_base64 }}", logo_data_uri)
     html_content = html_content.replace("{{ fraction_headers }}", fraction_headers)
