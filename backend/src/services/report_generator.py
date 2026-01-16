@@ -79,24 +79,36 @@ def format_patient_name(raw_name):
     """
     Formats DICOM name (Family^Given^Middle) to 'Given Middle Family'.
     Removes carets and extra spaces.
+    Handles 'Family, Given' format as fallback.
     """
     if not raw_name: return "Unknown"
-    # Replace double carets with single, then split
-    parts = str(raw_name).replace('^^', '^').split('^')
-    # Filter empty parts
-    parts = [p.strip() for p in parts if p.strip()]
     
-    if not parts: return str(raw_name)
-    if len(parts) == 1: return parts[0]
+    s_name = str(raw_name)
     
-    # Standard DICOM: Family^Given^Middle
-    family = parts[0]
-    given = parts[1] if len(parts) > 1 else ""
-    middle = parts[2] if len(parts) > 2 else ""
-    
-    # Return Given Middle Family
-    full_name = f"{given} {middle} {family}".strip()
-    return " ".join(full_name.split()) # Normalize whitespace
+    # Check for DICOM format with carets
+    if '^' in s_name:
+        parts = s_name.replace('^^', '^').split('^')
+        # Filter empty parts
+        parts = [p.strip() for p in parts if p.strip()]
+        
+        if not parts: return s_name
+        
+        # Standard DICOM: Family^Given^Middle
+        family = parts[0]
+        given = parts[1] if len(parts) > 1 else ""
+        middle = parts[2] if len(parts) > 2 else ""
+        
+        full_name = f"{given} {middle} {family}".strip()
+        return " ".join(full_name.split())
+
+    # Check for 'Family, Given' format
+    if ',' in s_name:
+        parts = s_name.split(',')
+        family = parts[0].strip()
+        given = parts[1].strip() if len(parts) > 1 else ""
+        return f"{given} {family}".strip()
+        
+    return s_name
 
 def generate_html_report(patient_name, patient_mrn, plan_name, plan_date, plan_time, source_info, brachy_dose_per_fraction, number_of_fractions, ebrt_dose, ebrt_fractions, dvh_results, constraint_evaluation, dose_references, point_dose_results, alpha_beta_ratios, previous_brachy_data=None):
     """
