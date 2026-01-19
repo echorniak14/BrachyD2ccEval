@@ -55,5 +55,5 @@ This file is for internal use by the Gemini CLI agent to track project progress,
     - **UI Fuzzy Lookup**: Implemented robust structure matching in the Clinical Evaluation table to fix missing dose rows due to case/punctuation mismatches.
 
 ## Next Steps:
-- **User Verification:** Confirm all fixes with the user.
-- **PDF Generator:** Revisit `WKHTMLTOPDF` path issues if they persist.
+- **User Verification:** Confirm documentation updates.
+- **Feasibility Study:** Verify logging functionality.

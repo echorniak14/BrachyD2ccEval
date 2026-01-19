@@ -1,3 +1,8 @@
+fastapi
+uvicorn
+httpx
+python-multipart
+jinja2
 pydicom
 numpy
 pandas

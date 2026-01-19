@@ -32,7 +32,11 @@ The tool processes this data to calculate Biologically Effective Dose (BED) and 
     - **Validation Dashboard:** Displays a side-by-side comparison of TPS vs. recalculated metrics with color-coded highlighting for discrepancies.
     - **Consolidated Structure Mapping:** A unified interface to map structure names from both DICOM and text files to standard constraint names.
     - Customizable constraints and alpha/beta ratios.
-    - Downloadable PDF reports and cumulative JSON data for multi-fraction analysis.
+    - **Print Plan / PDF Report:** Generates a professional HTML/PDF report with:
+        - **Historical Data Integration:** Merges prior plan data (doses, fractions) with current analysis.
+        - **Additive Metrics:** Correctly calculates total fractions and cumulative doses.
+        - **Clean Layout:** Institutional logo, clear summary boxes, and optimized pagination for OAR/Point dose tables.
+    - Downloadable JSON data for multi-fraction accumulation.
 - **Automatic Prescription Point Mapping (Cylinder Plans):** Automatically identifies and maps specific prescription points (e.g., 'Tip', 'Shoulder', '3cm') in cylinder brachytherapy plans.
 - **Channel Mapping Validation:** Provides warnings for unexpected channel mappings for common applicator types.
 - **Dose Accumulation:** Correctly accumulates dose over multiple treatment sessions, including EBRT and previous brachytherapy fractions.
