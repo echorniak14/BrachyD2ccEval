@@ -263,6 +263,41 @@ def generate_html_report(patient_name, patient_mrn, plan_name, plan_date, plan_t
             f'</tr>'
         )
 
+    # --- Brachy Fractions Logic ---
+    # Try to determine total fractions from history + 1 logic
+    total_brachy_fractions = number_of_fractions # Fallback
+    
+    if previous_brachy_data and isinstance(previous_brachy_data, dict):
+        # Inspect a robust key to count history length
+        # 'doses_per_fraction' list length in DVH results is the best indicator of Total History
+        # dvh_results structure: organ -> doses_per_fraction -> list
+        # Actually, previous_brachy_data IS the 'results' JSON which contains 'dvh_results' with MERGED data?
+        # NO, if we pass 'results', it has 'dvh_results' which has List of Doses.
+        # The LENGTH of that list IS the Total Number of Fractions (History + Current).
+        
+        # Check an arbitrary key 'GTV' or 'Hrctv' or 'Bladder'
+        found_fx_count = None
+        pd_dvh = previous_brachy_data.get('dvh_results', {})
+        for organ_key, data in pd_dvh.items():
+             # Try 'dose_fx' -> generic keys
+             # Data structure: { 'dose_fx': { 'd90_gy_per_fraction': [1,1,1] } }
+             # or direct in old format?
+             # New format Step 71 logic:
+             # final_dvh[std_name] = { ..., 'dose_fx': { 'd2cc_gy_per_fraction': [list] } }
+             if 'dose_fx' in data:
+                 for metric_key, val_list in data['dose_fx'].items():
+                     if isinstance(val_list, list):
+                         found_fx_count = len(val_list)
+                         break
+             if found_fx_count: break
+        
+        if found_fx_count:
+            total_brachy_fractions = found_fx_count
+        else:
+             # Fallback: check if 'number_of_fractions_delivered' in prev matches?
+             # If prev_data is the full results, number_of_fractions_delivered might already be total?
+             pass
+
     # --- EBRT Data Logic ---
     hist_ebrt_dose = 0.0
     hist_ebrt_fx = 0
@@ -281,10 +316,10 @@ def generate_html_report(patient_name, patient_mrn, plan_name, plan_date, plan_t
     html_content = html_content.replace("{{ patient_mrn }}", str(patient_mrn))
     html_content = html_content.replace("{{ plan_name }}", str(plan_name))
     html_content = html_content.replace("{{ plan_date }}", str(plan_date))
-    html_content = html_content.replace("{{ plan_time }}", str(plan_time))
     html_content = html_content.replace("{{ source_info }}", str(source_info))
-    html_content = html_content.replace("{{ brachy_dose_per_fraction }}", str(brachy_dose_per_fraction))
-    html_content = html_content.replace("{{ number_of_fractions }}", str(number_of_fractions))
+    
+    # Used for "Total Fractions" in Brachy Box
+    html_content = html_content.replace("{{ total_brachy_fractions }}", str(total_brachy_fractions))
     
     # EBRT Replacements
     html_content = html_content.replace("{{ hist_ebrt_dose }}", f"{hist_ebrt_dose:.2f}")

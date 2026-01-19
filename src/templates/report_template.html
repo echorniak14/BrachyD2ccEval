@@ -152,6 +152,11 @@
         tbody tr:nth-child(even) {
             background-color: #f9fbfd;
         }
+
+        /* Pagination */
+        .page-break {
+            page-break-before: always;
+        }
     </style>
 </head>
 
@@ -184,13 +189,10 @@
         </div>
         <div class="summary-box">
             <h3>Brachytherapy</h3>
-            <div class="summary-item"><strong>Total Fractions:</strong> <span>{{ number_of_fractions }}</span></div>
-            <div class="summary-item"><strong>Rx Dose:</strong> <span>{{ brachy_dose_per_fraction }} Gy / fx</span>
-            </div>
+            <div class="summary-item"><strong>Total Fractions:</strong> <span>{{ total_brachy_fractions }}</span></div>
             <br>
             <div class="summary-item"><strong>Current Plan:</strong> <span>{{ plan_name }}</span></div>
             <div class="summary-item"><strong>Plan Date:</strong> <span>{{ plan_date }}</span></div>
-            <div class="summary-item"><strong>Plan Time:</strong> <span>{{ plan_time }}</span></div>
             <div class="summary-item"><strong>Source Strength:</strong> <span>{{ source_info }}</span></div>
         </div>
     </div>
@@ -212,7 +214,7 @@
         </tbody>
     </table>
 
-    <h2 class="section-title">OAR DVH Results</h2>
+    <h2 class="section-title page-break">OAR DVH Results</h2>
     <table>
         <thead>
             <tr>
@@ -229,7 +231,7 @@
         </tbody>
     </table>
 
-    <h2 class="section-title">Point Dose Results</h2>
+    <h2 class="section-title page-break">Point Dose Results</h2>
     <table>
         <thead>
             <tr>
