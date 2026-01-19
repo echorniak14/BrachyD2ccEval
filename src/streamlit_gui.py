@@ -156,12 +156,26 @@ def main():
                 st.session_state.json_content = json.loads(prev_brachy_file.read().decode("utf-8"))
                 
                 # Extract EBRT info if available
-                if "ebrt_dose_input" in st.session_state.json_content:
-                    st.session_state.ebrt_total_dose = float(st.session_state.json_content["ebrt_dose_input"])
-                if "ebrt_fractions_input" in st.session_state.json_content:
-                    st.session_state.ebrt_num_fractions = int(st.session_state.json_content["ebrt_fractions_input"])
+                # EBRT Logic: If history has EBRT, set sidebar input to 0.00 (Prevent double counting/confusion)
+                json_ebrt_dose = float(st.session_state.json_content.get("ebrt_dose_input", 0.0))
+                if json_ebrt_dose > 0:
+                    st.session_state.ebrt_total_dose = 0.0
+                    # Optionally reset fractions/dose-per-fraction if dose is 0, but keeping them as-is is fine if total is 0.
+                    # Logic above (calculate_dose_per_fraction) handles it? No, explicit set.
+                    st.session_state.ebrt_fraction_dose = 0.0 
                 
-                # Recalculate fraction dose
+                # Fractions Logic: Update Proposed Fractions based on Delivered History
+                fractions_delivered = int(st.session_state.json_content.get("number_of_fractions_delivered", 0))
+                if fractions_delivered > 0:
+                    # Determine expected total based on template (Mirroring reset_doses_to_default logic)
+                    template_name = st.session_state.get("current_template_name", "")
+                    expected_total = 5 if "Cylinder" in template_name else 4
+                    
+                    # Calculate remaining, ensure at least 1
+                    remaining = max(1, expected_total - fractions_delivered)
+                    st.session_state.proposed_brachy_num_fx = remaining
+
+                # Recalculate fraction dose (for EBRT if not 0, or just to sync state)
                 if st.session_state.ebrt_num_fractions > 0:
                      st.session_state.ebrt_fraction_dose = st.session_state.ebrt_total_dose / st.session_state.ebrt_num_fractions
                 
