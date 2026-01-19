@@ -1,4 +1,5 @@
 import sys
+import re
 import base64
 import pandas as pd
 from datetime import datetime
@@ -110,7 +111,7 @@ def format_patient_name(raw_name):
         
     return s_name
 
-def generate_html_report(patient_name, patient_mrn, plan_name, plan_date, plan_time, source_info, brachy_dose_per_fraction, number_of_fractions, ebrt_dose, ebrt_fractions, dvh_results, constraint_evaluation, dose_references, point_dose_results, alpha_beta_ratios, previous_brachy_data=None):
+def generate_html_report_final(patient_name, patient_mrn, plan_name, plan_date, plan_time, source_info, brachy_dose_per_fraction, number_of_fractions, ebrt_dose, ebrt_fractions, dvh_results, constraint_evaluation, dose_references, point_dose_results, alpha_beta_ratios, previous_brachy_data=None):
     """
     Generates the HTML report string.
     """
@@ -267,23 +268,19 @@ def generate_html_report(patient_name, patient_mrn, plan_name, plan_date, plan_t
     # Try to determine total fractions from history + 1 logic
     total_brachy_fractions = number_of_fractions # Fallback
     
+    # NEW: Extract Historic Plan Info
+    hist_plan_name = "N/A"
+    hist_plan_date = "N/A"
+    
     if previous_brachy_data and isinstance(previous_brachy_data, dict):
+        hist_plan_name = previous_brachy_data.get('plan_name', 'N/A')
+        hist_plan_date = previous_brachy_data.get('plan_date', 'N/A')
+        
         # Inspect a robust key to count history length
         # 'doses_per_fraction' list length in DVH results is the best indicator of Total History
-        # dvh_results structure: organ -> doses_per_fraction -> list
-        # Actually, previous_brachy_data IS the 'results' JSON which contains 'dvh_results' with MERGED data?
-        # NO, if we pass 'results', it has 'dvh_results' which has List of Doses.
-        # The LENGTH of that list IS the Total Number of Fractions (History + Current).
-        
-        # Check an arbitrary key 'GTV' or 'Hrctv' or 'Bladder'
         found_fx_count = None
         pd_dvh = previous_brachy_data.get('dvh_results', {})
         for organ_key, data in pd_dvh.items():
-             # Try 'dose_fx' -> generic keys
-             # Data structure: { 'dose_fx': { 'd90_gy_per_fraction': [1,1,1] } }
-             # or direct in old format?
-             # New format Step 71 logic:
-             # final_dvh[std_name] = { ..., 'dose_fx': { 'd2cc_gy_per_fraction': [list] } }
              if 'dose_fx' in data:
                  for metric_key, val_list in data['dose_fx'].items():
                      if isinstance(val_list, list):
@@ -292,11 +289,13 @@ def generate_html_report(patient_name, patient_mrn, plan_name, plan_date, plan_t
              if found_fx_count: break
         
         if found_fx_count:
-            total_brachy_fractions = found_fx_count
+            # Found list length
+            total_brachy_fractions = found_fx_count + number_of_fractions
         else:
-             # Fallback: check if 'number_of_fractions_delivered' in prev matches?
-             # If prev_data is the full results, number_of_fractions_delivered might already be total?
-             pass
+             # Fallback to Top-Level Key
+             hist_fx = int(previous_brachy_data.get('number_of_fractions_delivered', 0))
+             if hist_fx > 0:
+                 total_brachy_fractions = hist_fx + number_of_fractions
 
     # --- EBRT Data Logic ---
     hist_ebrt_dose = 0.0
@@ -318,8 +317,16 @@ def generate_html_report(patient_name, patient_mrn, plan_name, plan_date, plan_t
     html_content = html_content.replace("{{ plan_date }}", str(plan_date))
     html_content = html_content.replace("{{ source_info }}", str(source_info))
     
+    
     # Used for "Total Fractions" in Brachy Box
-    html_content = html_content.replace("{{ total_brachy_fractions }}", str(total_brachy_fractions))
+    # Using regex to be robust against spacing
+    print(f"DEBUG: Replacing TOTAL_BRACHY_FRACTIONS with {total_brachy_fractions}")
+    html_content = re.sub(r'\{\{\s*TOTAL_BRACHY_FRACTIONS\s*\}\}', str(total_brachy_fractions), html_content)
+    # Fallback exact string replacement just in case
+    html_content = html_content.replace("{{TOTAL_BRACHY_FRACTIONS}}", str(total_brachy_fractions))
+    
+    html_content = html_content.replace("{{ hist_plan_name }}", str(hist_plan_name))
+    html_content = html_content.replace("{{ hist_plan_date }}", str(hist_plan_date))
     
     # EBRT Replacements
     html_content = html_content.replace("{{ hist_ebrt_dose }}", f"{hist_ebrt_dose:.2f}")

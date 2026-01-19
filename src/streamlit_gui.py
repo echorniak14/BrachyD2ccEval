@@ -27,7 +27,7 @@ from backend.src.core.validators import (
     check_fraction_count,
     check_dose_grid
 ) 
-from backend.src.services.report_generator import generate_html_report 
+from backend.src.services.report_generator import generate_html_report_final 
 
 # Define the FastAPI backend URL
 API_BASE_URL = "http://localhost:8000"
@@ -1076,7 +1076,7 @@ def main():
                             import datetime
                             now_str = datetime.datetime.now().strftime("%Y-%m-%d")
                             
-                            html_content = generate_html_report(
+                            html_content = generate_html_report_final(
                                 patient_name=results.get('patient_name', 'Unknown'),
                                 patient_mrn=results.get('patient_mrn', 'Unknown'),
                                 plan_name=results.get('plan_name', 'Unknown'),
